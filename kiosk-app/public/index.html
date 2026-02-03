@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiosk App</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px;
+    }
+    h1 { margin-bottom: 20px; }
+    .card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { margin-bottom: 10px; font-size: 1.2em; }
+    pre {
+      background: rgba(0,0,0,0.3);
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover { background: #45a049; }
+    #output { margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Kiosk App</h1>
+
+  <div class="card">
+    <h2>System Information</h2>
+    <pre id="sysinfo">Loading...</pre>
+  </div>
+
+  <div class="card">
+    <h2>Native API Demo</h2>
+    <button onclick="runCommand()">Run 'uname -a'</button>
+    <button onclick="listHome()">List Home Directory</button>
+    <button onclick="readFile()">Read /etc/hostname</button>
+    <pre id="output">Click a button to test native APIs</pre>
+  </div>
+
+  <div class="card">
+    <h2>Hot Reload</h2>
+    <p>Edit files in <code>/home/pete/kiosk-app/public/</code> and they will auto-refresh when running in dev mode.</p>
+  </div>
+
+  <script>
+    // Load system info on start
+    async function loadSystemInfo() {
+      try {
+        const info = await window.kiosk.getSystemInfo();
+        document.getElementById('sysinfo').textContent = JSON.stringify(info, null, 2);
+      } catch (e) {
+        document.getElementById('sysinfo').textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function runCommand() {
+      try {
+        const result = await window.kiosk.exec('uname -a');
+        document.getElementById('output').textContent = result.stdout;
+      } catch (e) {
+        document.getElementById('output').textContent = 'Error: ' + JSON.stringify(e);
+      }
+    }
+
+    async function listHome() {
+      try {
+        const files = await window.kiosk.readdir('/home');
+        document.getElementById('output').textContent = files.join('\n');
+      } catch (e) {
+        document.getElementById('output').textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function readFile() {
+      try {
+        const content = await window.kiosk.readFile('/etc/hostname');
+        document.getElementById('output').textContent = content;
+      } catch (e) {
+        document.getElementById('output').textContent = 'Error: ' + e.message;
+      }
+    }
+
+    loadSystemInfo();
+  </script>
+</body>
+</html>

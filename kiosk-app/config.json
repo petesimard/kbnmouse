@@ -1,0 +1,6 @@
+{
+  "url": "http://localhost:3000",
+  "useBuiltInServer": true,
+  "builtInServerPort": 3000,
+  "hotReloadWatch": "./public"
+}

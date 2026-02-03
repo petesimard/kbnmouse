@@ -1,0 +1,4 @@
+[User]
+Session=kiosk
+XSession=kiosk
+SystemAccount=false
