@@ -1,6 +1,6 @@
 {
-  "url": "http://localhost:3000",
-  "useBuiltInServer": true,
+  "url": "http://peteZenbook:3000",
+  "useBuiltInServer": false,
   "builtInServerPort": 3000,
   "hotReloadWatch": "./public"
 }
