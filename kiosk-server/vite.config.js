@@ -8,5 +8,11 @@ export default defineConfig({
     host: '0.0.0.0',  // Listen on all interfaces (allows external connections)
     port: 3000,
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   }
 })

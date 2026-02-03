@@ -1,27 +1,39 @@
 import { useState, useEffect } from 'react';
 
-// App shortcuts configuration
-const apps = [
-  { name: 'Home', url: '/test-content', icon: '🏠' },
-  { name: 'Wikipedia', url: 'https://www.wikipedia.org', icon: '📚' },
-  { name: 'Khan Academy', url: 'https://www.khanacademy.org', icon: '🎓' },
-  { name: 'Scratch', url: 'https://scratch.mit.edu', icon: '🐱' },
-];
-
 function Menu() {
   const [hasKiosk, setHasKiosk] = useState(false);
+  const [apps, setApps] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Check if running in Electron with kiosk API
     setHasKiosk(typeof window.kiosk?.content !== 'undefined');
+
+    // Fetch apps from the database
+    fetch('/api/apps')
+      .then((res) => res.json())
+      .then((data) => {
+        setApps(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load apps:', err);
+        setLoading(false);
+      });
   }, []);
 
-  const handleLoadURL = (url) => {
+  const handleLoadURL = (app) => {
+    // Determine the URL based on app type
+    let url = app.url;
+    if (app.app_type === 'builtin') {
+      url = `/builtin/${app.url}`;
+    }
+
     if (hasKiosk) {
       window.kiosk.content.loadURL(url);
     } else {
-      // Fallback for browser testing
-      console.log('Would navigate to:', url);
+      // Fallback for browser testing - navigate in current window
+      window.location.href = url;
     }
   };
 
@@ -72,16 +84,20 @@ function Menu() {
 
       {/* App shortcuts */}
       <div className="flex gap-3">
-        {apps.map((app) => (
-          <button
-            key={app.name}
-            onClick={() => handleLoadURL(app.url)}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-2 transition-colors"
-          >
-            <span>{app.icon}</span>
-            <span className="text-sm">{app.name}</span>
-          </button>
-        ))}
+        {loading ? (
+          <span className="text-slate-400 text-sm">Loading...</span>
+        ) : (
+          apps.map((app) => (
+            <button
+              key={app.id}
+              onClick={() => handleLoadURL(app)}
+              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-2 transition-colors"
+            >
+              <span>{app.icon}</span>
+              <span className="text-sm">{app.name}</span>
+            </button>
+          ))
+        )}
       </div>
 
       {/* Status indicator */}
