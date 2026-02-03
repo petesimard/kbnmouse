@@ -11,5 +11,13 @@ contextBridge.exposeInMainWorld('kiosk', {
   readdir: (dirPath) => ipcRenderer.invoke('fs:readdir', dirPath),
 
   // System info
-  getSystemInfo: () => ipcRenderer.invoke('system:info')
+  getSystemInfo: () => ipcRenderer.invoke('system:info'),
+
+  // Content window navigation (only available in menu window)
+  content: {
+    loadURL: (url) => ipcRenderer.invoke('content:loadURL', url),
+    goBack: () => ipcRenderer.invoke('content:goBack'),
+    goForward: () => ipcRenderer.invoke('content:goForward'),
+    reload: () => ipcRenderer.invoke('content:reload'),
+  }
 });
