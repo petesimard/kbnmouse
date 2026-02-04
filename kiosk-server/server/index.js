@@ -86,6 +86,27 @@ app.get('/api/bonus-time', (req, res) => {
   res.json({ today_bonus_minutes: result.total });
 });
 
+// Manually add bonus time (protected - parent only)
+app.post('/api/admin/bonus-time', requirePin, (req, res) => {
+  const { minutes } = req.body;
+  if (!minutes || minutes < 1) {
+    return res.status(400).json({ error: 'minutes is required and must be at least 1' });
+  }
+
+  db.prepare(
+    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at) VALUES (?, ?, ?)'
+  ).run('parent_bonus', minutes, new Date().toISOString());
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const result = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+  ).get(todayStart);
+
+  broadcastRefresh();
+  res.json({ success: true, today_bonus_minutes: result.total });
+});
+
 // Record a challenge completion (public)
 app.post('/api/challenges/complete', (req, res) => {
   const { challenge_type, minutes_awarded } = req.body;

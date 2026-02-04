@@ -87,6 +87,15 @@ export async function deleteApp(id) {
   return handleResponse(res);
 }
 
+export async function addBonusTime(minutes) {
+  const res = await fetch('/api/admin/bonus-time', {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ minutes }),
+  });
+  return handleResponse(res);
+}
+
 export async function reorderApps(order) {
   const res = await fetch('/api/admin/apps/reorder', {
     method: 'PUT',

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePinAuth } from '../hooks/usePinAuth';
 import { useApps } from '../hooks/useApps';
+import { addBonusTime } from '../api/apps';
 import PinGate from './dashboard/PinGate';
 import AppList from './dashboard/AppList';
 import AppFormModal from './dashboard/AppFormModal';
@@ -12,6 +13,8 @@ function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [bonusModalOpen, setBonusModalOpen] = useState(false);
+  const [bonusMinutes, setBonusMinutes] = useState(15);
 
   if (authLoading) {
     return (
@@ -49,6 +52,12 @@ function Dashboard() {
 
   const handleDeleteApp = (app) => {
     setDeleteConfirm(app);
+  };
+
+  const handleAddBonusTime = async () => {
+    await addBonusTime(bonusMinutes);
+    setBonusModalOpen(false);
+    setBonusMinutes(15);
   };
 
   const confirmDelete = async () => {
@@ -93,15 +102,26 @@ function Dashboard() {
               </span>
             )}
           </h2>
-          <button
-            onClick={handleAddApp}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add App
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setBonusModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Bonus Time
+            </button>
+            <button
+              onClick={handleAddApp}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add App
+            </button>
+          </div>
         </div>
 
         {/* App list */}
@@ -130,6 +150,43 @@ function Dashboard() {
           onSave={handleSaveApp}
           onClose={() => setModalOpen(false)}
         />
+      )}
+
+      {/* Bonus Time Modal */}
+      {bonusModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-white mb-4">Add Bonus Time</h3>
+            <p className="text-slate-400 text-sm mb-4">
+              Grant extra screen time for today. This applies to all apps with time limits.
+            </p>
+            <div className="flex items-center gap-3 mb-6">
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={bonusMinutes}
+                onChange={(e) => setBonusMinutes(Number(e.target.value))}
+                className="flex-1 px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-emerald-500"
+              />
+              <span className="text-slate-400">minutes</span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBonusModalOpen(false)}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBonusTime}
+                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+              >
+                Add Time
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Confirmation */}

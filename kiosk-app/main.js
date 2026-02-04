@@ -97,7 +97,7 @@ function showBlockedPage(url) {
       <h1>Page Not Available</h1>
       <div class="domain">${blockedDomain}</div>
       <p>This website is not on the allowed list.<br>Ask a parent to add it if you need access.</p>
-      <button onclick="history.back()" style="margin-top:20px;padding:10px 24px;border:none;border-radius:8px;background:#334155;color:#e2e8f0;font-size:14px;cursor:pointer;">&#8592; Go Back</button>
+      <button onclick="console.log('__KIOSK_GO_BACK__')" style="margin-top:20px;padding:10px 24px;border:none;border-radius:8px;background:#334155;color:#e2e8f0;font-size:14px;cursor:pointer;">&#8592; Go Back</button>
     </div></body>
     </html>`;
   contentView.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
@@ -193,6 +193,13 @@ function createWindow() {
     if (!isURLAllowed(url)) {
       event.preventDefault();
       showBlockedPage(url);
+    }
+  });
+
+  // Handle back button on blocked page (data: URLs can't use history.back() reliably)
+  contentView.webContents.on('console-message', (event, level, message) => {
+    if (message === '__KIOSK_GO_BACK__' && contentView.webContents.canGoBack()) {
+      contentView.webContents.goBack();
     }
   });
 
