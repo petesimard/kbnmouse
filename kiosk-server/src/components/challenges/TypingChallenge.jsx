@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getDefaults } from './schemas.js';
 
-const DEFAULT_TOTAL = 10;
+const TYPING_DEFAULTS = getDefaults('typing');
 
 const WORD_LIST = [
   'apple', 'banana', 'castle', 'dragon', 'elephant',
@@ -18,7 +19,7 @@ function pickRandomWords(count) {
 }
 
 export default function TypingChallenge({ config = {}, reward, onComplete, onBack }) {
-  const totalWords = config.total_words || DEFAULT_TOTAL;
+  const totalWords = config.total_words || TYPING_DEFAULTS.total_words;
 
   const [words] = useState(() => pickRandomWords(totalWords));
   const [input, setInput] = useState('');

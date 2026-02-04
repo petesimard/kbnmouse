@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getDefaults } from './schemas.js';
 
-const DEFAULT_TOTAL = 10;
-const DEFAULT_MIN = 10;
-const DEFAULT_MAX = 99;
+const MATH_DEFAULTS = getDefaults('math');
 
 function generateMathProblem(min, max) {
   const a = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -11,9 +10,9 @@ function generateMathProblem(min, max) {
 }
 
 export default function MathChallenge({ config = {}, reward, onComplete, onBack }) {
-  const totalProblems = config.total_problems || DEFAULT_TOTAL;
-  const minNum = config.min_number || DEFAULT_MIN;
-  const maxNum = config.max_number || DEFAULT_MAX;
+  const totalProblems = config.total_problems || MATH_DEFAULTS.total_problems;
+  const minNum = config.min_number || MATH_DEFAULTS.min_number;
+  const maxNum = config.max_number || MATH_DEFAULTS.max_number;
 
   const [problem, setProblem] = useState(() => generateMathProblem(minNum, maxNum));
   const [input, setInput] = useState('');

@@ -1,6 +1,8 @@
 import MathChallenge from './MathChallenge';
 import TypingChallenge from './TypingChallenge';
 
+export { getConfigFields, getDefaults, buildZodSchema } from './schemas.js';
+
 const challengeRegistry = {
   math: MathChallenge,
   typing: TypingChallenge,

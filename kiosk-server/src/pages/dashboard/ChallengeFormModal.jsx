@@ -1,5 +1,80 @@
 import { useState, useEffect } from 'react';
-import { getChallengeTypes } from '../../components/challenges';
+import { getChallengeTypes, getConfigFields, getDefaults, buildZodSchema } from '../../components/challenges';
+
+function ConfigField({ fieldKey, field, value, error, onChange }) {
+  const id = `config-${fieldKey}`;
+
+  let input;
+  switch (field.type) {
+    case 'boolean':
+      input = (
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={(e) => onChange(fieldKey, e.target.checked)}
+            className="w-4 h-4 rounded bg-slate-600 border-slate-500 text-blue-500 focus:ring-blue-500"
+          />
+          <span className="text-sm text-slate-300">{field.label}</span>
+        </label>
+      );
+      break;
+    case 'select':
+      input = (
+        <select
+          id={id}
+          value={value ?? ''}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {(field.options || []).map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      );
+      break;
+    case 'number':
+      input = (
+        <input
+          id={id}
+          type="number"
+          value={value ?? ''}
+          onChange={(e) => onChange(fieldKey, e.target.value === '' ? '' : Number(e.target.value))}
+          min={field.min}
+          max={field.max}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      );
+      break;
+    default:
+      input = (
+        <input
+          id={id}
+          type="text"
+          value={value ?? ''}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      );
+  }
+
+  return (
+    <div>
+      {field.type !== 'boolean' && (
+        <label htmlFor={id} className="block text-sm font-medium text-slate-300 mb-1">
+          {field.label}
+        </label>
+      )}
+      {input}
+      {field.description && (
+        <p className="mt-1 text-xs text-slate-500">{field.description}</p>
+      )}
+      {error && (
+        <p className="mt-1 text-red-400 text-sm">{error}</p>
+      )}
+    </div>
+  );
+}
 
 function ChallengeFormModal({ challenge, onSave, onClose }) {
   const isEditing = !!challenge;
@@ -13,26 +88,47 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
     reward_minutes: 10,
     enabled: 1,
   });
+  const [config, setConfig] = useState(() => getDefaults(challengeTypes[0] || 'math'));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (challenge) {
+      const type = challenge.challenge_type || 'math';
       setFormData({
         name: challenge.name || '',
         icon: challenge.icon || '',
         description: challenge.description || '',
-        challenge_type: challenge.challenge_type || 'math',
+        challenge_type: type,
         reward_minutes: challenge.reward_minutes ?? 10,
         enabled: challenge.enabled ?? 1,
       });
+      const savedConfig = typeof challenge.config === 'string'
+        ? JSON.parse(challenge.config)
+        : challenge.config || {};
+      setConfig({ ...getDefaults(type), ...savedConfig });
     }
   }, [challenge]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'challenge_type') {
+      setConfig(getDefaults(value));
+      setErrors((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (key.startsWith('config.')) delete next[key];
+        }
+        return next;
+      });
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: '' }));
+  };
+
+  const handleConfigChange = (key, value) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [`config.${key}`]: '' }));
   };
 
   const validate = () => {
@@ -50,6 +146,16 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
     if (isNaN(reward) || reward < 1 || reward > 120) {
       newErrors.reward_minutes = 'Must be between 1 and 120';
     }
+
+    const schema = buildZodSchema(formData.challenge_type);
+    const result = schema.safeParse(config);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        const key = issue.path.join('.');
+        newErrors[`config.${key}`] = issue.message;
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -58,11 +164,15 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
     e.preventDefault();
     if (!validate()) return;
 
+    const schema = buildZodSchema(formData.challenge_type);
+    const parsedConfig = schema.parse(config);
+
     setSaving(true);
     try {
       await onSave({
         ...formData,
         reward_minutes: parseInt(formData.reward_minutes, 10),
+        config: parsedConfig,
       });
       onClose();
     } catch (err) {
@@ -71,6 +181,9 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
       setSaving(false);
     }
   };
+
+  const configFields = getConfigFields(formData.challenge_type);
+  const configEntries = Object.entries(configFields);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
@@ -172,6 +285,25 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
                 <p className="mt-1 text-red-400 text-sm">{errors.reward_minutes}</p>
               )}
             </div>
+
+            {/* Config Fields */}
+            {configEntries.length > 0 && (
+              <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+                <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+                  Settings
+                </h3>
+                {configEntries.map(([key, field]) => (
+                  <ConfigField
+                    key={key}
+                    fieldKey={key}
+                    field={field}
+                    value={config[key]}
+                    error={errors[`config.${key}`]}
+                    onChange={handleConfigChange}
+                  />
+                ))}
+              </div>
+            )}
 
             {errors.submit && (
               <p className="text-red-400 text-sm text-center">{errors.submit}</p>
