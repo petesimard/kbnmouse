@@ -13,8 +13,6 @@ const WORD_LIST = [
 ];
 
 const TOTAL_PROBLEMS = 10;
-const MATH_REWARD = 10;
-const TYPING_REWARD = 10;
 
 function generateMathProblem() {
   const a = Math.floor(Math.random() * 90) + 10;
@@ -29,7 +27,7 @@ function pickRandomWords(count) {
 
 // --- Sub-screens ---
 
-function ChallengeList({ bonusMinutes, onSelectChallenge }) {
+function ChallengeList({ bonusMinutes, reward, onSelectChallenge }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex flex-col items-center justify-center p-8">
       <div className="text-center mb-12">
@@ -48,7 +46,7 @@ function ChallengeList({ bonusMinutes, onSelectChallenge }) {
           <div className="text-5xl mb-4">➕</div>
           <div className="text-xl font-bold text-white mb-2">Math</div>
           <div className="text-slate-400">Solve {TOTAL_PROBLEMS} addition problems</div>
-          <div className="mt-3 text-emerald-400 font-semibold">+{MATH_REWARD} min</div>
+          <div className="mt-3 text-emerald-400 font-semibold">+{reward} min</div>
         </button>
 
         <button
@@ -58,14 +56,14 @@ function ChallengeList({ bonusMinutes, onSelectChallenge }) {
           <div className="text-5xl mb-4">⌨️</div>
           <div className="text-xl font-bold text-white mb-2">Typing</div>
           <div className="text-slate-400">Type {TOTAL_PROBLEMS} words correctly</div>
-          <div className="mt-3 text-emerald-400 font-semibold">+{TYPING_REWARD} min</div>
+          <div className="mt-3 text-emerald-400 font-semibold">+{reward} min</div>
         </button>
       </div>
     </div>
   );
 }
 
-function MathChallenge({ onComplete, onBack }) {
+function MathChallenge({ reward, onComplete, onBack }) {
   const [problem, setProblem] = useState(generateMathProblem);
   const [input, setInput] = useState('');
   const [progress, setProgress] = useState(0);
@@ -84,7 +82,7 @@ function MathChallenge({ onComplete, onBack }) {
       const next = progress + 1;
       if (next >= TOTAL_PROBLEMS) {
         setDone(true);
-        onComplete('math', MATH_REWARD);
+        onComplete('math', reward);
       } else {
         setProgress(next);
         setProblem(generateMathProblem());
@@ -95,14 +93,14 @@ function MathChallenge({ onComplete, onBack }) {
       setInput('');
       setTimeout(() => setShake(false), 500);
     }
-  }, [input, problem, progress, onComplete]);
+  }, [input, problem, progress, reward, onComplete]);
 
   if (done) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-slate-900 flex flex-col items-center justify-center p-8">
         <div className="text-6xl mb-6">🎉</div>
         <h2 className="text-4xl font-bold text-white mb-3">Great job!</h2>
-        <p className="text-2xl text-emerald-400 mb-8">You earned +{MATH_REWARD} bonus minutes!</p>
+        <p className="text-2xl text-emerald-400 mb-8">You earned +{reward} bonus minutes!</p>
         <button
           onClick={onBack}
           className="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white text-xl font-medium rounded-full transition-colors"
@@ -174,7 +172,7 @@ function MathChallenge({ onComplete, onBack }) {
   );
 }
 
-function TypingChallenge({ onComplete, onBack }) {
+function TypingChallenge({ reward, onComplete, onBack }) {
   const [words] = useState(() => pickRandomWords(TOTAL_PROBLEMS));
   const [input, setInput] = useState('');
   const [progress, setProgress] = useState(0);
@@ -192,7 +190,7 @@ function TypingChallenge({ onComplete, onBack }) {
       const next = progress + 1;
       if (next >= TOTAL_PROBLEMS) {
         setDone(true);
-        onComplete('typing', TYPING_REWARD);
+        onComplete('typing', reward);
       } else {
         setProgress(next);
         setInput('');
@@ -202,14 +200,14 @@ function TypingChallenge({ onComplete, onBack }) {
       setInput('');
       setTimeout(() => setShake(false), 500);
     }
-  }, [input, words, progress, onComplete]);
+  }, [input, words, progress, reward, onComplete]);
 
   if (done) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-slate-900 flex flex-col items-center justify-center p-8">
         <div className="text-6xl mb-6">🎉</div>
         <h2 className="text-4xl font-bold text-white mb-3">Great job!</h2>
-        <p className="text-2xl text-emerald-400 mb-8">You earned +{TYPING_REWARD} bonus minutes!</p>
+        <p className="text-2xl text-emerald-400 mb-8">You earned +{reward} bonus minutes!</p>
         <button
           onClick={onBack}
           className="px-8 py-3 bg-slate-700 hover:bg-slate-600 text-white text-xl font-medium rounded-full transition-colors"
@@ -284,6 +282,7 @@ function TypingChallenge({ onComplete, onBack }) {
 function Challenges() {
   const [screen, setScreen] = useState('list');
   const [bonusMinutes, setBonusMinutes] = useState(0);
+  const [reward, setReward] = useState(10);
 
   const fetchBonusTime = useCallback(async () => {
     try {
@@ -295,9 +294,20 @@ function Challenges() {
     }
   }, []);
 
+  const fetchReward = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/challenge-bonus-minutes');
+      const data = await res.json();
+      setReward(data.minutes);
+    } catch (err) {
+      console.error('Failed to fetch challenge reward:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBonusTime();
-  }, [fetchBonusTime]);
+    fetchReward();
+  }, [fetchBonusTime, fetchReward]);
 
   const handleComplete = useCallback(async (challengeType, minutesAwarded) => {
     try {
@@ -318,15 +328,16 @@ function Challenges() {
   }, []);
 
   if (screen === 'math') {
-    return <MathChallenge onComplete={handleComplete} onBack={handleBack} />;
+    return <MathChallenge reward={reward} onComplete={handleComplete} onBack={handleBack} />;
   }
   if (screen === 'typing') {
-    return <TypingChallenge onComplete={handleComplete} onBack={handleBack} />;
+    return <TypingChallenge reward={reward} onComplete={handleComplete} onBack={handleBack} />;
   }
 
   return (
     <ChallengeList
       bonusMinutes={bonusMinutes}
+      reward={reward}
       onSelectChallenge={setScreen}
     />
   );

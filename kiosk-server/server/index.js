@@ -231,6 +231,84 @@ app.put('/api/admin/change-pin', requirePin, (req, res) => {
   res.json({ success: true });
 });
 
+// Get aggregated usage summary for all apps over the past 7 days (protected)
+app.get('/api/admin/usage-summary', requirePin, (req, res) => {
+  const now = new Date();
+  const dates = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  const apps = db.prepare('SELECT id, name, icon FROM apps ORDER BY sort_order').all();
+  const startDate = dates[0] + 'T00:00:00.000Z';
+
+  const usageRows = db.prepare(
+    `SELECT app_id, DATE(started_at) as date, SUM(duration_seconds) as seconds
+     FROM app_usage
+     WHERE started_at >= ?
+     GROUP BY app_id, DATE(started_at)`
+  ).all(startDate);
+
+  const usageMap = {};
+  for (const row of usageRows) {
+    if (!usageMap[row.app_id]) usageMap[row.app_id] = {};
+    usageMap[row.app_id][row.date] = row.seconds;
+  }
+
+  const result = apps.map(app => ({
+    id: app.id,
+    name: app.name,
+    icon: app.icon,
+    daily: dates.map(date => ({
+      date,
+      seconds: (usageMap[app.id] && usageMap[app.id][date]) || 0,
+    })),
+  }));
+
+  res.json({ dates, apps: result });
+});
+
+// Get all settings except PIN hash (protected)
+app.get('/api/admin/settings', requirePin, (req, res) => {
+  const rows = db.prepare("SELECT key, value FROM settings WHERE key != 'pin'").all();
+  const settings = {};
+  for (const row of rows) {
+    settings[row.key] = row.value;
+  }
+  if (!settings.challenge_bonus_minutes) {
+    settings.challenge_bonus_minutes = '10';
+  }
+  res.json(settings);
+});
+
+// Upsert settings key/value pairs (protected)
+app.put('/api/admin/settings', requirePin, (req, res) => {
+  const settings = req.body;
+  if (settings.pin !== undefined) {
+    return res.status(400).json({ error: 'Use /api/admin/change-pin to change PIN' });
+  }
+
+  const upsert = db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  );
+  const transaction = db.transaction((entries) => {
+    for (const [key, value] of entries) {
+      upsert.run(key, String(value));
+    }
+  });
+  transaction(Object.entries(settings));
+
+  res.json({ success: true });
+});
+
+// Get challenge bonus minutes (public - used by Challenges component)
+app.get('/api/settings/challenge-bonus-minutes', (req, res) => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'challenge_bonus_minutes'").get();
+  const minutes = row ? parseInt(row.value, 10) : 10;
+  res.json({ minutes });
+});
+
 // Get all apps including disabled (protected)
 app.get('/api/admin/apps', requirePin, (req, res) => {
   const apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();

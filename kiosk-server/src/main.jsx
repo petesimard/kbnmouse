@@ -5,6 +5,9 @@ import './index.css'
 import Menu from './pages/Menu.jsx'
 import TestContent from './pages/TestContent.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import AppsPage from './pages/dashboard/AppsPage.jsx'
+import AppUsagePage from './pages/dashboard/AppUsagePage.jsx'
+import SettingsPage from './pages/dashboard/SettingsPage.jsx'
 import { getBuiltinApps, getBuiltinComponents } from './components/builtin'
 
 const builtinComponents = getBuiltinComponents()
@@ -15,7 +18,11 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/menu" element={<Menu />} />
         <Route path="/test-content" element={<TestContent />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />}>
+          <Route index element={<AppsPage />} />
+          <Route path="usage" element={<AppUsagePage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
         {getBuiltinApps().map(({ key }) => {
           const Component = builtinComponents[key]
           return Component ? <Route key={key} path={`/builtin/${key}`} element={<Component />} /> : null

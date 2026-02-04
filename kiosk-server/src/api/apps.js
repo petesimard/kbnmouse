@@ -104,3 +104,22 @@ export async function reorderApps(order) {
   });
   return handleResponse(res);
 }
+
+export async function fetchUsageSummary() {
+  const res = await fetch('/api/admin/usage-summary', { headers: headers() });
+  return handleResponse(res);
+}
+
+export async function fetchSettings() {
+  const res = await fetch('/api/admin/settings', { headers: headers() });
+  return handleResponse(res);
+}
+
+export async function updateSettings(settings) {
+  const res = await fetch('/api/admin/settings', {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify(settings),
+  });
+  return handleResponse(res);
+}
