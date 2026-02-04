@@ -58,6 +58,21 @@ db.exec(`
   ON app_usage(app_id, started_at)
 `);
 
+// Create challenge_completions table for tracking bonus playtime earned
+db.exec(`
+  CREATE TABLE IF NOT EXISTS challenge_completions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    challenge_type TEXT NOT NULL,
+    minutes_awarded INTEGER NOT NULL,
+    completed_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_challenge_completions_completed_at
+  ON challenge_completions(completed_at)
+`);
+
 // Create settings table
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -93,6 +108,15 @@ if (count.count === 0) {
     insert.run(app.name, app.url, app.icon, app.sort_order, app.app_type);
   }
   console.log('Database seeded with default apps');
+}
+
+// Seed Challenges builtin app if it doesn't exist
+const challengesApp = db.prepare("SELECT id FROM apps WHERE app_type = 'builtin' AND url = 'challenges'").get();
+if (!challengesApp) {
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps').get();
+  db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled) VALUES (?, ?, ?, ?, ?, ?)')
+    .run('Challenges', 'challenges', '🏆', (maxOrder.max || 0) + 1, 'builtin', 1);
+  console.log('Seeded Challenges builtin app');
 }
 
 export default db;

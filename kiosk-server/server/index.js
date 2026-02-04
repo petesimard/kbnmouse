@@ -74,6 +74,39 @@ app.get('/api/apps/:id', (req, res) => {
   res.json(appRecord);
 });
 
+// Get today's bonus minutes from challenge completions (public)
+app.get('/api/bonus-time', (req, res) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+  const result = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+  ).get(todayStart);
+
+  res.json({ today_bonus_minutes: result.total });
+});
+
+// Record a challenge completion (public)
+app.post('/api/challenges/complete', (req, res) => {
+  const { challenge_type, minutes_awarded } = req.body;
+  if (!challenge_type || minutes_awarded == null) {
+    return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
+  }
+
+  db.prepare(
+    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at) VALUES (?, ?, ?)'
+  ).run(challenge_type, minutes_awarded, new Date().toISOString());
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const result = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+  ).get(todayStart);
+
+  broadcastRefresh();
+  res.json({ success: true, today_bonus_minutes: result.total });
+});
+
 // Get usage summary for an app (public - called by Electron on LAN)
 app.get('/api/apps/:id/usage', (req, res) => {
   const appRecord = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
@@ -98,11 +131,17 @@ app.get('/api/apps/:id/usage', (req, res) => {
     'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
   ).get(req.params.id, weekStart);
 
+  // Get today's bonus minutes from challenges
+  const bonusResult = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+  ).get(todayStart);
+
   res.json({
     today_seconds: todayUsage.total,
     week_seconds: weekUsage.total,
     daily_limit_minutes: appRecord.daily_limit_minutes,
     weekly_limit_minutes: appRecord.weekly_limit_minutes,
+    bonus_minutes_today: bonusResult.total,
   });
 });
 

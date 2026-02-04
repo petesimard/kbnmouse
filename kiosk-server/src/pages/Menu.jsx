@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 
+function formatRemaining(seconds) {
+  if (seconds <= 0) return '0:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 function Menu() {
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
@@ -7,6 +16,7 @@ function Menu() {
   const [nativeRunning, setNativeRunning] = useState(false);
   const [timeLimitError, setTimeLimitError] = useState(false);
   const [timeWarning, setTimeWarning] = useState(false);
+  const [usageMap, setUsageMap] = useState({});
 
   // Extract domains from URL-type apps and push to Electron whitelist
   const pushWhitelist = useCallback((appList) => {
@@ -26,6 +36,36 @@ function Menu() {
     window.kiosk.content.setWhitelist(domains);
   }, []);
 
+  // Fetch usage data for all apps
+  const fetchUsage = useCallback((appList) => {
+    Promise.all(
+      appList.map((app) =>
+        fetch(`/api/apps/${app.id}/usage`)
+          .then((r) => r.json())
+          .then((u) => [app.id, u])
+          .catch(() => null)
+      )
+    ).then((results) => {
+      const map = {};
+      for (const entry of results) {
+        if (!entry) continue;
+        const [id, usage] = entry;
+        if (usage.daily_limit_minutes != null || usage.weekly_limit_minutes != null) {
+          const candidates = [];
+          const bonusSeconds = (usage.bonus_minutes_today || 0) * 60;
+          if (usage.daily_limit_minutes != null) {
+            candidates.push(usage.daily_limit_minutes * 60 + bonusSeconds - usage.today_seconds);
+          }
+          if (usage.weekly_limit_minutes != null) {
+            candidates.push(usage.weekly_limit_minutes * 60 - usage.week_seconds);
+          }
+          map[id] = Math.max(0, Math.min(...candidates));
+        }
+      }
+      setUsageMap(map);
+    });
+  }, []);
+
   // Fetch apps from the database
   const fetchApps = useCallback(() => {
     fetch('/api/apps')
@@ -33,13 +73,14 @@ function Menu() {
       .then((data) => {
         setApps(data);
         pushWhitelist(data);
+        fetchUsage(data);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Failed to load apps:', err);
         setLoading(false);
       });
-  }, [pushWhitelist]);
+  }, [pushWhitelist, fetchUsage]);
 
   useEffect(() => {
     // Check if running in Electron with kiosk API
@@ -97,15 +138,21 @@ function Menu() {
     };
   }, [fetchApps]);
 
+  // Refresh just usage data (using current apps list)
+  const refreshUsage = useCallback(() => {
+    if (apps.length > 0) fetchUsage(apps);
+  }, [apps, fetchUsage]);
+
   // Subscribe to native app exit events
   useEffect(() => {
     if (!window.kiosk?.native?.onExited) return;
     const cleanup = window.kiosk.native.onExited(() => {
       setNativeRunning(false);
       setTimeWarning(false);
+      refreshUsage();
     });
     return cleanup;
-  }, []);
+  }, [refreshUsage]);
 
   // Subscribe to time warning events
   useEffect(() => {
@@ -133,6 +180,7 @@ function Menu() {
         if (result.success) {
           setNativeRunning(true);
           setTimeLimitError(false);
+          refreshUsage();
         } else if (result.error === 'Time limit reached') {
           setTimeLimitError(true);
           setTimeout(() => setTimeLimitError(false), 5000);
@@ -211,15 +259,22 @@ function Menu() {
             <button
               key={app.id}
               onClick={() => handleLoadURL(app)}
-              className={`px-4 py-2 rounded-lg text-white flex items-center gap-2 transition-colors ${
+              className={`px-4 py-2 rounded-lg text-white flex flex-col items-center gap-0.5 transition-colors ${
                 app.app_type === 'native' && !hasKiosk
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : 'bg-slate-700 hover:bg-slate-600'
               }`}
               title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
             >
-              <span>{app.icon}</span>
-              <span className="text-sm">{app.name}</span>
+              <div className="flex items-center gap-2">
+                <span>{app.icon}</span>
+                <span className="text-sm">{app.name}</span>
+              </div>
+              {usageMap[app.id] != null && (
+                <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
+                  {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
+                </span>
+              )}
             </button>
           ))
         )}
