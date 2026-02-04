@@ -31,6 +31,32 @@ if (!columns.find(col => col.name === 'app_type')) {
   db.exec("ALTER TABLE apps ADD COLUMN app_type TEXT DEFAULT 'url'");
   console.log('Added app_type column to apps table');
 }
+if (!columns.find(col => col.name === 'daily_limit_minutes')) {
+  db.exec("ALTER TABLE apps ADD COLUMN daily_limit_minutes INTEGER DEFAULT NULL");
+  console.log('Added daily_limit_minutes column to apps table');
+}
+if (!columns.find(col => col.name === 'weekly_limit_minutes')) {
+  db.exec("ALTER TABLE apps ADD COLUMN weekly_limit_minutes INTEGER DEFAULT NULL");
+  console.log('Added weekly_limit_minutes column to apps table');
+}
+
+// Create app_usage table for tracking native app session durations
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    app_id INTEGER NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
+    started_at TEXT NOT NULL,
+    ended_at TEXT NOT NULL,
+    duration_seconds INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Add index for fast date-range queries on app_usage
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_app_usage_app_started
+  ON app_usage(app_id, started_at)
+`);
 
 // Create settings table
 db.exec(`

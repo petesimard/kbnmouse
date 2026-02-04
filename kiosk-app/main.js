@@ -25,6 +25,10 @@ let contentView;
 let menuView;
 let allowedDomains = [];
 let nativeProcess = null;
+let warningTimer = null;
+let killTimer = null;
+let currentSessionStart = null;
+let currentAppId = null;
 
 // Parse the hostname from KIOSK_URL for local-origin checks
 const kioskHost = (() => {
@@ -241,6 +245,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
+  if (killTimer) { clearTimeout(killTimer); killTimer = null; }
   if (nativeProcess) {
     try { nativeProcess.kill(); } catch {}
     nativeProcess = null;
@@ -267,15 +273,54 @@ ipcMain.handle('shell:exec', async (event, command) => {
   });
 });
 
-// Launch a native application
-ipcMain.handle('native:launch', async (event, command) => {
+// Derive API base URL from kiosk config (Vite proxies /api to port 3001)
+function getApiBaseUrl() {
+  if (USE_BUILT_IN_SERVER) {
+    return `http://localhost:${PORT}`;
+  }
+  return KIOSK_URL;
+}
+
+// Launch a native application with optional usage tracking and time limits
+ipcMain.handle('native:launch', async (event, command, appId) => {
   if (nativeProcess) {
     return { success: false, error: 'A native app is already running' };
+  }
+
+  let remainingSeconds = Infinity;
+
+  // If appId provided, check usage limits
+  if (appId) {
+    try {
+      const apiBase = getApiBaseUrl();
+      const resp = await fetch(`${apiBase}/api/apps/${appId}/usage`);
+      if (resp.ok) {
+        const usage = await resp.json();
+        const candidates = [];
+        if (usage.daily_limit_minutes != null) {
+          candidates.push(usage.daily_limit_minutes * 60 - usage.today_seconds);
+        }
+        if (usage.weekly_limit_minutes != null) {
+          candidates.push(usage.weekly_limit_minutes * 60 - usage.week_seconds);
+        }
+        if (candidates.length > 0) {
+          remainingSeconds = Math.min(...candidates);
+        }
+        if (remainingSeconds <= 0) {
+          return { success: false, error: 'Time limit reached' };
+        }
+      }
+    } catch (err) {
+      // If fetch fails, allow launch gracefully (no limits enforced)
+      console.error('Failed to fetch usage data, launching without limits:', err.message);
+    }
   }
 
   try {
     const child = spawn(command, [], { shell: true, detached: false, stdio: 'ignore' });
     nativeProcess = child;
+    currentSessionStart = new Date().toISOString();
+    currentAppId = appId || null;
 
     // Exit kiosk/fullscreen and minimize so the native app has the screen
     if (mainWindow) {
@@ -288,8 +333,58 @@ ipcMain.handle('native:launch', async (event, command) => {
       mainWindow.minimize();
     }
 
+    // Set up time limit timers if there's a finite remaining time
+    if (remainingSeconds < Infinity) {
+      const warningMs = Math.max(0, (remainingSeconds - 60) * 1000);
+      const killMs = remainingSeconds * 1000;
+
+      warningTimer = setTimeout(() => {
+        // Send warning to menu view
+        if (menuView) {
+          menuView.webContents.send('native:timeWarning');
+        }
+        // Show desktop notification
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Time Almost Up',
+            body: 'You have about 1 minute left before this app closes.',
+          }).show();
+        }
+      }, warningMs);
+
+      killTimer = setTimeout(() => {
+        // Kill the native process when time runs out
+        if (nativeProcess) {
+          try { nativeProcess.kill(); } catch {}
+        }
+        if (menuView) {
+          menuView.webContents.send('native:timeLimitReached');
+        }
+      }, killMs);
+    }
+
     const cleanup = () => {
+      // Clear timers
+      if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
+      if (killTimer) { clearTimeout(killTimer); killTimer = null; }
+
+      // Record usage session (fire-and-forget)
+      if (currentAppId && currentSessionStart) {
+        const endedAt = new Date().toISOString();
+        const durationSeconds = Math.round((new Date(endedAt) - new Date(currentSessionStart)) / 1000);
+        const apiBase = getApiBaseUrl();
+        fetch(`${apiBase}/api/apps/${currentAppId}/usage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ started_at: currentSessionStart, ended_at: endedAt, duration_seconds: durationSeconds }),
+        }).catch(err => console.error('Failed to record usage:', err.message));
+      }
+
       nativeProcess = null;
+      currentSessionStart = null;
+      currentAppId = null;
+
       // Restore kiosk mode
       if (mainWindow) {
         const isDev = process.env.NODE_ENV === 'development';
@@ -313,7 +408,7 @@ ipcMain.handle('native:launch', async (event, command) => {
       cleanup();
     });
 
-    return { success: true };
+    return { success: true, remainingSeconds: remainingSeconds < Infinity ? remainingSeconds : null };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -328,6 +423,8 @@ ipcMain.handle('native:isRunning', async () => {
 ipcMain.handle('native:kill', async () => {
   if (nativeProcess) {
     try {
+      if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
+      if (killTimer) { clearTimeout(killTimer); killTimer = null; }
       nativeProcess.kill();
       return { success: true };
     } catch (err) {

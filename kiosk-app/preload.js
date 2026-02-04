@@ -24,12 +24,20 @@ contextBridge.exposeInMainWorld('kiosk', {
 
   // Native app launching
   native: {
-    launch: (command) => ipcRenderer.invoke('native:launch', command),
+    launch: (command, appId) => ipcRenderer.invoke('native:launch', command, appId),
     isRunning: () => ipcRenderer.invoke('native:isRunning'),
     kill: () => ipcRenderer.invoke('native:kill'),
     onExited: (callback) => {
       ipcRenderer.on('native:exited', callback);
       return () => ipcRenderer.removeListener('native:exited', callback);
+    },
+    onTimeWarning: (callback) => {
+      ipcRenderer.on('native:timeWarning', callback);
+      return () => ipcRenderer.removeListener('native:timeWarning', callback);
+    },
+    onTimeLimitReached: (callback) => {
+      ipcRenderer.on('native:timeLimitReached', callback);
+      return () => ipcRenderer.removeListener('native:timeLimitReached', callback);
     },
   }
 });

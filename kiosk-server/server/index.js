@@ -74,6 +74,57 @@ app.get('/api/apps/:id', (req, res) => {
   res.json(appRecord);
 });
 
+// Get usage summary for an app (public - called by Electron on LAN)
+app.get('/api/apps/:id/usage', (req, res) => {
+  const appRecord = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
+  if (!appRecord) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  // Calculate today from local midnight
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+  // Calculate this week from Monday
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset).toISOString();
+
+  const todayUsage = db.prepare(
+    'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
+  ).get(req.params.id, todayStart);
+
+  const weekUsage = db.prepare(
+    'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
+  ).get(req.params.id, weekStart);
+
+  res.json({
+    today_seconds: todayUsage.total,
+    week_seconds: weekUsage.total,
+    daily_limit_minutes: appRecord.daily_limit_minutes,
+    weekly_limit_minutes: appRecord.weekly_limit_minutes,
+  });
+});
+
+// Record usage session for an app (public - called by Electron on LAN)
+app.post('/api/apps/:id/usage', (req, res) => {
+  const appRecord = db.prepare('SELECT id FROM apps WHERE id = ?').get(req.params.id);
+  if (!appRecord) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const { started_at, ended_at, duration_seconds } = req.body;
+  if (!started_at || !ended_at || duration_seconds == null) {
+    return res.status(400).json({ error: 'started_at, ended_at, and duration_seconds are required' });
+  }
+
+  db.prepare(
+    'INSERT INTO app_usage (app_id, started_at, ended_at, duration_seconds) VALUES (?, ?, ?, ?)'
+  ).run(req.params.id, started_at, ended_at, duration_seconds);
+
+  res.status(201).json({ success: true });
+});
+
 // Verify PIN and get token
 app.post('/api/admin/verify-pin', (req, res) => {
   const { pin } = req.body;
@@ -128,7 +179,7 @@ app.get('/api/admin/apps', requirePin, (req, res) => {
 
 // Create new app (protected)
 app.post('/api/admin/apps', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1 } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
@@ -140,7 +191,7 @@ app.post('/api/admin/apps', requirePin, (req, res) => {
     finalSortOrder = (maxOrder.max || 0) + 1;
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled) VALUES (?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   broadcastRefresh();
   res.status(201).json(newApp);
@@ -169,12 +220,16 @@ app.put('/api/admin/apps/reorder', requirePin, (req, res) => {
 
 // Update app (protected)
 app.put('/api/admin/apps/:id', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, enabled, app_type } = req.body;
+  const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes } = req.body;
   const existing = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
 
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
+
+  // Use COALESCE for most fields, but handle limit columns separately since null is a valid value (means "no limit")
+  const finalDailyLimit = daily_limit_minutes !== undefined ? daily_limit_minutes : existing.daily_limit_minutes;
+  const finalWeeklyLimit = weekly_limit_minutes !== undefined ? weekly_limit_minutes : existing.weekly_limit_minutes;
 
   db.prepare(`
     UPDATE apps
@@ -183,9 +238,11 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
         icon = COALESCE(?, icon),
         sort_order = COALESCE(?, sort_order),
         enabled = COALESCE(?, enabled),
-        app_type = COALESCE(?, app_type)
+        app_type = COALESCE(?, app_type),
+        daily_limit_minutes = ?,
+        weekly_limit_minutes = ?
     WHERE id = ?
-  `).run(name, url, icon, sort_order, enabled, app_type, req.params.id);
+  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, req.params.id);
 
   const updated = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
   broadcastRefresh();

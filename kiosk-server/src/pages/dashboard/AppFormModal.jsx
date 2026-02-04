@@ -11,6 +11,8 @@ function AppFormModal({ app, onSave, onClose }) {
     icon: '',
     app_type: 'url',
     enabled: 1,
+    daily_limit_minutes: '',
+    weekly_limit_minutes: '',
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -23,6 +25,8 @@ function AppFormModal({ app, onSave, onClose }) {
         icon: app.icon || '',
         app_type: app.app_type || 'url',
         enabled: app.enabled ?? 1,
+        daily_limit_minutes: app.daily_limit_minutes ?? '',
+        weekly_limit_minutes: app.weekly_limit_minutes ?? '',
       });
     }
   }, [app]);
@@ -38,6 +42,7 @@ function AppFormModal({ app, onSave, onClose }) {
       ...prev,
       app_type: type,
       url: '',
+      ...(type !== 'native' ? { daily_limit_minutes: '', weekly_limit_minutes: '' } : {}),
     }));
   };
 
@@ -74,7 +79,12 @@ function AppFormModal({ app, onSave, onClose }) {
 
     setSaving(true);
     try {
-      await onSave(formData);
+      const dataToSave = {
+        ...formData,
+        daily_limit_minutes: formData.daily_limit_minutes === '' ? null : parseInt(formData.daily_limit_minutes),
+        weekly_limit_minutes: formData.weekly_limit_minutes === '' ? null : parseInt(formData.weekly_limit_minutes),
+      };
+      await onSave(dataToSave);
       onClose();
     } catch (err) {
       setErrors({ submit: err.message });
@@ -206,22 +216,60 @@ function AppFormModal({ app, onSave, onClose }) {
 
             {/* Launch Command (for native type only) */}
             {formData.app_type === 'native' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Launch Command
-                </label>
-                <input
-                  type="text"
-                  name="url"
-                  value={formData.url}
-                  onChange={handleChange}
-                  placeholder="e.g. gnome-calculator"
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                />
-                {errors.url && (
-                  <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
-                )}
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Launch Command
+                  </label>
+                  <input
+                    type="text"
+                    name="url"
+                    value={formData.url}
+                    onChange={handleChange}
+                    placeholder="e.g. gnome-calculator"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                  />
+                  {errors.url && (
+                    <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
+                  )}
+                </div>
+
+                {/* Time Limits */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Time Limits
+                  </label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Leave blank for no limit. App will auto-close when time runs out.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Daily (minutes)</label>
+                      <input
+                        type="number"
+                        name="daily_limit_minutes"
+                        value={formData.daily_limit_minutes}
+                        onChange={handleChange}
+                        min="1"
+                        placeholder="No limit"
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Weekly (minutes)</label>
+                      <input
+                        type="number"
+                        name="weekly_limit_minutes"
+                        value={formData.weekly_limit_minutes}
+                        onChange={handleChange}
+                        min="1"
+                        placeholder="No limit"
+                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Icon */}

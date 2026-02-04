@@ -5,6 +5,8 @@ function Menu() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [nativeRunning, setNativeRunning] = useState(false);
+  const [timeLimitError, setTimeLimitError] = useState(false);
+  const [timeWarning, setTimeWarning] = useState(false);
 
   // Extract domains from URL-type apps and push to Electron whitelist
   const pushWhitelist = useCallback((appList) => {
@@ -100,16 +102,41 @@ function Menu() {
     if (!window.kiosk?.native?.onExited) return;
     const cleanup = window.kiosk.native.onExited(() => {
       setNativeRunning(false);
+      setTimeWarning(false);
     });
     return cleanup;
   }, []);
 
-  const handleLoadURL = (app) => {
+  // Subscribe to time warning events
+  useEffect(() => {
+    if (!window.kiosk?.native?.onTimeWarning) return;
+    return window.kiosk.native.onTimeWarning(() => {
+      setTimeWarning(true);
+    });
+  }, []);
+
+  // Subscribe to time limit reached events
+  useEffect(() => {
+    if (!window.kiosk?.native?.onTimeLimitReached) return;
+    return window.kiosk.native.onTimeLimitReached(() => {
+      setTimeWarning(false);
+      setTimeLimitError(true);
+      setTimeout(() => setTimeLimitError(false), 5000);
+    });
+  }, []);
+
+  const handleLoadURL = async (app) => {
     // Native apps launch a process instead of loading a URL
     if (app.app_type === 'native') {
       if (hasKiosk && window.kiosk?.native?.launch) {
-        window.kiosk.native.launch(app.url);
-        setNativeRunning(true);
+        const result = await window.kiosk.native.launch(app.url, app.id);
+        if (result.success) {
+          setNativeRunning(true);
+          setTimeLimitError(false);
+        } else if (result.error === 'Time limit reached') {
+          setTimeLimitError(true);
+          setTimeout(() => setTimeLimitError(false), 5000);
+        }
       } else {
         console.log(`Native app "${app.name}" requires the kiosk desktop to launch`);
       }
@@ -200,7 +227,11 @@ function Menu() {
 
       {/* Status indicator */}
       <div className="text-slate-500 text-xs">
-        {nativeRunning ? (
+        {timeLimitError ? (
+          <span className="text-red-400">● Time limit reached</span>
+        ) : timeWarning ? (
+          <span className="text-yellow-400 animate-pulse">● ~1 minute remaining</span>
+        ) : nativeRunning ? (
           <span className="text-green-400">● Native app running...</span>
         ) : hasKiosk ? '● Connected' : '○ Browser Mode'}
       </div>

@@ -45,7 +45,19 @@ function AppCard({ app, onEdit, onDelete, onToggle }) {
         <h3 className="text-white font-medium truncate">{app.name}</h3>
         <p className="text-slate-400 text-sm truncate">
           {app.app_type === 'builtin' ? `Built-in: ${app.url}`
-            : app.app_type === 'native' ? `Command: ${app.url}`
+            : app.app_type === 'native' ? (
+              <>
+                {`Command: ${app.url}`}
+                {(app.daily_limit_minutes != null || app.weekly_limit_minutes != null) && (
+                  <span className="text-yellow-400/70 ml-2">
+                    {[
+                      app.daily_limit_minutes != null && `${app.daily_limit_minutes}m/day`,
+                      app.weekly_limit_minutes != null && `${app.weekly_limit_minutes}m/week`,
+                    ].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+              </>
+            )
             : app.url}
         </p>
       </div>
