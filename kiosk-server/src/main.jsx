@@ -5,7 +5,7 @@ import './index.css'
 import Menu from './pages/Menu.jsx'
 import TestContent from './pages/TestContent.jsx'
 import Dashboard from './pages/Dashboard.jsx'
-import { Clock, Drawing, Timer } from './components/builtin'
+import { Clock, Drawing, Timer, Calculator } from './components/builtin'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -17,6 +17,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/builtin/clock" element={<Clock />} />
         <Route path="/builtin/drawing" element={<Drawing />} />
         <Route path="/builtin/timer" element={<Timer />} />
+        <Route path="/builtin/calculator" element={<Calculator />} />
         <Route path="/" element={<Navigate to="/test-content" replace />} />
       </Routes>
     </BrowserRouter>

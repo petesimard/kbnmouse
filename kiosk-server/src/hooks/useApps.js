@@ -1,10 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api/apps';
+import { UnauthorizedError } from '../api/apps';
 
-export function useApps() {
+export function useApps(enabled = true, onUnauthorized = null) {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleError = useCallback((err) => {
+    if (err instanceof UnauthorizedError && onUnauthorized) {
+      onUnauthorized();
+    } else {
+      setError(err.message);
+    }
+  }, [onUnauthorized]);
 
   const fetchApps = useCallback(async () => {
     setLoading(true);
@@ -13,32 +22,49 @@ export function useApps() {
       const data = await api.fetchAllApps();
       setApps(data);
     } catch (err) {
-      setError(err.message);
+      handleError(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleError]);
 
   useEffect(() => {
-    fetchApps();
-  }, [fetchApps]);
+    if (enabled) {
+      fetchApps();
+    }
+  }, [fetchApps, enabled]);
 
   const createApp = useCallback(async (app) => {
-    const newApp = await api.createApp(app);
-    setApps((prev) => [...prev, newApp]);
-    return newApp;
-  }, []);
+    try {
+      const newApp = await api.createApp(app);
+      setApps((prev) => [...prev, newApp]);
+      return newApp;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    }
+  }, [handleError]);
 
   const updateApp = useCallback(async (id, updates) => {
-    const updated = await api.updateApp(id, updates);
-    setApps((prev) => prev.map((a) => (a.id === id ? updated : a)));
-    return updated;
-  }, []);
+    try {
+      const updated = await api.updateApp(id, updates);
+      setApps((prev) => prev.map((a) => (a.id === id ? updated : a)));
+      return updated;
+    } catch (err) {
+      handleError(err);
+      throw err;
+    }
+  }, [handleError]);
 
   const deleteApp = useCallback(async (id) => {
-    await api.deleteApp(id);
-    setApps((prev) => prev.filter((a) => a.id !== id));
-  }, []);
+    try {
+      await api.deleteApp(id);
+      setApps((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      handleError(err);
+      throw err;
+    }
+  }, [handleError]);
 
   const reorderApps = useCallback(async (newOrder) => {
     // Optimistically update the UI
@@ -55,9 +81,10 @@ export function useApps() {
     } catch (err) {
       // Revert on error
       fetchApps();
+      handleError(err);
       throw err;
     }
-  }, [fetchApps]);
+  }, [fetchApps, handleError]);
 
   return {
     apps,

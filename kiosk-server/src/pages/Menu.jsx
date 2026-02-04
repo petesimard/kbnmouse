@@ -1,15 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 function Menu() {
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check if running in Electron with kiosk API
-    setHasKiosk(typeof window.kiosk?.content !== 'undefined');
-
-    // Fetch apps from the database
+  // Fetch apps from the database
+  const fetchApps = useCallback(() => {
     fetch('/api/apps')
       .then((res) => res.json())
       .then((data) => {
@@ -21,6 +18,62 @@ function Menu() {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    // Check if running in Electron with kiosk API
+    setHasKiosk(typeof window.kiosk?.content !== 'undefined');
+
+    // Initial fetch
+    fetchApps();
+  }, [fetchApps]);
+
+  // WebSocket connection for live updates
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.hostname}:3001/ws`;
+
+    let ws;
+    let reconnectTimeout;
+
+    const connect = () => {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('Menu connected to WebSocket');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'refresh') {
+            console.log('Received refresh signal, reloading apps...');
+            fetchApps();
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed, reconnecting in 3s...');
+        reconnectTimeout = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        ws.close();
+      };
+    };
+
+    connect();
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [fetchApps]);
 
   const handleLoadURL = (app) => {
     // Determine the URL based on app type

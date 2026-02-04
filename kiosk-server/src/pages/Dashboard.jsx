@@ -7,7 +7,7 @@ import AppFormModal from './dashboard/AppFormModal';
 
 function Dashboard() {
   const { isAuthenticated, loading: authLoading, verifyPin, logout } = usePinAuth();
-  const { apps, loading: appsLoading, createApp, updateApp, deleteApp, reorderApps } = useApps();
+  const { apps, loading: appsLoading, createApp, updateApp, deleteApp, reorderApps } = useApps(isAuthenticated, logout);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState(null);

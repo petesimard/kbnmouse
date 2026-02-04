@@ -1,9 +1,44 @@
 import express from 'express';
 import crypto from 'crypto';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 import db, { hashPin } from './db.js';
 
 const app = express();
 const PORT = 3001;
+
+// Create HTTP server and WebSocket server
+const server = createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+// Track connected clients
+const clients = new Set();
+
+wss.on('connection', (ws) => {
+  clients.add(ws);
+  console.log(`Client connected. Total clients: ${clients.size}`);
+
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log(`Client disconnected. Total clients: ${clients.size}`);
+  });
+
+  ws.on('error', (err) => {
+    console.error('WebSocket error:', err);
+    clients.delete(ws);
+  });
+});
+
+// Broadcast refresh message to all connected clients
+function broadcastRefresh() {
+  const message = JSON.stringify({ type: 'refresh' });
+  for (const client of clients) {
+    if (client.readyState === 1) { // WebSocket.OPEN
+      client.send(message);
+    }
+  }
+  console.log(`Broadcast refresh to ${clients.size} clients`);
+}
 
 app.use(express.json());
 
@@ -45,6 +80,7 @@ app.get('/api/builtin-apps', (req, res) => {
     { key: 'clock', name: 'Clock', icon: '🕐', description: 'Full-screen clock display' },
     { key: 'drawing', name: 'Drawing', icon: '🎨', description: 'Simple drawing canvas' },
     { key: 'timer', name: 'Timer', icon: '⏱️', description: 'Visual countdown timer' },
+    { key: 'calculator', name: 'Calculator', icon: '🧮', description: 'Standard calculator' },
   ];
   res.json(builtinApps);
 });
@@ -117,7 +153,29 @@ app.post('/api/admin/apps', requirePin, (req, res) => {
 
   const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled) VALUES (?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
+  broadcastRefresh();
   res.status(201).json(newApp);
+});
+
+// Bulk reorder apps (protected) - must be before :id route
+app.put('/api/admin/apps/reorder', requirePin, (req, res) => {
+  const { order } = req.body; // Array of { id, sort_order }
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ error: 'order must be an array' });
+  }
+
+  const updateStmt = db.prepare('UPDATE apps SET sort_order = ? WHERE id = ?');
+  const transaction = db.transaction((items) => {
+    for (const item of items) {
+      updateStmt.run(item.sort_order, item.id);
+    }
+  });
+
+  transaction(order);
+
+  const apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
+  broadcastRefresh();
+  res.json(apps);
 });
 
 // Update app (protected)
@@ -141,27 +199,8 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
   `).run(name, url, icon, sort_order, enabled, app_type, req.params.id);
 
   const updated = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
+  broadcastRefresh();
   res.json(updated);
-});
-
-// Bulk reorder apps (protected)
-app.put('/api/admin/apps/reorder', requirePin, (req, res) => {
-  const { order } = req.body; // Array of { id, sort_order }
-  if (!Array.isArray(order)) {
-    return res.status(400).json({ error: 'order must be an array' });
-  }
-
-  const updateStmt = db.prepare('UPDATE apps SET sort_order = ? WHERE id = ?');
-  const transaction = db.transaction((items) => {
-    for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
-    }
-  });
-
-  transaction(order);
-
-  const apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
-  res.json(apps);
 });
 
 // Delete app (protected)
@@ -170,6 +209,7 @@ app.delete('/api/admin/apps/:id', requirePin, (req, res) => {
   if (result.changes === 0) {
     return res.status(404).json({ error: 'App not found' });
   }
+  broadcastRefresh();
   res.status(204).send();
 });
 
@@ -215,6 +255,7 @@ app.delete('/api/apps/:id', (req, res) => {
   res.status(204).send();
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`);
+  console.log(`WebSocket server running at ws://localhost:${PORT}/ws`);
 });
