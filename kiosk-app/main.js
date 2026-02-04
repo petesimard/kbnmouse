@@ -23,6 +23,80 @@ if (process.env.NODE_ENV === 'development') {
 let mainWindow;
 let contentView;
 let menuView;
+let allowedDomains = [];
+
+// Parse the hostname from KIOSK_URL for local-origin checks
+const kioskHost = (() => {
+  try {
+    return new URL(KIOSK_URL).hostname;
+  } catch {
+    return '';
+  }
+})();
+
+function stripWww(hostname) {
+  return hostname.replace(/^www\./, '');
+}
+
+function isURLAllowed(url) {
+  // Allow data: and about: protocols
+  if (url.startsWith('data:') || url.startsWith('about:')) return true;
+
+  // Allow relative URLs (shouldn't normally reach here, but safety check)
+  if (url.startsWith('/')) return true;
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+
+  const hostname = parsed.hostname;
+
+  // Always allow localhost and local addresses
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
+    return true;
+  }
+
+  // Allow the configured kiosk server host
+  if (kioskHost && hostname === kioskHost) return true;
+
+  // Check against whitelisted domains (with subdomain matching)
+  const stripped = stripWww(hostname);
+  return allowedDomains.some((domain) => {
+    return stripped === domain || stripped.endsWith('.' + domain);
+  });
+}
+
+function showBlockedPage(url) {
+  if (!contentView) return;
+  let blockedDomain = '';
+  try {
+    blockedDomain = new URL(url).hostname;
+  } catch {
+    blockedDomain = url;
+  }
+  const html = `
+    <html>
+    <head><style>
+      body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #1e293b; color: #e2e8f0; }
+      .container { text-align: center; max-width: 480px; }
+      .icon { font-size: 64px; margin-bottom: 16px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      .domain { color: #94a3b8; font-family: monospace; font-size: 14px; background: #334155; padding: 4px 12px; border-radius: 6px; display: inline-block; margin: 12px 0; }
+      p { color: #94a3b8; font-size: 14px; }
+    </style></head>
+    <body><div class="container">
+      <div class="icon">&#x1F6AB;</div>
+      <h1>Page Not Available</h1>
+      <div class="domain">${blockedDomain}</div>
+      <p>This website is not on the allowed list.<br>Ask a parent to add it if you need access.</p>
+      <button onclick="history.back()" style="margin-top:20px;padding:10px 24px;border:none;border-radius:8px;background:#334155;color:#e2e8f0;font-size:14px;cursor:pointer;">&#8592; Go Back</button>
+    </div></body>
+    </html>`;
+  contentView.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+}
 
 function createWindow() {
   const isDev = process.env.NODE_ENV === 'development';
@@ -108,6 +182,24 @@ function createWindow() {
 
   setupDevTools(contentView, 'content');
   setupDevTools(menuView, 'menu');
+
+  // Whitelist enforcement: intercept navigation in content view
+  contentView.webContents.on('will-navigate', (event, url) => {
+    if (!isURLAllowed(url)) {
+      event.preventDefault();
+      showBlockedPage(url);
+    }
+  });
+
+  contentView.webContents.setWindowOpenHandler(({ url }) => {
+    // Deny all new windows; load allowed URLs in content view, block others
+    if (isURLAllowed(url)) {
+      contentView.webContents.loadURL(url);
+    } else {
+      showBlockedPage(url);
+    }
+    return { action: 'deny' };
+  });
 
   // Also handle keyboard shortcuts on main window
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -209,6 +301,10 @@ ipcMain.handle('content:loadURL', async (event, url) => {
       const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
       url = baseURL + url;
     }
+    if (!isURLAllowed(url)) {
+      showBlockedPage(url);
+      return { success: false, error: 'URL not on the allowed list' };
+    }
     contentView.webContents.loadURL(url);
     return { success: true };
   }
@@ -237,4 +333,12 @@ ipcMain.handle('content:reload', async () => {
     return { success: true };
   }
   return { success: false };
+});
+
+// Whitelist management
+ipcMain.handle('whitelist:set', async (event, domains) => {
+  if (!Array.isArray(domains)) return { success: false, error: 'domains must be an array' };
+  allowedDomains = domains.map((d) => stripWww(String(d).toLowerCase()));
+  console.log('Whitelist updated:', allowedDomains);
+  return { success: true };
 });

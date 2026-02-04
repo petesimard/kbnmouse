@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api/apps';
 import { UnauthorizedError } from '../api/apps';
+import { getBuiltinApps } from '../components/builtin';
 
 export function useApps(enabled = true, onUnauthorized = null) {
   const [apps, setApps] = useState([]);
@@ -99,15 +100,5 @@ export function useApps(enabled = true, onUnauthorized = null) {
 }
 
 export function useBuiltinApps() {
-  const [builtinApps, setBuiltinApps] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.fetchBuiltinApps()
-      .then(setBuiltinApps)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  return { builtinApps, loading };
+  return { builtinApps: getBuiltinApps(), loading: false };
 }

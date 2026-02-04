@@ -61,14 +61,6 @@ export async function fetchAllApps() {
   return handleResponse(res);
 }
 
-export async function fetchBuiltinApps() {
-  const res = await fetch('/api/builtin-apps');
-  if (!res.ok) {
-    throw new Error('Failed to fetch built-in apps');
-  }
-  return res.json();
-}
-
 export async function createApp(app) {
   const res = await fetch('/api/admin/apps', {
     method: 'POST',

@@ -5,19 +5,38 @@ function Menu() {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Extract domains from URL-type apps and push to Electron whitelist
+  const pushWhitelist = useCallback((appList) => {
+    if (!window.kiosk?.content?.setWhitelist) return;
+    const domains = [...new Set(
+      appList
+        .filter((app) => app.app_type === 'url' && app.url?.startsWith('http'))
+        .map((app) => {
+          try {
+            return new URL(app.url).hostname.replace(/^www\./, '');
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean)
+    )];
+    window.kiosk.content.setWhitelist(domains);
+  }, []);
+
   // Fetch apps from the database
   const fetchApps = useCallback(() => {
     fetch('/api/apps')
       .then((res) => res.json())
       .then((data) => {
         setApps(data);
+        pushWhitelist(data);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Failed to load apps:', err);
         setLoading(false);
       });
-  }, []);
+  }, [pushWhitelist]);
 
   useEffect(() => {
     // Check if running in Electron with kiosk API

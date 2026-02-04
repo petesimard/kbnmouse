@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+export const meta = { key: 'clock', name: 'Clock', icon: '🕐', description: 'Full-screen clock display' };
+
 function Clock() {
   const [time, setTime] = useState(new Date());
 

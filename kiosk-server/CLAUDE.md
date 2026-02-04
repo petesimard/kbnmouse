@@ -49,3 +49,5 @@ npm run preview  # Preview production build
 - `created_at` - Timestamp
 
 The server is designed to be accessed from other devices on the network (e.g., kiosk displays, tablets).
+
+Do not try to kill or run the servers yourself.

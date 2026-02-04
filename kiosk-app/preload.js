@@ -19,5 +19,6 @@ contextBridge.exposeInMainWorld('kiosk', {
     goBack: () => ipcRenderer.invoke('content:goBack'),
     goForward: () => ipcRenderer.invoke('content:goForward'),
     reload: () => ipcRenderer.invoke('content:reload'),
+    setWhitelist: (domains) => ipcRenderer.invoke('whitelist:set', domains),
   }
 });

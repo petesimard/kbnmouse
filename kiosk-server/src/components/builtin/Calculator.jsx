@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
+export const meta = { key: 'calculator', name: 'Calculator', icon: '🧮', description: 'Standard calculator' };
+
 function Calculator() {
   const [display, setDisplay] = useState('0');
   const [previousValue, setPreviousValue] = useState(null);

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
+export const meta = { key: 'timer', name: 'Timer', icon: '⏱️', description: 'Visual countdown timer' };
+
 const PRESETS = [
   { label: '1 min', seconds: 60 },
   { label: '5 min', seconds: 300 },

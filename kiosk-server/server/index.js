@@ -74,17 +74,6 @@ app.get('/api/apps/:id', (req, res) => {
   res.json(appRecord);
 });
 
-// List available built-in apps (public)
-app.get('/api/builtin-apps', (req, res) => {
-  const builtinApps = [
-    { key: 'clock', name: 'Clock', icon: '🕐', description: 'Full-screen clock display' },
-    { key: 'drawing', name: 'Drawing', icon: '🎨', description: 'Simple drawing canvas' },
-    { key: 'timer', name: 'Timer', icon: '⏱️', description: 'Visual countdown timer' },
-    { key: 'calculator', name: 'Calculator', icon: '🧮', description: 'Standard calculator' },
-  ];
-  res.json(builtinApps);
-});
-
 // Verify PIN and get token
 app.post('/api/admin/verify-pin', (req, res) => {
   const { pin } = req.body;
