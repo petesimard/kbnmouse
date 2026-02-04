@@ -29,6 +29,16 @@ const mathConfigSchema = {
 };
 
 const typingConfigSchema = {
+  difficulty: field(z.enum(['easy', 'medium', 'hard']).default('medium'), {
+    label: 'Difficulty',
+    description: 'Easy = short words, Medium = common words, Hard = longer words',
+    type: 'select',
+    options: [
+      { value: 'easy', label: 'Easy' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'hard', label: 'Hard' },
+    ],
+  }),
   total_words: field(z.number().int().min(1).max(50).default(10), {
     label: 'Number of Words',
     description: 'How many words to type correctly',

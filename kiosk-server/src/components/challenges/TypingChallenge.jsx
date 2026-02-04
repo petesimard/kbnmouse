@@ -3,25 +3,47 @@ import { getDefaults } from './schemas.js';
 
 const TYPING_DEFAULTS = getDefaults('typing');
 
-const WORD_LIST = [
-  'apple', 'banana', 'castle', 'dragon', 'elephant',
-  'forest', 'guitar', 'happy', 'island', 'jungle',
-  'kitten', 'lemon', 'mountain', 'night', 'ocean',
-  'planet', 'queen', 'rabbit', 'sunset', 'tiger',
-  'umbrella', 'village', 'window', 'yellow', 'zebra',
-  'garden', 'rocket', 'pirate', 'magic', 'cloud',
-  'bridge', 'dolphin', 'flower', 'giant', 'hero',
-];
+const WORD_LISTS = {
+  easy: [
+    'cat', 'dog', 'sun', 'hat', 'cup', 'red', 'big', 'run', 'hop', 'sit',
+    'bed', 'box', 'car', 'fish', 'ball', 'tree', 'book', 'hand', 'star', 'moon',
+    'bird', 'frog', 'cake', 'rain', 'snow', 'door', 'egg', 'milk', 'sock', 'toy',
+    'bus', 'pen', 'pig', 'bee', 'ant', 'cow', 'fox', 'hen', 'jam', 'log',
+    'map', 'net', 'nut', 'pot', 'rug', 'van', 'web', 'bat', 'bug', 'zip',
+  ],
+  medium: [
+    'apple', 'banana', 'castle', 'dragon', 'forest', 'guitar', 'happy', 'island',
+    'jungle', 'kitten', 'lemon', 'night', 'ocean', 'planet', 'queen', 'rabbit',
+    'sunset', 'tiger', 'village', 'window', 'yellow', 'zebra', 'garden', 'rocket',
+    'pirate', 'magic', 'cloud', 'bridge', 'dolphin', 'flower', 'giant', 'hero',
+    'monkey', 'pepper', 'silver', 'travel', 'wonder', 'basket', 'candle', 'desert',
+    'frozen', 'golden', 'market', 'puzzle', 'rescue', 'thunder', 'valley', 'bubble',
+    'orange', 'stream',
+  ],
+  hard: [
+    'adventure', 'butterfly', 'chocolate', 'dinosaur', 'elephant', 'fantastic',
+    'giraffe', 'happiness', 'important', 'jellyfish', 'kangaroo', 'lightning',
+    'mushroom', 'notebook', 'orchestra', 'pineapple', 'question', 'rectangle',
+    'snowflake', 'treasure', 'umbrella', 'volleyball', 'waterfall', 'xylophone',
+    'yesterday', 'astronaut', 'beautiful', 'carpenter', 'dangerous', 'furniture',
+    'invisible', 'knowledge', 'landscape', 'marvelous', 'nightmare', 'parachute',
+    'raspberry', 'submarine', 'telephone', 'wonderful', 'cardboard', 'discovery',
+    'education', 'crocodile', 'breakfast', 'halloween', 'newspaper', 'structure',
+    'community', 'trampoline',
+  ],
+};
 
-function pickRandomWords(count) {
-  const shuffled = [...WORD_LIST].sort(() => Math.random() - 0.5);
+function pickRandomWords(count, difficulty) {
+  const list = WORD_LISTS[difficulty] || WORD_LISTS.medium;
+  const shuffled = [...list].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
 
 export default function TypingChallenge({ config = {}, reward, onComplete, onBack }) {
   const totalWords = config.total_words || TYPING_DEFAULTS.total_words;
+  const difficulty = config.difficulty || TYPING_DEFAULTS.difficulty;
 
-  const [words] = useState(() => pickRandomWords(totalWords));
+  const [words] = useState(() => pickRandomWords(totalWords, difficulty));
   const [input, setInput] = useState('');
   const [progress, setProgress] = useState(0);
   const [shake, setShake] = useState(false);
