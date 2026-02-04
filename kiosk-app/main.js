@@ -277,29 +277,27 @@ ipcMain.handle('native:launch', async (event, command) => {
     const child = spawn(command, [], { shell: true, detached: false, stdio: 'ignore' });
     nativeProcess = child;
 
-    // Minimize kiosk window
+    // Step out of kiosk/fullscreen so the native app can appear on top
     if (mainWindow) {
-      mainWindow.setAlwaysOnTop(false);
       const isDev = process.env.NODE_ENV === 'development';
+      mainWindow.setAlwaysOnTop(false);
       if (!isDev) {
         mainWindow.setKiosk(false);
         mainWindow.setFullScreen(false);
       }
-      mainWindow.minimize();
     }
 
     const cleanup = () => {
       nativeProcess = null;
-      // Restore kiosk window
+      // Restore kiosk mode
       if (mainWindow) {
-        mainWindow.restore();
-        mainWindow.focus();
         const isDev = process.env.NODE_ENV === 'development';
         if (!isDev) {
           mainWindow.setFullScreen(true);
           mainWindow.setKiosk(true);
         }
         mainWindow.setAlwaysOnTop(!isDev);
+        mainWindow.focus();
       }
       // Notify the menu view
       if (menuView) {
