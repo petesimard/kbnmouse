@@ -24,6 +24,7 @@ let mainWindow;
 let contentView;
 let menuView;
 let allowedDomains = [];
+let nativeProcess = null;
 
 // Parse the hostname from KIOSK_URL for local-origin checks
 const kioskHost = (() => {
@@ -240,6 +241,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (nativeProcess) {
+    try { nativeProcess.kill(); } catch {}
+    nativeProcess = null;
+  }
   app.quit();
 });
 
@@ -247,7 +252,7 @@ app.on('window-all-closed', () => {
 // IPC Handlers for native system calls
 // ============================================
 
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 
 // Execute shell command
 ipcMain.handle('shell:exec', async (event, command) => {
@@ -260,6 +265,76 @@ ipcMain.handle('shell:exec', async (event, command) => {
       }
     });
   });
+});
+
+// Launch a native application
+ipcMain.handle('native:launch', async (event, command) => {
+  if (nativeProcess) {
+    return { success: false, error: 'A native app is already running' };
+  }
+
+  try {
+    const child = spawn(command, [], { shell: true, detached: false, stdio: 'ignore' });
+    nativeProcess = child;
+
+    // Minimize kiosk window
+    if (mainWindow) {
+      mainWindow.setAlwaysOnTop(false);
+      const isDev = process.env.NODE_ENV === 'development';
+      if (!isDev) {
+        mainWindow.setKiosk(false);
+        mainWindow.setFullScreen(false);
+      }
+      mainWindow.minimize();
+    }
+
+    const cleanup = () => {
+      nativeProcess = null;
+      // Restore kiosk window
+      if (mainWindow) {
+        mainWindow.restore();
+        mainWindow.focus();
+        const isDev = process.env.NODE_ENV === 'development';
+        if (!isDev) {
+          mainWindow.setFullScreen(true);
+          mainWindow.setKiosk(true);
+        }
+        mainWindow.setAlwaysOnTop(!isDev);
+      }
+      // Notify the menu view
+      if (menuView) {
+        menuView.webContents.send('native:exited');
+      }
+    };
+
+    child.on('exit', cleanup);
+    child.on('error', (err) => {
+      console.error('Native process error:', err.message);
+      cleanup();
+    });
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Check if a native process is running
+ipcMain.handle('native:isRunning', async () => {
+  return nativeProcess !== null;
+});
+
+// Kill the running native process
+ipcMain.handle('native:kill', async () => {
+  if (nativeProcess) {
+    try {
+      nativeProcess.kill();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+  return { success: false, error: 'No native process running' };
 });
 
 // Read file

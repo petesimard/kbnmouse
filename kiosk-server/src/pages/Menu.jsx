@@ -4,6 +4,7 @@ function Menu() {
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [nativeRunning, setNativeRunning] = useState(false);
 
   // Extract domains from URL-type apps and push to Electron whitelist
   const pushWhitelist = useCallback((appList) => {
@@ -94,7 +95,27 @@ function Menu() {
     };
   }, [fetchApps]);
 
+  // Subscribe to native app exit events
+  useEffect(() => {
+    if (!window.kiosk?.native?.onExited) return;
+    const cleanup = window.kiosk.native.onExited(() => {
+      setNativeRunning(false);
+    });
+    return cleanup;
+  }, []);
+
   const handleLoadURL = (app) => {
+    // Native apps launch a process instead of loading a URL
+    if (app.app_type === 'native') {
+      if (hasKiosk && window.kiosk?.native?.launch) {
+        window.kiosk.native.launch(app.url);
+        setNativeRunning(true);
+      } else {
+        console.log(`Native app "${app.name}" requires the kiosk desktop to launch`);
+      }
+      return;
+    }
+
     // Determine the URL based on app type
     let url = app.url;
     if (app.app_type === 'builtin') {
@@ -163,7 +184,12 @@ function Menu() {
             <button
               key={app.id}
               onClick={() => handleLoadURL(app)}
-              className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center gap-2 transition-colors"
+              className={`px-4 py-2 rounded-lg text-white flex items-center gap-2 transition-colors ${
+                app.app_type === 'native' && !hasKiosk
+                  ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-700 hover:bg-slate-600'
+              }`}
+              title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
             >
               <span>{app.icon}</span>
               <span className="text-sm">{app.name}</span>
@@ -174,7 +200,9 @@ function Menu() {
 
       {/* Status indicator */}
       <div className="text-slate-500 text-xs">
-        {hasKiosk ? '● Connected' : '○ Browser Mode'}
+        {nativeRunning ? (
+          <span className="text-green-400">● Native app running...</span>
+        ) : hasKiosk ? '● Connected' : '○ Browser Mode'}
       </div>
     </div>
   );

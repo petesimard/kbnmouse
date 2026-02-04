@@ -37,7 +37,7 @@ function AppFormModal({ app, onSave, onClose }) {
     setFormData((prev) => ({
       ...prev,
       app_type: type,
-      url: type === 'builtin' ? '' : prev.url,
+      url: '',
     }));
   };
 
@@ -56,7 +56,10 @@ function AppFormModal({ app, onSave, onClose }) {
       newErrors.name = 'Name is required';
     }
     if (!formData.url.trim()) {
-      newErrors.url = formData.app_type === 'builtin' ? 'Select a built-in app' : 'URL is required';
+      newErrors.url =
+        formData.app_type === 'builtin' ? 'Select a built-in app'
+        : formData.app_type === 'native' ? 'Launch command is required'
+        : 'URL is required';
     }
     if (!formData.icon.trim()) {
       newErrors.icon = 'Icon is required';
@@ -116,6 +119,17 @@ function AppFormModal({ app, onSave, onClose }) {
                   }`}
                 >
                   Built-in
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTypeChange('native')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    formData.app_type === 'native'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Native
                 </button>
               </div>
             </div>
@@ -183,6 +197,26 @@ function AppFormModal({ app, onSave, onClose }) {
                   onChange={handleChange}
                   placeholder="https://example.com"
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {errors.url && (
+                  <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
+                )}
+              </div>
+            )}
+
+            {/* Launch Command (for native type only) */}
+            {formData.app_type === 'native' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Launch Command
+                </label>
+                <input
+                  type="text"
+                  name="url"
+                  value={formData.url}
+                  onChange={handleChange}
+                  placeholder="e.g. gnome-calculator"
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
                 />
                 {errors.url && (
                   <p className="mt-1 text-red-400 text-sm">{errors.url}</p>

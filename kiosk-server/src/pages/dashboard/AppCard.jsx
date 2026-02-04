@@ -44,7 +44,9 @@ function AppCard({ app, onEdit, onDelete, onToggle }) {
       <div className="flex-1 min-w-0">
         <h3 className="text-white font-medium truncate">{app.name}</h3>
         <p className="text-slate-400 text-sm truncate">
-          {app.app_type === 'builtin' ? `Built-in: ${app.url}` : app.url}
+          {app.app_type === 'builtin' ? `Built-in: ${app.url}`
+            : app.app_type === 'native' ? `Command: ${app.url}`
+            : app.url}
         </p>
       </div>
 
@@ -53,10 +55,12 @@ function AppCard({ app, onEdit, onDelete, onToggle }) {
         className={`px-2 py-1 text-xs rounded ${
           app.app_type === 'builtin'
             ? 'bg-purple-600/30 text-purple-300'
+            : app.app_type === 'native'
+            ? 'bg-green-600/30 text-green-300'
             : 'bg-blue-600/30 text-blue-300'
         }`}
       >
-        {app.app_type === 'builtin' ? 'Built-in' : 'URL'}
+        {app.app_type === 'builtin' ? 'Built-in' : app.app_type === 'native' ? 'Native' : 'URL'}
       </span>
 
       {/* Toggle enabled */}

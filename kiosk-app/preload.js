@@ -20,5 +20,16 @@ contextBridge.exposeInMainWorld('kiosk', {
     goForward: () => ipcRenderer.invoke('content:goForward'),
     reload: () => ipcRenderer.invoke('content:reload'),
     setWhitelist: (domains) => ipcRenderer.invoke('whitelist:set', domains),
+  },
+
+  // Native app launching
+  native: {
+    launch: (command) => ipcRenderer.invoke('native:launch', command),
+    isRunning: () => ipcRenderer.invoke('native:isRunning'),
+    kill: () => ipcRenderer.invoke('native:kill'),
+    onExited: (callback) => {
+      ipcRenderer.on('native:exited', callback);
+      return () => ipcRenderer.removeListener('native:exited', callback);
+    },
   }
 });
