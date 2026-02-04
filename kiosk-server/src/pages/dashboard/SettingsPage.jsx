@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { changePin } from '../../api/apps';
-import { useSettings } from '../../hooks/useSettings';
 
 export default function SettingsPage() {
   const { logout } = useOutletContext();
-  const { settings, loading, updateSettings } = useSettings(true, logout);
 
   // Change PIN state
   const [currentPin, setCurrentPin] = useState('');
@@ -14,14 +12,6 @@ export default function SettingsPage() {
   const [pinError, setPinError] = useState('');
   const [pinSuccess, setPinSuccess] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
-
-  // Bonus minutes state — null means "use value from settings"
-  const [bonusMinutes, setBonusMinutes] = useState(null);
-  const [bonusSaving, setBonusSaving] = useState(false);
-  const [bonusSuccess, setBonusSuccess] = useState('');
-  const [bonusError, setBonusError] = useState('');
-
-  const displayBonusMinutes = bonusMinutes !== null ? bonusMinutes : (settings.challenge_bonus_minutes || '10');
 
   const handleChangePin = async (e) => {
     e.preventDefault();
@@ -50,33 +40,6 @@ export default function SettingsPage() {
       setPinSaving(false);
     }
   };
-
-  const handleSaveBonusMinutes = async (e) => {
-    e.preventDefault();
-    setBonusError('');
-    setBonusSuccess('');
-
-    const val = parseInt(displayBonusMinutes, 10);
-    if (isNaN(val) || val < 1 || val > 120) {
-      setBonusError('Must be between 1 and 120 minutes');
-      return;
-    }
-
-    setBonusSaving(true);
-    try {
-      await updateSettings({ challenge_bonus_minutes: String(val) });
-      setBonusSuccess('Saved');
-      setTimeout(() => setBonusSuccess(''), 2000);
-    } catch (err) {
-      setBonusError(err.message);
-    } finally {
-      setBonusSaving(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="text-center py-12 text-slate-400">Loading settings...</div>;
-  }
 
   return (
     <>
@@ -131,36 +94,6 @@ export default function SettingsPage() {
               {pinSaving ? 'Saving...' : 'Change PIN'}
             </button>
           </form>
-        </div>
-
-        {/* Challenge Bonus Time */}
-        <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-2">Challenge Bonus Time</h3>
-          <p className="text-slate-400 text-sm mb-4">
-            How many minutes a challenge completion awards as bonus screen time.
-          </p>
-          <form onSubmit={handleSaveBonusMinutes} className="flex items-end gap-3 max-w-sm">
-            <div className="flex-1">
-              <label className="block text-slate-400 text-sm mb-1">Minutes per challenge</label>
-              <input
-                type="number"
-                min="1"
-                max="120"
-                value={displayBonusMinutes}
-                onChange={(e) => setBonusMinutes(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={bonusSaving}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-            >
-              {bonusSaving ? 'Saving...' : 'Save'}
-            </button>
-          </form>
-          {bonusError && <p className="text-red-400 text-sm mt-2">{bonusError}</p>}
-          {bonusSuccess && <p className="text-emerald-400 text-sm mt-2">{bonusSuccess}</p>}
         </div>
       </div>
     </>

@@ -73,6 +73,22 @@ db.exec(`
   ON challenge_completions(completed_at)
 `);
 
+// Create challenges table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS challenges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    challenge_type TEXT NOT NULL,
+    reward_minutes INTEGER NOT NULL DEFAULT 10,
+    config TEXT DEFAULT '{}',
+    sort_order INTEGER DEFAULT 0,
+    enabled INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Create settings table
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -117,6 +133,17 @@ if (!challengesApp) {
   db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled) VALUES (?, ?, ?, ?, ?, ?)')
     .run('Challenges', 'challenges', '🏆', (maxOrder.max || 0) + 1, 'builtin', 1);
   console.log('Seeded Challenges builtin app');
+}
+
+// Seed default challenges if table is empty
+const challengeCount = db.prepare('SELECT COUNT(*) as count FROM challenges').get();
+if (challengeCount.count === 0) {
+  const insertChallenge = db.prepare(
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  );
+  insertChallenge.run('Math', '➕', 'Solve 10 addition problems', 'math', 10, '{}', 0);
+  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 1);
+  console.log('Seeded default challenges');
 }
 
 export default db;

@@ -6,6 +6,7 @@ import Menu from './pages/Menu.jsx'
 import TestContent from './pages/TestContent.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import AppsPage from './pages/dashboard/AppsPage.jsx'
+import ChallengesPage from './pages/dashboard/ChallengesPage.jsx'
 import AppUsagePage from './pages/dashboard/AppUsagePage.jsx'
 import SettingsPage from './pages/dashboard/SettingsPage.jsx'
 import { getBuiltinApps, getBuiltinComponents } from './components/builtin'
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/test-content" element={<TestContent />} />
         <Route path="/dashboard" element={<Dashboard />}>
           <Route index element={<AppsPage />} />
+          <Route path="challenges" element={<ChallengesPage />} />
           <Route path="usage" element={<AppUsagePage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

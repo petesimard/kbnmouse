@@ -107,9 +107,19 @@ app.post('/api/admin/bonus-time', requirePin, (req, res) => {
   res.json({ success: true, today_bonus_minutes: result.total });
 });
 
+// Get all enabled challenges (public - kid-facing)
+app.get('/api/challenges', (req, res) => {
+  const challenges = db.prepare(
+    'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 ORDER BY sort_order'
+  ).all();
+  // Parse config JSON for each challenge
+  const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
+  res.json(parsed);
+});
+
 // Record a challenge completion (public)
 app.post('/api/challenges/complete', (req, res) => {
-  const { challenge_type, minutes_awarded } = req.body;
+  const { challenge_type, minutes_awarded, challenge_id } = req.body;
   if (!challenge_type || minutes_awarded == null) {
     return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
   }
@@ -276,9 +286,6 @@ app.get('/api/admin/settings', requirePin, (req, res) => {
   for (const row of rows) {
     settings[row.key] = row.value;
   }
-  if (!settings.challenge_bonus_minutes) {
-    settings.challenge_bonus_minutes = '10';
-  }
   res.json(settings);
 });
 
@@ -300,13 +307,6 @@ app.put('/api/admin/settings', requirePin, (req, res) => {
   transaction(Object.entries(settings));
 
   res.json({ success: true });
-});
-
-// Get challenge bonus minutes (public - used by Challenges component)
-app.get('/api/settings/challenge-bonus-minutes', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'challenge_bonus_minutes'").get();
-  const minutes = row ? parseInt(row.value, 10) : 10;
-  res.json({ minutes });
 });
 
 // Get all apps including disabled (protected)
@@ -392,6 +392,101 @@ app.delete('/api/admin/apps/:id', requirePin, (req, res) => {
   const result = db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
   if (result.changes === 0) {
     return res.status(404).json({ error: 'App not found' });
+  }
+  broadcastRefresh();
+  res.status(204).send();
+});
+
+// --- Challenge admin endpoints ---
+
+// Get all challenges including disabled (protected)
+app.get('/api/admin/challenges', requirePin, (req, res) => {
+  const challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+  const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
+  res.json(parsed);
+});
+
+// Create new challenge (protected)
+app.post('/api/admin/challenges', requirePin, (req, res) => {
+  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1 } = req.body;
+  if (!name || !icon || !challenge_type) {
+    return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
+  }
+
+  let finalSortOrder = sort_order;
+  if (finalSortOrder === undefined) {
+    const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM challenges').get();
+    finalSortOrder = (maxOrder.max || 0) + 1;
+  }
+
+  const configStr = typeof config === 'string' ? config : JSON.stringify(config);
+  const result = db.prepare(
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(name, icon, description, challenge_type, reward_minutes, configStr, finalSortOrder, enabled);
+
+  const newChallenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(result.lastInsertRowid);
+  newChallenge.config = JSON.parse(newChallenge.config || '{}');
+  broadcastRefresh();
+  res.status(201).json(newChallenge);
+});
+
+// Bulk reorder challenges (protected) - must be before :id route
+app.put('/api/admin/challenges/reorder', requirePin, (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ error: 'order must be an array' });
+  }
+
+  const updateStmt = db.prepare('UPDATE challenges SET sort_order = ? WHERE id = ?');
+  const transaction = db.transaction((items) => {
+    for (const item of items) {
+      updateStmt.run(item.sort_order, item.id);
+    }
+  });
+
+  transaction(order);
+
+  const challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+  const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
+  broadcastRefresh();
+  res.json(parsed);
+});
+
+// Update challenge (protected)
+app.put('/api/admin/challenges/:id', requirePin, (req, res) => {
+  const { name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled } = req.body;
+  const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
+
+  if (!existing) {
+    return res.status(404).json({ error: 'Challenge not found' });
+  }
+
+  const configStr = config !== undefined ? (typeof config === 'string' ? config : JSON.stringify(config)) : existing.config;
+
+  db.prepare(`
+    UPDATE challenges
+    SET name = COALESCE(?, name),
+        icon = COALESCE(?, icon),
+        description = COALESCE(?, description),
+        challenge_type = COALESCE(?, challenge_type),
+        reward_minutes = COALESCE(?, reward_minutes),
+        config = ?,
+        sort_order = COALESCE(?, sort_order),
+        enabled = COALESCE(?, enabled)
+    WHERE id = ?
+  `).run(name, icon, description, challenge_type, reward_minutes, configStr, sort_order, enabled, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
+  updated.config = JSON.parse(updated.config || '{}');
+  broadcastRefresh();
+  res.json(updated);
+});
+
+// Delete challenge (protected)
+app.delete('/api/admin/challenges/:id', requirePin, (req, res) => {
+  const result = db.prepare('DELETE FROM challenges WHERE id = ?').run(req.params.id);
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Challenge not found' });
   }
   broadcastRefresh();
   res.status(204).send();
