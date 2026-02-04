@@ -141,8 +141,11 @@ if (challengeCount.count === 0) {
   const insertChallenge = db.prepare(
     'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
   );
-  insertChallenge.run('Math', '➕', 'Solve 10 addition problems', 'math', 10, '{}', 0);
-  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 1);
+  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, '{}', 0);
+  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, '{}', 1);
+  insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, '{}', 2);
+  insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, '{}', 3);
+  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 4);
   console.log('Seeded default challenges');
 }
 

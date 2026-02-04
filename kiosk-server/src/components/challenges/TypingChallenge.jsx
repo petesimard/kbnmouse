@@ -1,7 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getDefaults } from './schemas.js';
+import { z } from 'zod';
+import { field, registerConfigSchema, computeDefaults } from './schemas.js';
 
-const TYPING_DEFAULTS = getDefaults('typing');
+export const configSchema = {
+  difficulty: field(z.enum(['easy', 'medium', 'hard']).default('medium'), {
+    label: 'Difficulty',
+    description: 'Easy = short words, Medium = common words, Hard = longer words',
+    type: 'select',
+    options: [
+      { value: 'easy', label: 'Easy' },
+      { value: 'medium', label: 'Medium' },
+      { value: 'hard', label: 'Hard' },
+    ],
+  }),
+  total_words: field(z.number().int().min(1).max(50).default(10), {
+    label: 'Number of Words',
+    description: 'How many words to type correctly',
+    type: 'number',
+    min: 1,
+    max: 50,
+  }),
+};
+
+registerConfigSchema('typing', configSchema);
+
+const TYPING_DEFAULTS = computeDefaults(configSchema);
 
 const WORD_LISTS = {
   easy: [

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getChallengeTypes, getConfigFields, getDefaults, buildZodSchema } from '../../components/challenges';
+import { getChallengeTypes, getChallengeLabel, getConfigFields, getDefaults, buildZodSchema } from '../../components/challenges';
 
 function ConfigField({ fieldKey, field, value, error, onChange }) {
   const id = `config-${fieldKey}`;
@@ -84,17 +84,17 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
     name: '',
     icon: '',
     description: '',
-    challenge_type: challengeTypes[0] || 'math',
+    challenge_type: challengeTypes[0] || 'math_addition',
     reward_minutes: 10,
     enabled: 1,
   });
-  const [config, setConfig] = useState(() => getDefaults(challengeTypes[0] || 'math'));
+  const [config, setConfig] = useState(() => getDefaults(challengeTypes[0] || 'math_addition'));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (challenge) {
-      const type = challenge.challenge_type || 'math';
+      const type = challenge.challenge_type || 'math_addition';
       setFormData({
         name: challenge.name || '',
         icon: challenge.icon || '',
@@ -207,7 +207,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
               >
                 {challengeTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                    {getChallengeLabel(type)}
                   </option>
                 ))}
               </select>

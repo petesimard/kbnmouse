@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { getChallengeLabel } from '../../components/challenges';
 
 function ChallengeCard({ challenge, onEdit, onDelete, onToggle }) {
   const {
@@ -51,7 +52,7 @@ function ChallengeCard({ challenge, onEdit, onDelete, onToggle }) {
 
       {/* Type badge */}
       <span className="px-2 py-1 text-xs rounded bg-amber-600/30 text-amber-300">
-        {challenge.challenge_type}
+        {getChallengeLabel(challenge.challenge_type)}
       </span>
 
       {/* Toggle enabled */}
