@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
+import { calculateRemainingSeconds } from '../utils/timeLimit';
 
 function formatRemaining(seconds) {
   if (seconds <= 0) return '0:00';
@@ -70,16 +71,9 @@ function Menu() {
       for (const entry of results) {
         if (!entry) continue;
         const [id, usage] = entry;
-        if (usage.daily_limit_minutes != null || usage.weekly_limit_minutes != null) {
-          const candidates = [];
-          const bonusSeconds = (usage.bonus_minutes_today || 0) * 60;
-          if (usage.daily_limit_minutes != null) {
-            candidates.push(usage.daily_limit_minutes * 60 + bonusSeconds - usage.today_seconds);
-          }
-          if (usage.weekly_limit_minutes != null) {
-            candidates.push(usage.weekly_limit_minutes * 60 - usage.week_seconds);
-          }
-          map[id] = Math.max(0, Math.min(...candidates));
+        const remaining = calculateRemainingSeconds(usage);
+        if (remaining !== null) {
+          map[id] = remaining;
         }
       }
       setUsageMap(map);

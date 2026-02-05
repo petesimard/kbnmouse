@@ -30,6 +30,36 @@ let killTimer = null;
 let currentSessionStart = null;
 let currentAppId = null;
 
+/**
+ * Calculate remaining seconds for an app based on usage data.
+ * This mirrors the logic in kiosk-server/src/utils/timeLimit.js
+ */
+function calculateRemainingSeconds(usage) {
+  const candidates = [];
+  const bonusSeconds = (usage.bonus_minutes_today || 0) * 60;
+
+  // Daily limit with bonus time
+  if (usage.daily_limit_minutes != null) {
+    candidates.push(usage.daily_limit_minutes * 60 + bonusSeconds - usage.today_seconds);
+  }
+
+  // Weekly limit (no bonus applied to weekly)
+  if (usage.weekly_limit_minutes != null) {
+    candidates.push(usage.weekly_limit_minutes * 60 - usage.week_seconds);
+  }
+
+  // Hard cap: max_daily_minutes ignores bonus time entirely
+  if (usage.max_daily_minutes > 0) {
+    candidates.push(usage.max_daily_minutes * 60 - usage.today_seconds);
+  }
+
+  if (candidates.length === 0) {
+    return Infinity; // No limits configured
+  }
+
+  return Math.max(0, Math.min(...candidates));
+}
+
 // Parse the hostname from KIOSK_URL for local-origin checks
 const kioskHost = (() => {
   try {
@@ -254,8 +284,8 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
   if (killTimer) { clearTimeout(killTimer); killTimer = null; }
-  if (nativeProcess) {
-    try { nativeProcess.kill(); } catch {}
+  if (nativeProcess && nativeProcess.pid) {
+    try { process.kill(-nativeProcess.pid, 'SIGTERM'); } catch {}
     nativeProcess = null;
   }
   app.quit();
@@ -303,17 +333,7 @@ ipcMain.handle('native:launch', async (event, command, appId) => {
       const resp = await fetch(`${apiBase}/api/apps/${appId}/usage`);
       if (resp.ok) {
         const usage = await resp.json();
-        const candidates = [];
-        const bonusSeconds = (usage.bonus_minutes_today || 0) * 60;
-        if (usage.daily_limit_minutes != null) {
-          candidates.push(usage.daily_limit_minutes * 60 + bonusSeconds - usage.today_seconds);
-        }
-        if (usage.weekly_limit_minutes != null) {
-          candidates.push(usage.weekly_limit_minutes * 60 - usage.week_seconds);
-        }
-        if (candidates.length > 0) {
-          remainingSeconds = Math.min(...candidates);
-        }
+        remainingSeconds = calculateRemainingSeconds(usage);
         if (remainingSeconds <= 0) {
           return { success: false, error: 'Time limit reached' };
         }
@@ -325,7 +345,7 @@ ipcMain.handle('native:launch', async (event, command, appId) => {
   }
 
   try {
-    const child = spawn(command, [], { shell: true, detached: false, stdio: 'ignore' });
+    const child = spawn(command, [], { shell: true, detached: true, stdio: 'ignore' });
     nativeProcess = child;
     currentSessionStart = new Date().toISOString();
     currentAppId = appId || null;
@@ -362,9 +382,9 @@ ipcMain.handle('native:launch', async (event, command, appId) => {
       }, warningMs);
 
       killTimer = setTimeout(() => {
-        // Kill the native process when time runs out
-        if (nativeProcess) {
-          try { nativeProcess.kill(); } catch {}
+        // Kill the native process group when time runs out
+        if (nativeProcess && nativeProcess.pid) {
+          try { process.kill(-nativeProcess.pid, 'SIGTERM'); } catch {}
         }
         if (menuView) {
           menuView.webContents.send('native:timeLimitReached');
@@ -429,11 +449,11 @@ ipcMain.handle('native:isRunning', async () => {
 
 // Kill the running native process
 ipcMain.handle('native:kill', async () => {
-  if (nativeProcess) {
+  if (nativeProcess && nativeProcess.pid) {
     try {
       if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
       if (killTimer) { clearTimeout(killTimer); killTimer = null; }
-      nativeProcess.kill();
+      process.kill(-nativeProcess.pid, 'SIGTERM');
       return { success: true };
     } catch (err) {
       return { success: false, error: err.message };

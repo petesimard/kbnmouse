@@ -13,6 +13,7 @@ function AppFormModal({ app, onSave, onClose }) {
     enabled: 1,
     daily_limit_minutes: '',
     weekly_limit_minutes: '',
+    max_daily_minutes: '',
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -27,6 +28,7 @@ function AppFormModal({ app, onSave, onClose }) {
         enabled: app.enabled ?? 1,
         daily_limit_minutes: app.daily_limit_minutes ?? '',
         weekly_limit_minutes: app.weekly_limit_minutes ?? '',
+        max_daily_minutes: app.max_daily_minutes || '',
       });
     }
   }, [app]);
@@ -42,7 +44,7 @@ function AppFormModal({ app, onSave, onClose }) {
       ...prev,
       app_type: type,
       url: '',
-      ...(type !== 'native' ? { daily_limit_minutes: '', weekly_limit_minutes: '' } : {}),
+      ...(type !== 'native' ? { daily_limit_minutes: '', weekly_limit_minutes: '', max_daily_minutes: '' } : {}),
     }));
   };
 
@@ -83,6 +85,7 @@ function AppFormModal({ app, onSave, onClose }) {
         ...formData,
         daily_limit_minutes: formData.daily_limit_minutes === '' ? null : parseInt(formData.daily_limit_minutes),
         weekly_limit_minutes: formData.weekly_limit_minutes === '' ? null : parseInt(formData.weekly_limit_minutes),
+        max_daily_minutes: formData.max_daily_minutes === '' ? 0 : parseInt(formData.max_daily_minutes),
       };
       await onSave(dataToSave);
       onClose();
@@ -268,6 +271,23 @@ function AppFormModal({ app, onSave, onClose }) {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Max Daily Time (hard cap) */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Max Daily (minutes)</label>
+                  <input
+                    type="number"
+                    name="max_daily_minutes"
+                    value={formData.max_daily_minutes}
+                    onChange={handleChange}
+                    min="0"
+                    placeholder="No cap"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Hard cap that ignores bonus time. 0 = no cap.
+                  </p>
                 </div>
               </>
             )}

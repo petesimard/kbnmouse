@@ -244,6 +244,7 @@ app.get('/api/apps/:id/usage', (req, res) => {
     week_seconds: weekUsage.total,
     daily_limit_minutes: appRecord.daily_limit_minutes,
     weekly_limit_minutes: appRecord.weekly_limit_minutes,
+    max_daily_minutes: appRecord.max_daily_minutes || 0,
     bonus_minutes_today: bonusResult.total,
   });
 });
@@ -510,7 +511,7 @@ app.get('/api/admin/apps', requirePin, (req, res) => {
 
 // Create new app (protected) - supports profile_id in body
 app.post('/api/admin/apps', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, profile_id = null } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
@@ -527,7 +528,7 @@ app.post('/api/admin/apps', requirePin, (req, res) => {
     finalSortOrder = (maxOrder.max || 0) + 1;
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, profile_id);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   broadcastRefresh();
   res.status(201).json(newApp);
@@ -556,7 +557,7 @@ app.put('/api/admin/apps/reorder', requirePin, (req, res) => {
 
 // Update app (protected)
 app.put('/api/admin/apps/:id', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes } = req.body;
+  const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes } = req.body;
   const existing = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
 
   if (!existing) {
@@ -566,6 +567,7 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
   // Use COALESCE for most fields, but handle limit columns separately since null is a valid value (means "no limit")
   const finalDailyLimit = daily_limit_minutes !== undefined ? daily_limit_minutes : existing.daily_limit_minutes;
   const finalWeeklyLimit = weekly_limit_minutes !== undefined ? weekly_limit_minutes : existing.weekly_limit_minutes;
+  const finalMaxDaily = max_daily_minutes !== undefined ? max_daily_minutes : existing.max_daily_minutes;
 
   db.prepare(`
     UPDATE apps
@@ -576,9 +578,10 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
         enabled = COALESCE(?, enabled),
         app_type = COALESCE(?, app_type),
         daily_limit_minutes = ?,
-        weekly_limit_minutes = ?
+        weekly_limit_minutes = ?,
+        max_daily_minutes = ?
     WHERE id = ?
-  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, req.params.id);
+  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, finalMaxDaily, req.params.id);
 
   const updated = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
   broadcastRefresh();

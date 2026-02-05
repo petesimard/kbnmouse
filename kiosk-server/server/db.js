@@ -39,6 +39,10 @@ if (!columns.find(col => col.name === 'weekly_limit_minutes')) {
   db.exec("ALTER TABLE apps ADD COLUMN weekly_limit_minutes INTEGER DEFAULT NULL");
   console.log('Added weekly_limit_minutes column to apps table');
 }
+if (!columns.find(col => col.name === 'max_daily_minutes')) {
+  db.exec("ALTER TABLE apps ADD COLUMN max_daily_minutes INTEGER DEFAULT 0");
+  console.log('Added max_daily_minutes column to apps table');
+}
 
 // Create app_usage table for tracking native app session durations
 db.exec(`
