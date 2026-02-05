@@ -241,6 +241,70 @@ function AppFormModal({ app, onSave, onClose }) {
               </>
             )}
 
+            {/* Image Generator Settings (for imagegen builtin only) */}
+            {formData.app_type === 'builtin' && formData.url === 'imagegen' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    OpenAI API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.config.openai_api_key || ''}
+                    onChange={(e) => handleConfigChange('openai_api_key', e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Required for Image Generator. Get one from platform.openai.com
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Image Size
+                  </label>
+                  <select
+                    value={formData.config.image_size || '1024x1024'}
+                    onChange={(e) => handleConfigChange('image_size', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="1024x1024">Square (1024x1024)</option>
+                    <option value="1792x1024">Landscape (1792x1024)</option>
+                    <option value="1024x1792">Portrait (1024x1792)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Image Quality
+                  </label>
+                  <select
+                    value={formData.config.image_quality || 'standard'}
+                    onChange={(e) => handleConfigChange('image_quality', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="standard">Standard (Faster)</option>
+                    <option value="hd">HD (More Detail)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Image Style
+                  </label>
+                  <select
+                    value={formData.config.image_style || 'vivid'}
+                    onChange={(e) => handleConfigChange('image_style', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="vivid">Vivid (Colorful)</option>
+                    <option value="natural">Natural (Realistic)</option>
+                  </select>
+                </div>
+              </>
+            )}
+
             {/* Name */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
