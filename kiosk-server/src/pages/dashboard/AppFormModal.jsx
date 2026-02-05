@@ -14,6 +14,7 @@ function AppFormModal({ app, onSave, onClose }) {
     daily_limit_minutes: '',
     weekly_limit_minutes: '',
     max_daily_minutes: '',
+    config: {},
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -29,6 +30,7 @@ function AppFormModal({ app, onSave, onClose }) {
         daily_limit_minutes: app.daily_limit_minutes ?? '',
         weekly_limit_minutes: app.weekly_limit_minutes ?? '',
         max_daily_minutes: app.max_daily_minutes || '',
+        config: app.config || {},
       });
     }
   }, [app]);
@@ -44,7 +46,15 @@ function AppFormModal({ app, onSave, onClose }) {
       ...prev,
       app_type: type,
       url: '',
+      config: {},
       ...(type !== 'native' ? { daily_limit_minutes: '', weekly_limit_minutes: '', max_daily_minutes: '' } : {}),
+    }));
+  };
+
+  const handleConfigChange = (key, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      config: { ...prev.config, [key]: value },
     }));
   };
 
@@ -86,6 +96,7 @@ function AppFormModal({ app, onSave, onClose }) {
         daily_limit_minutes: formData.daily_limit_minutes === '' ? null : parseInt(formData.daily_limit_minutes),
         weekly_limit_minutes: formData.weekly_limit_minutes === '' ? null : parseInt(formData.weekly_limit_minutes),
         max_daily_minutes: formData.max_daily_minutes === '' ? 0 : parseInt(formData.max_daily_minutes),
+        config: formData.config,
       };
       await onSave(dataToSave);
       onClose();
@@ -177,6 +188,57 @@ function AppFormModal({ app, onSave, onClose }) {
                   <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
                 )}
               </div>
+            )}
+
+            {/* ChatBot Settings (for chatbot builtin only) */}
+            {formData.app_type === 'builtin' && formData.url === 'chatbot' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    OpenAI API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={formData.config.openai_api_key || ''}
+                    onChange={(e) => handleConfigChange('openai_api_key', e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Required for ChatBot to work. Get one from platform.openai.com
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Model
+                  </label>
+                  <select
+                    value={formData.config.model || 'gpt-5-mini'}
+                    onChange={(e) => handleConfigChange('model', e.target.value)}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="gpt-5-mini">GPT-5 Mini (Fast)</option>
+                    <option value="gpt-5.2">GPT-5.2 (Best)</option>
+                    <option value="gpt-5-nano">GPT-5 Nano (Cheapest)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    System Prompt
+                  </label>
+                  <textarea
+                    value={formData.config.system_prompt ?? 'You are a friendly, helpful assistant for children. Keep your responses simple, age-appropriate, and encouraging. Avoid any inappropriate content, violence, or scary topics. Be patient and explain things in a way that is easy to understand. If asked about something inappropriate, politely redirect to a safer topic.'}
+                    onChange={(e) => handleConfigChange('system_prompt', e.target.value)}
+                    rows={4}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Instructions that guide the AI's behavior. The default is kid-friendly.
+                  </p>
+                </div>
+              </>
             )}
 
             {/* Name */}

@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
+import OpenAI from 'openai';
 import db, { hashPin, seedProfileDefaults } from './db.js';
 
 const app = express();
@@ -506,12 +507,13 @@ app.get('/api/admin/apps', requirePin, (req, res) => {
   } else {
     apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
   }
-  res.json(apps);
+  const parsed = apps.map(a => ({ ...a, config: JSON.parse(a.config || '{}') }));
+  res.json(parsed);
 });
 
 // Create new app (protected) - supports profile_id in body
 app.post('/api/admin/apps', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {} } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
@@ -528,8 +530,10 @@ app.post('/api/admin/apps', requirePin, (req, res) => {
     finalSortOrder = (maxOrder.max || 0) + 1;
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id);
+  const configStr = typeof config === 'string' ? config : JSON.stringify(config);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, configStr);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
+  newApp.config = JSON.parse(newApp.config || '{}');
   broadcastRefresh();
   res.status(201).json(newApp);
 });
@@ -557,7 +561,7 @@ app.put('/api/admin/apps/reorder', requirePin, (req, res) => {
 
 // Update app (protected)
 app.put('/api/admin/apps/:id', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes } = req.body;
+  const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, config } = req.body;
   const existing = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
 
   if (!existing) {
@@ -568,6 +572,7 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
   const finalDailyLimit = daily_limit_minutes !== undefined ? daily_limit_minutes : existing.daily_limit_minutes;
   const finalWeeklyLimit = weekly_limit_minutes !== undefined ? weekly_limit_minutes : existing.weekly_limit_minutes;
   const finalMaxDaily = max_daily_minutes !== undefined ? max_daily_minutes : existing.max_daily_minutes;
+  const finalConfig = config !== undefined ? (typeof config === 'string' ? config : JSON.stringify(config)) : existing.config;
 
   db.prepare(`
     UPDATE apps
@@ -579,11 +584,13 @@ app.put('/api/admin/apps/:id', requirePin, (req, res) => {
         app_type = COALESCE(?, app_type),
         daily_limit_minutes = ?,
         weekly_limit_minutes = ?,
-        max_daily_minutes = ?
+        max_daily_minutes = ?,
+        config = ?
     WHERE id = ?
-  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, finalMaxDaily, req.params.id);
+  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, finalMaxDaily, finalConfig, req.params.id);
 
   const updated = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
+  updated.config = JSON.parse(updated.config || '{}');
   broadcastRefresh();
   res.json(updated);
 });
@@ -702,6 +709,56 @@ app.delete('/api/admin/challenges/:id', requirePin, (req, res) => {
   }
   broadcastRefresh();
   res.status(204).send();
+});
+
+// --- ChatBot endpoint ---
+
+// Send message to chatbot (public - uses app's API key)
+app.post('/api/chatbot/message', async (req, res) => {
+  const { app_id, messages } = req.body;
+  if (!app_id || !messages || !Array.isArray(messages)) {
+    return res.status(400).json({ error: 'app_id and messages array are required' });
+  }
+
+  const appRecord = db.prepare('SELECT * FROM apps WHERE id = ?').get(app_id);
+  if (!appRecord) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const config = JSON.parse(appRecord.config || '{}');
+  if (!config.openai_api_key) {
+    return res.json({ error: 'api_key_missing' });
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: config.openai_api_key });
+
+    // Prepend system prompt if configured
+    const systemPrompt = config.system_prompt ?? 'You are a friendly, helpful assistant for children. Keep your responses simple, age-appropriate, and encouraging. Avoid any inappropriate content, violence, or scary topics. Be patient and explain things in a way that is easy to understand. If asked about something inappropriate, politely redirect to a safer topic.';
+    const model = config.model || 'gpt-5-mini';
+
+    console.log('[ChatBot] Model:', model);
+    console.log('[ChatBot] System prompt:', systemPrompt);
+
+    const messagesWithSystem = [
+      { role: 'system', content: systemPrompt },
+      ...messages,
+    ];
+
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: messagesWithSystem,
+    });
+
+    const response = completion.choices[0]?.message?.content || '';
+    res.json({ response });
+  } catch (err) {
+    console.error('OpenAI API error:', err.message);
+    if (err.status === 401) {
+      return res.json({ error: 'api_key_invalid' });
+    }
+    res.status(500).json({ error: 'Failed to get response from AI' });
+  }
 });
 
 // Legacy endpoints (kept for backwards compatibility)
