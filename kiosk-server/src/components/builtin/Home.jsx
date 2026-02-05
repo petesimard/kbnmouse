@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useProfile } from '../../contexts/ProfileContext';
 
-export const meta = { key: 'home', name: 'Home', icon: '🏠', description: 'Welcome home screen' };
+export const meta = { key: 'home', name: 'Home', icon: '🏠', description: 'Welcome home screen', skipTracking: true };
 
 function Home() {
   const { profileId, profiles } = useProfile();

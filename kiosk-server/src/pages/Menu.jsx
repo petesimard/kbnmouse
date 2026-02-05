@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
 import { calculateRemainingSeconds } from '../utils/timeLimit';
+import { getBuiltinApps } from '../components/builtin';
 
 function formatRemaining(seconds) {
   if (seconds <= 0) return '0:00';
@@ -24,8 +25,17 @@ function Menu() {
   const [timeWarning, setTimeWarning] = useState(false);
   const [usageMap, setUsageMap] = useState({});
 
+  // Build set of builtin keys that opt out of usage tracking
+  const skipTrackingKeys = useMemo(() => new Set(
+    getBuiltinApps().filter((b) => b.skipTracking).map((b) => b.key)
+  ), []);
+
   const needsProfileSelection = !profilesLoading && profiles.length > 1 && !profileId;
   const loadedProfileSelectRef = useRef(false);
+
+  // Session tracking for URL/builtin apps
+  // Shape: { appId, startedAt, enforcementTimer, warningTimer }
+  const sessionRef = useRef(null);
 
   // Load /profiles in the content view when profile selection is needed
   useEffect(() => {
@@ -176,6 +186,64 @@ function Menu() {
     if (apps.length > 0) fetchUsage(apps);
   }, [apps, fetchUsage]);
 
+  // Post usage for a session segment
+  const postUsage = useCallback((appId, startedAt, endedAt) => {
+    const durationSeconds = Math.round((endedAt - startedAt) / 1000);
+    if (durationSeconds < 1) return;
+    fetch(`/api/apps/${appId}/usage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        started_at: startedAt.toISOString(),
+        ended_at: endedAt.toISOString(),
+        duration_seconds: durationSeconds,
+      }),
+    }).catch((err) => console.error('Failed to post usage:', err));
+  }, []);
+
+  // Flush (end) the current URL/builtin session
+  const flushSession = useCallback(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    clearTimeout(session.enforcementTimer);
+    clearTimeout(session.warningTimer);
+    postUsage(session.appId, session.startedAt, new Date());
+    sessionRef.current = null;
+  }, [postUsage]);
+
+  // Start a new tracking session for a URL/builtin app
+  const startSession = useCallback((app, remainingSeconds) => {
+    const session = { appId: app.id, startedAt: new Date(), enforcementTimer: null, warningTimer: null };
+
+    if (remainingSeconds != null) {
+      // Warning at 60s before limit
+      if (remainingSeconds > 60) {
+        session.warningTimer = setTimeout(() => {
+          setTimeWarning(true);
+        }, (remainingSeconds - 60) * 1000);
+      }
+      // Enforcement: navigate home when time expires
+      session.enforcementTimer = setTimeout(() => {
+        setTimeWarning(false);
+        setTimeLimitError(true);
+        setTimeout(() => setTimeLimitError(false), 5000);
+        if (window.kiosk?.content?.loadURL) {
+          window.kiosk.content.loadURL('/builtin/home');
+        }
+        // Flush the session that just expired
+        const s = sessionRef.current;
+        if (s) {
+          clearTimeout(s.warningTimer);
+          postUsage(s.appId, s.startedAt, new Date());
+          sessionRef.current = null;
+        }
+        refreshUsage();
+      }, remainingSeconds * 1000);
+    }
+
+    sessionRef.current = session;
+  }, [postUsage, refreshUsage]);
+
   // Subscribe to native app exit events
   useEffect(() => {
     if (!window.kiosk?.native?.onExited) return;
@@ -205,7 +273,56 @@ function Menu() {
     });
   }, []);
 
+  // Client-side countdown: update displayed remaining time every second for active session
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const session = sessionRef.current;
+      if (!session) return;
+      setUsageMap((prev) => {
+        if (prev[session.appId] == null) return prev;
+        return { ...prev, [session.appId]: Math.max(0, prev[session.appId] - 1) };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Heartbeat: post accumulated usage every 60s and sync with server
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const now = new Date();
+      postUsage(session.appId, session.startedAt, now);
+      session.startedAt = now;
+      refreshUsage();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [postUsage, refreshUsage]);
+
+  // Flush session on page unload (profile switch, Electron reload, etc.)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const session = sessionRef.current;
+      if (!session) return;
+      const now = new Date();
+      const durationSeconds = Math.round((now - session.startedAt) / 1000);
+      if (durationSeconds < 1) return;
+      const blob = new Blob([JSON.stringify({
+        started_at: session.startedAt.toISOString(),
+        ended_at: now.toISOString(),
+        duration_seconds: durationSeconds,
+      })], { type: 'application/json' });
+      navigator.sendBeacon(`/api/apps/${session.appId}/usage`, blob);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   const handleLoadURL = async (app) => {
+    // End any active URL/builtin session first
+    flushSession();
+    setTimeWarning(false);
+
     // Native apps launch a process instead of loading a URL
     if (app.app_type === 'native') {
       if (hasKiosk && window.kiosk?.native?.launch) {
@@ -224,6 +341,16 @@ function Menu() {
       return;
     }
 
+    // Don't track builtins that opt out (e.g. home, challenges)
+    const skipTracking = app.app_type === 'builtin' && skipTrackingKeys.has(app.url);
+
+    // Check if time limit already exhausted
+    if (!skipTracking && usageMap[app.id] != null && usageMap[app.id] <= 0) {
+      setTimeLimitError(true);
+      setTimeout(() => setTimeLimitError(false), 5000);
+      return;
+    }
+
     // Determine the URL based on app type
     let url = app.url;
     if (app.app_type === 'builtin') {
@@ -233,8 +360,12 @@ function Menu() {
     if (hasKiosk) {
       window.kiosk.content.loadURL(url);
     } else {
-      // Fallback for browser testing - navigate in current window
       window.location.href = url;
+    }
+
+    // Start tracking session (skip for home screen)
+    if (!skipTracking) {
+      startSession(app, usageMap[app.id] ?? null);
     }
   };
 
@@ -251,6 +382,8 @@ function Menu() {
   };
 
   const handleHome = () => {
+    flushSession();
+    setTimeWarning(false);
     if (hasKiosk) {
       window.kiosk.content.loadURL('/builtin/home');
     } else {
@@ -265,6 +398,8 @@ function Menu() {
   };
 
   const handleSwitchUser = () => {
+    flushSession();
+    setTimeWarning(false);
     clearProfile();
     if (window.kiosk?.content?.loadURL) {
       window.kiosk.content.loadURL('/profiles');

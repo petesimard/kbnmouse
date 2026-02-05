@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getChallengeComponent } from '../challenges';
 import { useProfile } from '../../contexts/ProfileContext';
 
-export const meta = { key: 'challenges', name: 'Challenges', icon: '🏆', description: 'Earn bonus playtime' };
+export const meta = { key: 'challenges', name: 'Challenges', icon: '🏆', description: 'Earn bonus playtime', skipTracking: true };
 
 function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
   return (

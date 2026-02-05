@@ -49,7 +49,6 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
       app_type: type,
       url: '',
       config: {},
-      ...(type !== 'native' ? { daily_limit_minutes: '', weekly_limit_minutes: '', max_daily_minutes: '' } : {}),
     }));
   };
 
@@ -348,78 +347,76 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
 
             {/* Launch Command (for native type only) */}
             {formData.app_type === 'native' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Launch Command
-                  </label>
-                  <input
-                    type="text"
-                    name="url"
-                    value={formData.url}
-                    onChange={handleChange}
-                    placeholder="e.g. gnome-calculator"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                  />
-                  {errors.url && (
-                    <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Launch Command
+                </label>
+                <input
+                  type="text"
+                  name="url"
+                  value={formData.url}
+                  onChange={handleChange}
+                  placeholder="e.g. gnome-calculator"
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                />
+                {errors.url && (
+                  <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
+                )}
+              </div>
+            )}
 
-                {/* Time Limits */}
+            {/* Time Limits */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Time Limits
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Leave blank for no limit. App will be unavailable when time runs out.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
-                    Time Limits
-                  </label>
-                  <p className="text-xs text-slate-500 mb-2">
-                    Leave blank for no limit. App will auto-close when time runs out.
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1">Daily (minutes)</label>
-                      <input
-                        type="number"
-                        name="daily_limit_minutes"
-                        value={formData.daily_limit_minutes}
-                        onChange={handleChange}
-                        min="1"
-                        placeholder="No limit"
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 mb-1">Weekly (minutes)</label>
-                      <input
-                        type="number"
-                        name="weekly_limit_minutes"
-                        value={formData.weekly_limit_minutes}
-                        onChange={handleChange}
-                        min="1"
-                        placeholder="No limit"
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Max Daily Time (hard cap) */}
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Max Daily (minutes)</label>
+                  <label className="block text-xs text-slate-400 mb-1">Daily (minutes)</label>
                   <input
                     type="number"
-                    name="max_daily_minutes"
-                    value={formData.max_daily_minutes}
+                    name="daily_limit_minutes"
+                    value={formData.daily_limit_minutes}
                     onChange={handleChange}
-                    min="0"
-                    placeholder="No cap"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                    min="1"
+                    placeholder="No limit"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
                   />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Hard cap that ignores bonus time. 0 = no cap.
-                  </p>
                 </div>
-              </>
-            )}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Weekly (minutes)</label>
+                  <input
+                    type="number"
+                    name="weekly_limit_minutes"
+                    value={formData.weekly_limit_minutes}
+                    onChange={handleChange}
+                    min="1"
+                    placeholder="No limit"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Max Daily Time (hard cap) */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Max Daily (minutes)</label>
+              <input
+                type="number"
+                name="max_daily_minutes"
+                value={formData.max_daily_minutes}
+                onChange={handleChange}
+                min="0"
+                placeholder="No cap"
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Hard cap that ignores bonus time. 0 = no cap.
+              </p>
+            </div>
 
             {/* Icon */}
             <div>
