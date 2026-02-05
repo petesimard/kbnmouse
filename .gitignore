@@ -33,6 +33,9 @@ Thumbs.db
 # Electron
 *.asar
 
+# Uploads
+kiosk-server/data/uploads/
+
 # Misc
 .cache/
 tmp/

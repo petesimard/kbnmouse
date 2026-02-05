@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
 import { calculateRemainingSeconds } from '../utils/timeLimit';
 import { getBuiltinApps } from '../components/builtin';
+import AppIcon from '../components/AppIcon';
 
 function formatRemaining(seconds) {
   if (seconds <= 0) return '0:00';
@@ -426,7 +427,7 @@ function Menu() {
       title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
     >
       <div className="flex items-center gap-2">
-        <span className="text-lg">{app.icon}</span>
+        <AppIcon icon={app.icon} className="text-lg w-5 h-5 object-contain" />
         <span className="text-sm">{app.name}</span>
       </div>
       {usageMap[app.id] != null && (
@@ -499,7 +500,7 @@ function Menu() {
             </button>
             {currentFolder && (
               <span className="flex items-center gap-1 text-slate-400 text-sm px-2">
-                <span className="text-lg">{currentFolder.icon}</span>
+                <AppIcon icon={currentFolder.icon} className="text-lg w-5 h-5 object-contain" />
                 {currentFolder.name}
               </span>
             )}
@@ -520,7 +521,7 @@ function Menu() {
                 style={{ backgroundColor: folder.color }}
                 title={folder.name}
               >
-                <span className="text-lg">{folder.icon}</span>
+                <AppIcon icon={folder.icon} className="text-lg w-5 h-5 object-contain" />
                 <span className="text-sm">{folder.name}</span>
               </button>
             ))}

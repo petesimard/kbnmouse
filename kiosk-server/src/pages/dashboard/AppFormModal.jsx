@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBuiltinApps } from '../../hooks/useApps';
+import IconPicker from '../../components/IconPicker';
+import AppIcon from '../../components/AppIcon';
 
 function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const { builtinApps } = useBuiltinApps();
@@ -178,7 +180,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                           : 'bg-slate-700 hover:bg-slate-600'
                       }`}
                     >
-                      <span className="text-2xl">{builtin.icon}</span>
+                      <AppIcon icon={builtin.icon} className="text-2xl w-8 h-8 object-contain" />
                       <div>
                         <div className="text-white font-medium">{builtin.name}</div>
                         <div className="text-slate-400 text-sm">{builtin.description}</div>
@@ -419,22 +421,16 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             </div>
 
             {/* Icon */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Icon (emoji)
-              </label>
-              <input
-                type="text"
-                name="icon"
-                value={formData.icon}
-                onChange={handleChange}
-                placeholder="Pick an emoji"
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
-              />
-              {errors.icon && (
-                <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
-              )}
-            </div>
+            <IconPicker
+              value={formData.icon}
+              onChange={(icon) => {
+                setFormData((prev) => ({ ...prev, icon }));
+                setErrors((prev) => ({ ...prev, icon: '' }));
+              }}
+            />
+            {errors.icon && (
+              <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
+            )}
 
             {/* Folder */}
             {folders.length > 0 && (

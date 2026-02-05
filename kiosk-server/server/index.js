@@ -11,6 +11,7 @@ import settingsRouter from './routes/settings.js';
 import chatbotRouter from './routes/chatbot.js';
 import imagegenRouter from './routes/imagegen.js';
 import foldersRouter from './routes/folders.js';
+import uploadsRouter from './routes/uploads.js';
 
 const app = express();
 const PORT = 3001;
@@ -19,7 +20,7 @@ const PORT = 3001;
 const server = createServer(app);
 setupWebSocket(server);
 
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Mount all routes (each router defines its full paths)
 app.use(profilesRouter);
@@ -30,6 +31,7 @@ app.use(settingsRouter);
 app.use('/api/chatbot', chatbotRouter);
 app.use('/api/imagegen', imagegenRouter);
 app.use(foldersRouter);
+app.use(uploadsRouter);
 
 server.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`);

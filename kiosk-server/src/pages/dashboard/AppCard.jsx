@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import AppIcon from '../../components/AppIcon';
 
 function AppCard({ app, onEdit, onDelete, onToggle }) {
   const {
@@ -38,7 +39,7 @@ function AppCard({ app, onEdit, onDelete, onToggle }) {
       </button>
 
       {/* App icon */}
-      <span className="text-3xl">{app.icon}</span>
+      <AppIcon icon={app.icon} className="text-3xl w-9 h-9 object-contain" />
 
       {/* App info */}
       <div className="flex-1 min-w-0">
