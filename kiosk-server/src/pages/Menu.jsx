@@ -250,6 +250,14 @@ function Menu() {
     }
   };
 
+  const handleHome = () => {
+    if (hasKiosk) {
+      window.kiosk.content.loadURL('/builtin/home');
+    } else {
+      window.location.href = '/builtin/home';
+    }
+  };
+
   const handleReload = () => {
     if (hasKiosk) {
       window.kiosk.content.reload();
@@ -320,6 +328,13 @@ function Menu() {
           title="Forward"
         >
           →
+        </button>
+        <button
+          onClick={handleHome}
+          className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
+          title="Home"
+        >
+          🏠
         </button>
         <button
           onClick={handleReload}
