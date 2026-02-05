@@ -50,10 +50,14 @@ export default function AppUsagePage() {
     return <div className="text-center py-12 text-red-400">Error: {error}</div>;
   }
 
-  // Filter to only apps with usage
-  const appsWithUsage = data.apps.filter(app =>
-    app.daily.some(d => d.seconds > 0)
-  );
+  // Filter to only apps with usage, sorted by most recent activity first
+  const appsWithUsage = data.apps
+    .filter(app => app.daily.some(d => d.seconds > 0))
+    .sort((a, b) => {
+      const lastA = [...a.daily].reverse().find(d => d.seconds > 0)?.date || '';
+      const lastB = [...b.daily].reverse().find(d => d.seconds > 0)?.date || '';
+      return lastB.localeCompare(lastA);
+    });
 
   // Find max seconds across all data for scaling bars
   const maxSeconds = Math.max(
@@ -91,7 +95,7 @@ export default function AppUsagePage() {
               </div>
 
               <div className="space-y-2">
-                {app.daily.map(day => (
+                {[...app.daily].reverse().map(day => (
                   <div key={day.date} className="flex items-center gap-3">
                     <span className="text-slate-400 text-xs w-28 text-right flex-shrink-0">
                       {formatDateLabel(day.date)}
