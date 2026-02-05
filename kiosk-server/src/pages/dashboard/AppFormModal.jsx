@@ -199,7 +199,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
               <>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    OpenAI API Key
+                    OpenAI API Key (Override)
                   </label>
                   <input
                     type="password"
@@ -209,7 +209,23 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Required for ChatBot to work. Get one from platform.openai.com
+                    Optional. Overrides the global API key from Settings. Leave blank to use the global key.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Endpoint URL (Override)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.config.openai_endpoint_url || ''}
+                    onChange={(e) => handleConfigChange('openai_endpoint_url', e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Optional. Overrides the global endpoint URL from Settings.
                   </p>
                 </div>
 
@@ -250,7 +266,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
               <>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    OpenAI API Key
+                    OpenAI API Key (Override)
                   </label>
                   <input
                     type="password"
@@ -260,7 +276,23 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                     className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Required for Image Generator. Get one from platform.openai.com
+                    Optional. Overrides the global API key from Settings. Leave blank to use the global key.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Endpoint URL (Override)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.config.openai_endpoint_url || ''}
+                    onChange={(e) => handleConfigChange('openai_endpoint_url', e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Optional. Overrides the global endpoint URL from Settings.
                   </p>
                 </div>
 

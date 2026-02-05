@@ -108,9 +108,8 @@ function ChatBot() {
             </p>
             <ol className="text-slate-300 text-sm mt-2 space-y-2 list-decimal list-inside">
               <li>Go to the Dashboard</li>
-              <li>Click on Apps</li>
-              <li>Edit the ChatBot app</li>
-              <li>Enter a valid OpenAI API key</li>
+              <li>Go to Settings</li>
+              <li>Enter an OpenAI API key</li>
             </ol>
           </div>
         </div>

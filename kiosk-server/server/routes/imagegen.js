@@ -17,12 +17,23 @@ router.post('/generate', async (req, res) => {
   }
 
   const config = JSON.parse(appRecord.config || '{}');
-  if (!config.openai_api_key) {
+
+  // Resolve API key and endpoint: per-app config overrides global settings
+  const globalApiKey = db.prepare("SELECT value FROM settings WHERE key = 'openai_api_key'").get()?.value;
+  const globalEndpoint = db.prepare("SELECT value FROM settings WHERE key = 'openai_endpoint_url'").get()?.value;
+
+  const apiKey = config.openai_api_key || globalApiKey;
+  const endpointUrl = config.openai_endpoint_url || globalEndpoint;
+
+  if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
   }
 
   try {
-    const openai = new OpenAI({ apiKey: config.openai_api_key });
+    const openai = new OpenAI({
+      apiKey,
+      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
+    });
 
     const size = config.image_size || '1024x1024';
     const quality = config.image_quality || 'standard';

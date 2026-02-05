@@ -17,12 +17,23 @@ router.post('/message', async (req, res) => {
   }
 
   const config = JSON.parse(appRecord.config || '{}');
-  if (!config.openai_api_key) {
+
+  // Resolve API key and endpoint: per-app config overrides global settings
+  const globalApiKey = db.prepare("SELECT value FROM settings WHERE key = 'openai_api_key'").get()?.value;
+  const globalEndpoint = db.prepare("SELECT value FROM settings WHERE key = 'openai_endpoint_url'").get()?.value;
+
+  const apiKey = config.openai_api_key || globalApiKey;
+  const endpointUrl = config.openai_endpoint_url || globalEndpoint;
+
+  if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
   }
 
   try {
-    const openai = new OpenAI({ apiKey: config.openai_api_key });
+    const openai = new OpenAI({
+      apiKey,
+      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
+    });
 
     // Prepend system prompt if configured
     const systemPrompt = config.system_prompt ?? 'You are a friendly, helpful assistant for children. Keep your responses simple, age-appropriate, and encouraging. Avoid any inappropriate content, violence, or scary topics. Be patient and explain things in a way that is easy to understand. If asked about something inappropriate, politely redirect to a safer topic.';
