@@ -163,6 +163,13 @@ if (!appsColumns.find(col => col.name === 'profile_id')) {
   }
 }
 
+// Migrate old 'math' challenge_type to 'math_addition'
+const oldMathChallenges = db.prepare("SELECT id FROM challenges WHERE challenge_type = 'math'").all();
+if (oldMathChallenges.length > 0) {
+  db.prepare("UPDATE challenges SET challenge_type = 'math_addition', name = 'Math - Addition' WHERE challenge_type = 'math'").run();
+  console.log(`Migrated ${oldMathChallenges.length} old 'math' challenge(s) to 'math_addition'`);
+}
+
 // Add indexes for profile_id lookups
 db.exec("CREATE INDEX IF NOT EXISTS idx_apps_profile ON apps(profile_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_challenges_profile ON challenges(profile_id)");
