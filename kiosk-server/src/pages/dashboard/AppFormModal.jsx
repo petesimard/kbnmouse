@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBuiltinApps } from '../../hooks/useApps';
 
-function AppFormModal({ app, onSave, onClose }) {
+function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const { builtinApps } = useBuiltinApps();
   const isEditing = !!app;
 
@@ -15,6 +15,7 @@ function AppFormModal({ app, onSave, onClose }) {
     weekly_limit_minutes: '',
     max_daily_minutes: '',
     config: {},
+    folder_id: null,
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -31,6 +32,7 @@ function AppFormModal({ app, onSave, onClose }) {
         weekly_limit_minutes: app.weekly_limit_minutes ?? '',
         max_daily_minutes: app.max_daily_minutes || '',
         config: app.config || {},
+        folder_id: app.folder_id ?? null,
       });
     }
   }, [app]);
@@ -97,6 +99,7 @@ function AppFormModal({ app, onSave, onClose }) {
         weekly_limit_minutes: formData.weekly_limit_minutes === '' ? null : parseInt(formData.weekly_limit_minutes),
         max_daily_minutes: formData.max_daily_minutes === '' ? 0 : parseInt(formData.max_daily_minutes),
         config: formData.config,
+        folder_id: formData.folder_id,
       };
       await onSave(dataToSave);
       onClose();
@@ -435,6 +438,25 @@ function AppFormModal({ app, onSave, onClose }) {
                 <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
               )}
             </div>
+
+            {/* Folder */}
+            {folders.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Folder
+                </label>
+                <select
+                  value={formData.folder_id ?? ''}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, folder_id: e.target.value ? Number(e.target.value) : null }))}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">No folder (root level)</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {errors.submit && (
               <p className="text-red-400 text-sm text-center">{errors.submit}</p>

@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/sortable';
 import AppCard from './AppCard';
 
-function AppList({ apps, onReorder, onEdit, onDelete, onToggle }) {
+function AppList({ apps, onReorder, onEdit, onDelete, onToggle, noDndContext = false }) {
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -42,25 +42,31 @@ function AppList({ apps, onReorder, onEdit, onDelete, onToggle }) {
     );
   }
 
+  const content = (
+    <SortableContext items={apps.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+      <div className="space-y-3">
+        {apps.map((app) => (
+          <AppCard
+            key={app.id}
+            app={app}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onToggle={onToggle}
+          />
+        ))}
+      </div>
+    </SortableContext>
+  );
+
+  if (noDndContext) return content;
+
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <SortableContext items={apps.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-3">
-          {apps.map((app) => (
-            <AppCard
-              key={app.id}
-              app={app}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onToggle={onToggle}
-            />
-          ))}
-        </div>
-      </SortableContext>
+      {content}
     </DndContext>
   );
 }

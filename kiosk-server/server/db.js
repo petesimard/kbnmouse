@@ -47,6 +47,10 @@ if (!columns.find(col => col.name === 'config')) {
   db.exec("ALTER TABLE apps ADD COLUMN config TEXT DEFAULT '{}'");
   console.log('Added config column to apps table');
 }
+if (!columns.find(col => col.name === 'folder_id')) {
+  db.exec("ALTER TABLE apps ADD COLUMN folder_id INTEGER DEFAULT NULL");
+  console.log('Added folder_id column to apps table');
+}
 
 // Create app_usage table for tracking native app session durations
 db.exec(`
@@ -105,6 +109,19 @@ db.exec(`
   )
 `);
 
+// Create folders table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL DEFAULT '📁',
+    color TEXT NOT NULL DEFAULT '#6366f1',
+    sort_order INTEGER DEFAULT 0,
+    profile_id INTEGER DEFAULT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Create profiles table
 db.exec(`
   CREATE TABLE IF NOT EXISTS profiles (
@@ -151,6 +168,8 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_apps_profile ON apps(profile_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_challenges_profile ON challenges(profile_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_app_usage_profile ON app_usage(profile_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_challenge_completions_profile ON challenge_completions(profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_apps_folder ON apps(folder_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_folders_profile ON folders(profile_id)");
 
 // Hash function for PIN
 export function hashPin(pin) {

@@ -16,6 +16,8 @@ function Menu() {
 
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [currentFolderId, setCurrentFolderId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [nativeRunning, setNativeRunning] = useState(false);
   const [timeLimitError, setTimeLimitError] = useState(false);
@@ -38,6 +40,11 @@ function Menu() {
       window.kiosk.content.loadURL('/profiles');
     }
   }, [needsProfileSelection]);
+
+  // Reset folder navigation on profile change
+  useEffect(() => {
+    setCurrentFolderId(null);
+  }, [profileId]);
 
   // Extract domains from URL-type apps and push to Electron whitelist
   const pushWhitelist = useCallback((appList) => {
@@ -80,16 +87,19 @@ function Menu() {
     });
   }, []);
 
-  // Fetch apps from the database, scoped by profile
+  // Fetch apps and folders from the database, scoped by profile
   const fetchApps = useCallback(() => {
     if (needsProfileSelection) return;
-    const url = profileId ? `/api/apps?profile=${profileId}` : '/api/apps';
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        setApps(data);
-        pushWhitelist(data);
-        fetchUsage(data);
+    const profileQuery = profileId ? `?profile=${profileId}` : '';
+    Promise.all([
+      fetch(`/api/apps${profileQuery}`).then((res) => res.json()),
+      fetch(`/api/folders${profileQuery}`).then((res) => res.json()),
+    ])
+      .then(([appsData, foldersData]) => {
+        setApps(appsData);
+        setFolders(foldersData);
+        pushWhitelist(appsData);
+        fetchUsage(appsData);
         setLoading(false);
       })
       .catch((err) => {
@@ -133,6 +143,7 @@ function Menu() {
             console.log('Received refresh signal, reloading...');
             refreshProfilesRef.current();
             fetchAppsRef.current();
+            setCurrentFolderId(null);
           }
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
@@ -255,6 +266,34 @@ function Menu() {
   // Find current profile for the switch button
   const currentProfile = profiles.find(p => p.id === profileId);
 
+  // Derived data for folder navigation
+  const rootApps = apps.filter(a => !a.folder_id);
+  const folderApps = currentFolderId ? apps.filter(a => a.folder_id === currentFolderId) : [];
+  const currentFolder = folders.find(f => f.id === currentFolderId);
+
+  const renderAppButton = (app) => (
+    <button
+      key={app.id}
+      onClick={() => handleLoadURL(app)}
+      className={`px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 ${
+        app.app_type === 'native' && !hasKiosk
+          ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+          : 'bg-slate-700 hover:bg-slate-600'
+      }`}
+      title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-lg">{app.icon}</span>
+        <span className="text-sm">{app.name}</span>
+      </div>
+      {usageMap[app.id] != null && (
+        <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
+          {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
+        </span>
+      )}
+    </button>
+  );
+
   return (
     <div className="h-screen bg-slate-800 flex items-center justify-between px-4">
       {/* Navigation controls */}
@@ -297,29 +336,46 @@ function Menu() {
           <span className="text-slate-400 text-sm">Select a profile to get started</span>
         ) : loading ? (
           <span className="text-slate-400 text-sm">Loading...</span>
-        ) : (
-          apps.map((app) => (
+        ) : currentFolderId ? (
+          /* Folder view */
+          <>
             <button
-              key={app.id}
-              onClick={() => handleLoadURL(app)}
-              className={`px-4 py-2 rounded-lg text-white flex flex-col items-center gap-0.5 transition-colors ${
-                app.app_type === 'native' && !hasKiosk
-                  ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                  : 'bg-slate-700 hover:bg-slate-600'
-              }`}
-              title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
+              onClick={() => setCurrentFolderId(null)}
+              className="px-4 py-2 rounded-xl text-white flex items-center gap-2 bg-slate-600 hover:bg-slate-500 transition-all duration-200 hover:scale-105"
+              title="Back to all apps"
             >
-              <div className="flex items-center gap-2">
-                <span>{app.icon}</span>
-                <span className="text-sm">{app.name}</span>
-              </div>
-              {usageMap[app.id] != null && (
-                <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
-                  {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
-                </span>
-              )}
+              <span className="text-lg">←</span>
+              <span className="text-sm">Back</span>
             </button>
-          ))
+            {currentFolder && (
+              <span className="flex items-center gap-1 text-slate-400 text-sm px-2">
+                <span className="text-lg">{currentFolder.icon}</span>
+                {currentFolder.name}
+              </span>
+            )}
+            {folderApps.length > 0 ? (
+              folderApps.map(renderAppButton)
+            ) : (
+              <span className="text-slate-500 text-sm">This folder is empty</span>
+            )}
+          </>
+        ) : (
+          /* Root view */
+          <>
+            {folders.map((folder) => (
+              <button
+                key={`folder-${folder.id}`}
+                onClick={() => setCurrentFolderId(folder.id)}
+                className="px-4 py-2 rounded-xl text-white flex items-center gap-2 shadow-lg transition-all duration-200 hover:scale-105"
+                style={{ backgroundColor: folder.color }}
+                title={folder.name}
+              >
+                <span className="text-lg">{folder.icon}</span>
+                <span className="text-sm">{folder.name}</span>
+              </button>
+            ))}
+            {rootApps.map(renderAppButton)}
+          </>
         )}
       </div>
 

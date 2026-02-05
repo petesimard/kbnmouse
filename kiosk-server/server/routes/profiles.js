@@ -113,6 +113,7 @@ router.delete('/api/admin/profiles/:id', requirePin, (req, res) => {
   db.prepare('DELETE FROM challenge_completions WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM app_usage WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM challenges WHERE profile_id = ?').run(profileId);
+  db.prepare('DELETE FROM folders WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM apps WHERE profile_id = ?').run(profileId);
   const result = db.prepare('DELETE FROM profiles WHERE id = ?').run(profileId);
 

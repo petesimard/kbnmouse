@@ -1,0 +1,118 @@
+import { Router } from 'express';
+import db from '../db.js';
+import { requirePin } from '../middleware/auth.js';
+import { broadcastRefresh } from '../websocket.js';
+
+const router = Router();
+
+// --- Public endpoints ---
+
+// GET /api/folders - Get all folders for a profile
+router.get('/api/folders', (req, res) => {
+  const profileId = req.query.profile;
+  let folders;
+  if (profileId) {
+    folders = db.prepare('SELECT id, name, icon, color, sort_order FROM folders WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    folders = db.prepare('SELECT id, name, icon, color, sort_order FROM folders ORDER BY sort_order').all();
+  }
+  res.json(folders);
+});
+
+// --- Admin endpoints ---
+
+// GET /api/admin/folders - Get all folders (admin)
+router.get('/api/admin/folders', requirePin, (req, res) => {
+  const profileId = req.query.profile;
+  let folders;
+  if (profileId) {
+    folders = db.prepare('SELECT * FROM folders WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    folders = db.prepare('SELECT * FROM folders ORDER BY sort_order').all();
+  }
+  res.json(folders);
+});
+
+// POST /api/admin/folders - Create folder
+router.post('/api/admin/folders', requirePin, (req, res) => {
+  const { name, icon = '📁', color = '#6366f1', sort_order, profile_id = null } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  let finalSortOrder = sort_order;
+  if (finalSortOrder === undefined) {
+    let maxOrder;
+    if (profile_id) {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM folders WHERE profile_id = ?').get(profile_id);
+    } else {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM folders').get();
+    }
+    finalSortOrder = (maxOrder.max || 0) + 1;
+  }
+
+  const result = db.prepare('INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)').run(name, icon, color, finalSortOrder, profile_id);
+  const newFolder = db.prepare('SELECT * FROM folders WHERE id = ?').get(result.lastInsertRowid);
+  broadcastRefresh();
+  res.status(201).json(newFolder);
+});
+
+// PUT /api/admin/folders/reorder - Bulk reorder folders
+router.put('/api/admin/folders/reorder', requirePin, (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ error: 'order must be an array' });
+  }
+
+  const updateStmt = db.prepare('UPDATE folders SET sort_order = ? WHERE id = ?');
+  const transaction = db.transaction((items) => {
+    for (const item of items) {
+      updateStmt.run(item.sort_order, item.id);
+    }
+  });
+  transaction(order);
+
+  const folders = db.prepare('SELECT * FROM folders ORDER BY sort_order').all();
+  broadcastRefresh();
+  res.json(folders);
+});
+
+// PUT /api/admin/folders/:id - Update folder
+router.put('/api/admin/folders/:id', requirePin, (req, res) => {
+  const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Folder not found' });
+  }
+
+  const { name, icon, color, sort_order } = req.body;
+
+  db.prepare(`
+    UPDATE folders
+    SET name = COALESCE(?, name),
+        icon = COALESCE(?, icon),
+        color = COALESCE(?, color),
+        sort_order = COALESCE(?, sort_order)
+    WHERE id = ?
+  `).run(name, icon, color, sort_order, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
+  broadcastRefresh();
+  res.json(updated);
+});
+
+// DELETE /api/admin/folders/:id - Delete folder (moves apps to root first)
+router.delete('/api/admin/folders/:id', requirePin, (req, res) => {
+  const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Folder not found' });
+  }
+
+  // Move apps in this folder to root level
+  db.prepare('UPDATE apps SET folder_id = NULL WHERE folder_id = ?').run(req.params.id);
+
+  db.prepare('DELETE FROM folders WHERE id = ?').run(req.params.id);
+  broadcastRefresh();
+  res.status(204).send();
+});
+
+export default router;

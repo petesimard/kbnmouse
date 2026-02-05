@@ -12,9 +12,9 @@ router.get('/api/apps', (req, res) => {
   const profileId = req.query.profile;
   let apps;
   if (profileId) {
-    apps = db.prepare('SELECT id, name, url, icon, app_type FROM apps WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order').all(profileId);
+    apps = db.prepare('SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order').all(profileId);
   } else {
-    apps = db.prepare('SELECT id, name, url, icon, app_type FROM apps WHERE enabled = 1 ORDER BY sort_order').all();
+    apps = db.prepare('SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 ORDER BY sort_order').all();
   }
   res.json(apps);
 });
@@ -45,7 +45,7 @@ router.get('/api/admin/apps', requirePin, (req, res) => {
 
 // POST /api/admin/apps - Create new app
 router.post('/api/admin/apps', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {} } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {}, folder_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
@@ -62,7 +62,7 @@ router.post('/api/admin/apps', requirePin, (req, res) => {
   }
 
   const configStr = typeof config === 'string' ? config : JSON.stringify(config);
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, configStr);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, config, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, profile_id, configStr, folder_id);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   newApp.config = JSON.parse(newApp.config || '{}');
   broadcastRefresh();
@@ -103,6 +103,7 @@ router.put('/api/admin/apps/:id', requirePin, (req, res) => {
   const finalWeeklyLimit = weekly_limit_minutes !== undefined ? weekly_limit_minutes : existing.weekly_limit_minutes;
   const finalMaxDaily = max_daily_minutes !== undefined ? max_daily_minutes : existing.max_daily_minutes;
   const finalConfig = config !== undefined ? (typeof config === 'string' ? config : JSON.stringify(config)) : existing.config;
+  const finalFolderId = Object.prototype.hasOwnProperty.call(req.body, 'folder_id') ? req.body.folder_id : existing.folder_id;
 
   db.prepare(`
     UPDATE apps
@@ -115,9 +116,10 @@ router.put('/api/admin/apps/:id', requirePin, (req, res) => {
         daily_limit_minutes = ?,
         weekly_limit_minutes = ?,
         max_daily_minutes = ?,
-        config = ?
+        config = ?,
+        folder_id = ?
     WHERE id = ?
-  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, finalMaxDaily, finalConfig, req.params.id);
+  `).run(name, url, icon, sort_order, enabled, app_type, finalDailyLimit, finalWeeklyLimit, finalMaxDaily, finalConfig, finalFolderId, req.params.id);
 
   const updated = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
   updated.config = JSON.parse(updated.config || '{}');
