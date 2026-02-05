@@ -12,6 +12,7 @@ import chatbotRouter from './routes/chatbot.js';
 import imagegenRouter from './routes/imagegen.js';
 import foldersRouter from './routes/folders.js';
 import uploadsRouter from './routes/uploads.js';
+import storywriterRouter from './routes/storywriter.js';
 
 const app = express();
 const PORT = 3001;
@@ -32,6 +33,7 @@ app.use('/api/chatbot', chatbotRouter);
 app.use('/api/imagegen', imagegenRouter);
 app.use(foldersRouter);
 app.use(uploadsRouter);
+app.use('/api/storywriter', storywriterRouter);
 
 server.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`);
