@@ -16,18 +16,34 @@ function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl w-full">
-        {challenges.map((challenge) => (
-          <button
-            key={challenge.id}
-            onClick={() => onSelectChallenge(challenge)}
-            className="bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-2xl p-8 text-center transition-all hover:scale-105"
-          >
-            <div className="text-5xl mb-4">{challenge.icon}</div>
-            <div className="text-xl font-bold text-white mb-2">{challenge.name}</div>
-            <div className="text-slate-400">{challenge.description}</div>
-            <div className="mt-3 text-emerald-400 font-semibold">+{challenge.reward_minutes} min</div>
-          </button>
-        ))}
+        {challenges.map((challenge) => {
+          const hasLimit = challenge.max_completions_per_day > 0;
+          const remaining = hasLimit ? challenge.max_completions_per_day - (challenge.today_completions || 0) : null;
+          const exhausted = hasLimit && remaining <= 0;
+
+          return (
+            <button
+              key={challenge.id}
+              onClick={() => !exhausted && onSelectChallenge(challenge)}
+              disabled={exhausted}
+              className={`rounded-2xl p-8 text-center transition-all border ${
+                exhausted
+                  ? 'bg-slate-800/40 border-slate-700/50 opacity-60 cursor-not-allowed'
+                  : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700 hover:scale-105'
+              }`}
+            >
+              <div className="text-5xl mb-4">{challenge.icon}</div>
+              <div className="text-xl font-bold text-white mb-2">{challenge.name}</div>
+              <div className="text-slate-400">{challenge.description}</div>
+              <div className="mt-3 text-emerald-400 font-semibold">+{challenge.reward_minutes} min</div>
+              {hasLimit && (
+                <div className={`mt-2 text-sm font-medium ${exhausted ? 'text-red-400' : 'text-slate-400'}`}>
+                  {exhausted ? 'Completed for today' : `${remaining} remaining today`}
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {challenges.length === 0 && (
@@ -79,11 +95,15 @@ function Challenges() {
         }),
       });
       const data = await res.json();
-      setBonusMinutes(data.today_bonus_minutes);
+      if (data.today_bonus_minutes != null) {
+        setBonusMinutes(data.today_bonus_minutes);
+      }
+      // Re-fetch challenges to update today_completions counts
+      fetchData();
     } catch (err) {
       console.error('Failed to record challenge completion:', err);
     }
-  }, [activeChallenge, profileId]);
+  }, [activeChallenge, profileId, fetchData]);
 
   const handleBack = useCallback(() => {
     setActiveChallenge(null);

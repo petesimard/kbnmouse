@@ -86,6 +86,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
     description: '',
     challenge_type: challengeTypes[0] || 'math_addition',
     reward_minutes: 10,
+    max_completions_per_day: 0,
     enabled: 1,
   });
   const [config, setConfig] = useState(() => getDefaults(challengeTypes[0] || 'math_addition'));
@@ -101,6 +102,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
         description: challenge.description || '',
         challenge_type: type,
         reward_minutes: challenge.reward_minutes ?? 10,
+        max_completions_per_day: challenge.max_completions_per_day ?? 0,
         enabled: challenge.enabled ?? 1,
       });
       const savedConfig = typeof challenge.config === 'string'
@@ -172,6 +174,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
       await onSave({
         ...formData,
         reward_minutes: parseInt(formData.reward_minutes, 10),
+        max_completions_per_day: parseInt(formData.max_completions_per_day, 10) || 0,
         config: parsedConfig,
       });
       onClose();
@@ -284,6 +287,22 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
               {errors.reward_minutes && (
                 <p className="mt-1 text-red-400 text-sm">{errors.reward_minutes}</p>
               )}
+            </div>
+
+            {/* Max Completions Per Day */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Max Completions Per Day
+              </label>
+              <input
+                type="number"
+                name="max_completions_per_day"
+                value={formData.max_completions_per_day}
+                onChange={handleChange}
+                min="0"
+                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">0 = unlimited</p>
             </div>
 
             {/* Config Fields */}

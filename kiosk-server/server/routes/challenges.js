@@ -10,15 +10,21 @@ const router = Router();
 // GET /api/challenges - Get all enabled challenges
 router.get('/api/challenges', (req, res) => {
   const profileId = req.query.profile;
+  const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
+
   let challenges;
   if (profileId) {
-    challenges = db.prepare(
-      'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order'
-    ).all(profileId);
+    challenges = db.prepare(`
+      SELECT c.id, c.name, c.icon, c.description, c.challenge_type, c.reward_minutes, c.config, c.sort_order, c.max_completions_per_day,
+        (SELECT COUNT(*) FROM challenge_completions cc WHERE cc.challenge_type = c.challenge_type AND cc.profile_id = c.profile_id AND cc.completed_at >= ?) as today_completions
+      FROM challenges c WHERE c.enabled = 1 AND c.profile_id = ? ORDER BY c.sort_order
+    `).all(todayStart, profileId);
   } else {
-    challenges = db.prepare(
-      'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 ORDER BY sort_order'
-    ).all();
+    challenges = db.prepare(`
+      SELECT c.id, c.name, c.icon, c.description, c.challenge_type, c.reward_minutes, c.config, c.sort_order, c.max_completions_per_day,
+        (SELECT COUNT(*) FROM challenge_completions cc WHERE cc.challenge_type = c.challenge_type AND cc.profile_id = c.profile_id AND cc.completed_at >= ?) as today_completions
+      FROM challenges c WHERE c.enabled = 1 ORDER BY c.sort_order
+    `).all(todayStart);
   }
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   res.json(parsed);
@@ -29,6 +35,20 @@ router.post('/api/challenges/complete', (req, res) => {
   const { challenge_type, minutes_awarded, challenge_id, profile_id } = req.body;
   if (!challenge_type || minutes_awarded == null) {
     return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
+  }
+
+  // Check max_completions_per_day limit
+  if (challenge_id) {
+    const challenge = db.prepare('SELECT max_completions_per_day, profile_id FROM challenges WHERE id = ?').get(challenge_id);
+    if (challenge && challenge.max_completions_per_day > 0) {
+      const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
+      const todayCount = db.prepare(
+        'SELECT COUNT(*) as count FROM challenge_completions WHERE challenge_type = ? AND profile_id = ? AND completed_at >= ?'
+      ).get(challenge_type, challenge.profile_id, todayStart);
+      if (todayCount.count >= challenge.max_completions_per_day) {
+        return res.status(400).json({ error: 'Daily completion limit reached for this challenge' });
+      }
+    }
   }
 
   db.prepare(
@@ -92,7 +112,7 @@ router.get('/api/admin/challenges', requirePin, (req, res) => {
 
 // POST /api/admin/challenges - Create new challenge
 router.post('/api/admin/challenges', requirePin, (req, res) => {
-  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null } = req.body;
+  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null, max_completions_per_day = 0 } = req.body;
   if (!name || !icon || !challenge_type) {
     return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
   }
@@ -110,8 +130,8 @@ router.post('/api/admin/challenges', requirePin, (req, res) => {
 
   const configStr = typeof config === 'string' ? config : JSON.stringify(config);
   const result = db.prepare(
-    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(name, icon, description, challenge_type, reward_minutes, configStr, finalSortOrder, enabled, profile_id);
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled, profile_id, max_completions_per_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(name, icon, description, challenge_type, reward_minutes, configStr, finalSortOrder, enabled, profile_id, max_completions_per_day);
 
   const newChallenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(result.lastInsertRowid);
   newChallenge.config = JSON.parse(newChallenge.config || '{}');
@@ -143,7 +163,7 @@ router.put('/api/admin/challenges/reorder', requirePin, (req, res) => {
 
 // PUT /api/admin/challenges/:id - Update challenge
 router.put('/api/admin/challenges/:id', requirePin, (req, res) => {
-  const { name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled } = req.body;
+  const { name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled, max_completions_per_day } = req.body;
   const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
 
   if (!existing) {
@@ -161,9 +181,10 @@ router.put('/api/admin/challenges/:id', requirePin, (req, res) => {
         reward_minutes = COALESCE(?, reward_minutes),
         config = ?,
         sort_order = COALESCE(?, sort_order),
-        enabled = COALESCE(?, enabled)
+        enabled = COALESCE(?, enabled),
+        max_completions_per_day = COALESCE(?, max_completions_per_day)
     WHERE id = ?
-  `).run(name, icon, description, challenge_type, reward_minutes, configStr, sort_order, enabled, req.params.id);
+  `).run(name, icon, description, challenge_type, reward_minutes, configStr, sort_order, enabled, max_completions_per_day, req.params.id);
 
   const updated = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
   updated.config = JSON.parse(updated.config || '{}');

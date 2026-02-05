@@ -163,6 +163,13 @@ if (!appsColumns.find(col => col.name === 'profile_id')) {
   }
 }
 
+// Add max_completions_per_day column to challenges (0 = unlimited)
+const challengeColumns = db.prepare("PRAGMA table_info(challenges)").all();
+if (!challengeColumns.find(col => col.name === 'max_completions_per_day')) {
+  db.exec("ALTER TABLE challenges ADD COLUMN max_completions_per_day INTEGER DEFAULT 0");
+  console.log('Added max_completions_per_day column to challenges table');
+}
+
 // Migrate old 'math' challenge_type to 'math_addition'
 const oldMathChallenges = db.prepare("SELECT id FROM challenges WHERE challenge_type = 'math'").all();
 if (oldMathChallenges.length > 0) {
