@@ -18,15 +18,16 @@ function formatDateLabel(dateStr) {
 }
 
 export default function AppUsagePage() {
-  const { logout } = useOutletContext();
+  const { logout, dashboardProfileId } = useOutletContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
       try {
-        const result = await fetchUsageSummary();
+        const result = await fetchUsageSummary(dashboardProfileId);
         setData(result);
       } catch (err) {
         if (err instanceof UnauthorizedError) {
@@ -39,7 +40,7 @@ export default function AppUsagePage() {
       }
     }
     load();
-  }, [logout]);
+  }, [logout, dashboardProfileId]);
 
   if (loading) {
     return <div className="text-center py-12 text-slate-400">Loading usage data...</div>;

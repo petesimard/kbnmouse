@@ -3,7 +3,7 @@ import * as api from '../api/apps';
 import { UnauthorizedError } from '../api/apps';
 import { getBuiltinApps } from '../components/builtin';
 
-export function useApps(enabled = true, onUnauthorized = null) {
+export function useApps(enabled = true, onUnauthorized = null, profileId = null) {
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,14 +20,14 @@ export function useApps(enabled = true, onUnauthorized = null) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.fetchAllApps();
+      const data = await api.fetchAllApps(profileId);
       setApps(data);
     } catch (err) {
       handleError(err);
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, profileId]);
 
   useEffect(() => {
     if (enabled) {

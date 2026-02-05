@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '../api/challenges';
 import { UnauthorizedError } from '../api/challenges';
 
-export function useChallenges(enabled = true, onUnauthorized = null) {
+export function useChallenges(enabled = true, onUnauthorized = null, profileId = null) {
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,14 +19,14 @@ export function useChallenges(enabled = true, onUnauthorized = null) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.fetchAllChallenges();
+      const data = await api.fetchAllChallenges(profileId);
       setChallenges(data);
     } catch (err) {
       handleError(err);
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, profileId]);
 
   useEffect(() => {
     if (enabled) {

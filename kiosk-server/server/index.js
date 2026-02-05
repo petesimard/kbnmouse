@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import db, { hashPin } from './db.js';
+import db, { hashPin, seedProfileDefaults } from './db.js';
 
 const app = express();
 const PORT = 3001;
@@ -59,9 +59,44 @@ function requirePin(req, res, next) {
   next();
 }
 
-// Get all enabled apps (public)
+// --- Profile endpoints (public) ---
+
+// Get all profiles
+app.get('/api/profiles', (req, res) => {
+  const profiles = db.prepare('SELECT id, name, icon, sort_order FROM profiles ORDER BY sort_order').all();
+  res.json(profiles);
+});
+
+// Get active profile from settings
+app.get('/api/active-profile', (req, res) => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
+  res.json({ profile_id: row ? Number(row.value) : null });
+});
+
+// Set active profile
+app.post('/api/active-profile', (req, res) => {
+  const { profile_id } = req.body;
+  if (profile_id == null) {
+    // Clear active profile
+    db.prepare("DELETE FROM settings WHERE key = 'active_profile'").run();
+  } else {
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('active_profile', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run(String(profile_id));
+  }
+  broadcastRefresh();
+  res.json({ success: true });
+});
+
+// Get all enabled apps (public) - supports ?profile=<id>
 app.get('/api/apps', (req, res) => {
-  const apps = db.prepare('SELECT id, name, url, icon, app_type FROM apps WHERE enabled = 1 ORDER BY sort_order').all();
+  const profileId = req.query.profile;
+  let apps;
+  if (profileId) {
+    apps = db.prepare('SELECT id, name, url, icon, app_type FROM apps WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    apps = db.prepare('SELECT id, name, url, icon, app_type FROM apps WHERE enabled = 1 ORDER BY sort_order').all();
+  }
   res.json(apps);
 });
 
@@ -74,65 +109,94 @@ app.get('/api/apps/:id', (req, res) => {
   res.json(appRecord);
 });
 
-// Get today's bonus minutes from challenge completions (public)
+// Get today's bonus minutes from challenge completions (public) - supports ?profile=<id>
 app.get('/api/bonus-time', (req, res) => {
+  const profileId = req.query.profile;
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
 
-  const result = db.prepare(
-    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-  ).get(todayStart);
+  let result;
+  if (profileId) {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+    ).get(todayStart, profileId);
+  } else {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+    ).get(todayStart);
+  }
 
   res.json({ today_bonus_minutes: result.total });
 });
 
-// Manually add bonus time (protected - parent only)
+// Manually add bonus time (protected - parent only) - supports profile_id in body
 app.post('/api/admin/bonus-time', requirePin, (req, res) => {
-  const { minutes } = req.body;
+  const { minutes, profile_id } = req.body;
   if (!minutes || minutes < 1) {
     return res.status(400).json({ error: 'minutes is required and must be at least 1' });
   }
 
   db.prepare(
-    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at) VALUES (?, ?, ?)'
-  ).run('parent_bonus', minutes, new Date().toISOString());
+    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at, profile_id) VALUES (?, ?, ?, ?)'
+  ).run('parent_bonus', minutes, new Date().toISOString(), profile_id || null);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const result = db.prepare(
-    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-  ).get(todayStart);
+  let result;
+  if (profile_id) {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+    ).get(todayStart, profile_id);
+  } else {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+    ).get(todayStart);
+  }
 
   broadcastRefresh();
   res.json({ success: true, today_bonus_minutes: result.total });
 });
 
-// Get all enabled challenges (public - kid-facing)
+// Get all enabled challenges (public - kid-facing) - supports ?profile=<id>
 app.get('/api/challenges', (req, res) => {
-  const challenges = db.prepare(
-    'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 ORDER BY sort_order'
-  ).all();
-  // Parse config JSON for each challenge
+  const profileId = req.query.profile;
+  let challenges;
+  if (profileId) {
+    challenges = db.prepare(
+      'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order'
+    ).all(profileId);
+  } else {
+    challenges = db.prepare(
+      'SELECT id, name, icon, description, challenge_type, reward_minutes, config, sort_order FROM challenges WHERE enabled = 1 ORDER BY sort_order'
+    ).all();
+  }
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   res.json(parsed);
 });
 
-// Record a challenge completion (public)
+// Record a challenge completion (public) - supports profile_id in body
 app.post('/api/challenges/complete', (req, res) => {
-  const { challenge_type, minutes_awarded, challenge_id } = req.body;
+  const { challenge_type, minutes_awarded, challenge_id, profile_id } = req.body;
   if (!challenge_type || minutes_awarded == null) {
     return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
   }
 
   db.prepare(
-    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at) VALUES (?, ?, ?)'
-  ).run(challenge_type, minutes_awarded, new Date().toISOString());
+    'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at, profile_id) VALUES (?, ?, ?, ?)'
+  ).run(challenge_type, minutes_awarded, new Date().toISOString(), profile_id || null);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const result = db.prepare(
-    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-  ).get(todayStart);
+  let result;
+  if (profile_id) {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+    ).get(todayStart, profile_id);
+  } else {
+    result = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+    ).get(todayStart);
+  }
 
   broadcastRefresh();
   res.json({ success: true, today_bonus_minutes: result.total });
@@ -162,10 +226,18 @@ app.get('/api/apps/:id/usage', (req, res) => {
     'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
   ).get(req.params.id, weekStart);
 
-  // Get today's bonus minutes from challenges
-  const bonusResult = db.prepare(
-    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-  ).get(todayStart);
+  // Get today's bonus minutes from challenges, scoped by app's profile
+  const profileId = appRecord.profile_id;
+  let bonusResult;
+  if (profileId) {
+    bonusResult = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+    ).get(todayStart, profileId);
+  } else {
+    bonusResult = db.prepare(
+      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
+    ).get(todayStart);
+  }
 
   res.json({
     today_seconds: todayUsage.total,
@@ -178,7 +250,7 @@ app.get('/api/apps/:id/usage', (req, res) => {
 
 // Record usage session for an app (public - called by Electron on LAN)
 app.post('/api/apps/:id/usage', (req, res) => {
-  const appRecord = db.prepare('SELECT id FROM apps WHERE id = ?').get(req.params.id);
+  const appRecord = db.prepare('SELECT id, profile_id FROM apps WHERE id = ?').get(req.params.id);
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
@@ -189,8 +261,8 @@ app.post('/api/apps/:id/usage', (req, res) => {
   }
 
   db.prepare(
-    'INSERT INTO app_usage (app_id, started_at, ended_at, duration_seconds) VALUES (?, ?, ?, ?)'
-  ).run(req.params.id, started_at, ended_at, duration_seconds);
+    'INSERT INTO app_usage (app_id, started_at, ended_at, duration_seconds, profile_id) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.params.id, started_at, ended_at, duration_seconds, appRecord.profile_id || null);
 
   res.status(201).json({ success: true });
 });
@@ -241,8 +313,9 @@ app.put('/api/admin/change-pin', requirePin, (req, res) => {
   res.json({ success: true });
 });
 
-// Get aggregated usage summary for all apps over the past 7 days (protected)
+// Get aggregated usage summary for all apps over the past 7 days (protected) - supports ?profile=<id>
 app.get('/api/admin/usage-summary', requirePin, (req, res) => {
+  const profileId = req.query.profile;
   const now = new Date();
   const dates = [];
   for (let i = 6; i >= 0; i--) {
@@ -250,15 +323,30 @@ app.get('/api/admin/usage-summary', requirePin, (req, res) => {
     dates.push(d.toISOString().slice(0, 10));
   }
 
-  const apps = db.prepare('SELECT id, name, icon FROM apps ORDER BY sort_order').all();
+  let apps;
+  if (profileId) {
+    apps = db.prepare('SELECT id, name, icon FROM apps WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    apps = db.prepare('SELECT id, name, icon FROM apps ORDER BY sort_order').all();
+  }
   const startDate = dates[0] + 'T00:00:00.000Z';
 
-  const usageRows = db.prepare(
-    `SELECT app_id, DATE(started_at) as date, SUM(duration_seconds) as seconds
-     FROM app_usage
-     WHERE started_at >= ?
-     GROUP BY app_id, DATE(started_at)`
-  ).all(startDate);
+  let usageRows;
+  if (profileId) {
+    usageRows = db.prepare(
+      `SELECT app_id, DATE(started_at) as date, SUM(duration_seconds) as seconds
+       FROM app_usage
+       WHERE started_at >= ? AND profile_id = ?
+       GROUP BY app_id, DATE(started_at)`
+    ).all(startDate, profileId);
+  } else {
+    usageRows = db.prepare(
+      `SELECT app_id, DATE(started_at) as date, SUM(duration_seconds) as seconds
+       FROM app_usage
+       WHERE started_at >= ?
+       GROUP BY app_id, DATE(started_at)`
+    ).all(startDate);
+  }
 
   const usageMap = {};
   for (const row of usageRows) {
@@ -309,15 +397,120 @@ app.put('/api/admin/settings', requirePin, (req, res) => {
   res.json({ success: true });
 });
 
-// Get all apps including disabled (protected)
+// --- Admin profile endpoints ---
+
+// Get all profiles (admin)
+app.get('/api/admin/profiles', requirePin, (req, res) => {
+  const profiles = db.prepare('SELECT * FROM profiles ORDER BY sort_order').all();
+  res.json(profiles);
+});
+
+// Create profile (admin)
+app.post('/api/admin/profiles', requirePin, (req, res) => {
+  const { name, icon = '👤' } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM profiles').get();
+  const sortOrder = (maxOrder.max || 0) + 1;
+
+  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order) VALUES (?, ?, ?)').run(name, icon, sortOrder);
+  const profileId = result.lastInsertRowid;
+
+  seedProfileDefaults(profileId);
+
+  const newProfile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profileId);
+  broadcastRefresh();
+  res.status(201).json(newProfile);
+});
+
+// Update profile (admin)
+app.put('/api/admin/profiles/:id', requirePin, (req, res) => {
+  const { name, icon } = req.body;
+  const existing = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Profile not found' });
+  }
+
+  db.prepare(`
+    UPDATE profiles
+    SET name = COALESCE(?, name),
+        icon = COALESCE(?, icon)
+    WHERE id = ?
+  `).run(name, icon, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
+  broadcastRefresh();
+  res.json(updated);
+});
+
+// Bulk reorder profiles (admin) - must be before :id route
+app.put('/api/admin/profiles/reorder', requirePin, (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ error: 'order must be an array' });
+  }
+
+  const updateStmt = db.prepare('UPDATE profiles SET sort_order = ? WHERE id = ?');
+  const transaction = db.transaction((items) => {
+    for (const item of items) {
+      updateStmt.run(item.sort_order, item.id);
+    }
+  });
+  transaction(order);
+
+  const profiles = db.prepare('SELECT * FROM profiles ORDER BY sort_order').all();
+  broadcastRefresh();
+  res.json(profiles);
+});
+
+// Delete profile (admin)
+app.delete('/api/admin/profiles/:id', requirePin, (req, res) => {
+  const profileId = req.params.id;
+
+  // Don't allow deleting the last profile
+  const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();
+  if (profileCount.count <= 1) {
+    return res.status(400).json({ error: 'Cannot delete the last profile' });
+  }
+
+  // Delete associated data
+  db.prepare('DELETE FROM challenge_completions WHERE profile_id = ?').run(profileId);
+  db.prepare('DELETE FROM app_usage WHERE profile_id = ?').run(profileId);
+  db.prepare('DELETE FROM challenges WHERE profile_id = ?').run(profileId);
+  db.prepare('DELETE FROM apps WHERE profile_id = ?').run(profileId);
+  const result = db.prepare('DELETE FROM profiles WHERE id = ?').run(profileId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Profile not found' });
+  }
+
+  // Clear active profile if it was the deleted one
+  const active = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
+  if (active && active.value === String(profileId)) {
+    db.prepare("DELETE FROM settings WHERE key = 'active_profile'").run();
+  }
+
+  broadcastRefresh();
+  res.status(204).send();
+});
+
+// Get all apps including disabled (protected) - supports ?profile=<id>
 app.get('/api/admin/apps', requirePin, (req, res) => {
-  const apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
+  const profileId = req.query.profile;
+  let apps;
+  if (profileId) {
+    apps = db.prepare('SELECT * FROM apps WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
+  }
   res.json(apps);
 });
 
-// Create new app (protected)
+// Create new app (protected) - supports profile_id in body
 app.post('/api/admin/apps', requirePin, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, profile_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
@@ -325,11 +518,16 @@ app.post('/api/admin/apps', requirePin, (req, res) => {
   // Get max sort_order if not provided
   let finalSortOrder = sort_order;
   if (finalSortOrder === undefined) {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps').get();
+    let maxOrder;
+    if (profile_id) {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps WHERE profile_id = ?').get(profile_id);
+    } else {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps').get();
+    }
     finalSortOrder = (maxOrder.max || 0) + 1;
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(name, url, icon, finalSortOrder, app_type, enabled, daily_limit_minutes, weekly_limit_minutes, profile_id);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   broadcastRefresh();
   res.status(201).json(newApp);
@@ -399,30 +597,41 @@ app.delete('/api/admin/apps/:id', requirePin, (req, res) => {
 
 // --- Challenge admin endpoints ---
 
-// Get all challenges including disabled (protected)
+// Get all challenges including disabled (protected) - supports ?profile=<id>
 app.get('/api/admin/challenges', requirePin, (req, res) => {
-  const challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+  const profileId = req.query.profile;
+  let challenges;
+  if (profileId) {
+    challenges = db.prepare('SELECT * FROM challenges WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+  } else {
+    challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+  }
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   res.json(parsed);
 });
 
-// Create new challenge (protected)
+// Create new challenge (protected) - supports profile_id in body
 app.post('/api/admin/challenges', requirePin, (req, res) => {
-  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1 } = req.body;
+  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null } = req.body;
   if (!name || !icon || !challenge_type) {
     return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
   }
 
   let finalSortOrder = sort_order;
   if (finalSortOrder === undefined) {
-    const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM challenges').get();
+    let maxOrder;
+    if (profile_id) {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM challenges WHERE profile_id = ?').get(profile_id);
+    } else {
+      maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM challenges').get();
+    }
     finalSortOrder = (maxOrder.max || 0) + 1;
   }
 
   const configStr = typeof config === 'string' ? config : JSON.stringify(config);
   const result = db.prepare(
-    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(name, icon, description, challenge_type, reward_minutes, configStr, finalSortOrder, enabled);
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(name, icon, description, challenge_type, reward_minutes, configStr, finalSortOrder, enabled, profile_id);
 
   const newChallenge = db.prepare('SELECT * FROM challenges WHERE id = ?').get(result.lastInsertRowid);
   newChallenge.config = JSON.parse(newChallenge.config || '{}');

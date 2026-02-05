@@ -97,9 +97,82 @@ db.exec(`
   )
 `);
 
+// Create profiles table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL DEFAULT '👤',
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// --- Profile migration: add profile_id to existing tables ---
+const appsColumns = db.prepare("PRAGMA table_info(apps)").all();
+if (!appsColumns.find(col => col.name === 'profile_id')) {
+  // Create a default profile for existing data
+  const existingAppsCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();
+  let defaultProfileId = null;
+
+  if (existingAppsCount.count > 0) {
+    const result = db.prepare("INSERT INTO profiles (name, icon, sort_order) VALUES (?, ?, ?)").run('Default', '👤', 0);
+    defaultProfileId = result.lastInsertRowid;
+    console.log(`Created Default profile (id=${defaultProfileId}) for existing data`);
+  }
+
+  // Add profile_id columns
+  db.exec("ALTER TABLE apps ADD COLUMN profile_id INTEGER DEFAULT NULL");
+  db.exec("ALTER TABLE challenges ADD COLUMN profile_id INTEGER DEFAULT NULL");
+  db.exec("ALTER TABLE app_usage ADD COLUMN profile_id INTEGER DEFAULT NULL");
+  db.exec("ALTER TABLE challenge_completions ADD COLUMN profile_id INTEGER DEFAULT NULL");
+  console.log('Added profile_id columns to apps, challenges, app_usage, challenge_completions');
+
+  // Assign existing rows to the default profile
+  if (defaultProfileId) {
+    db.prepare("UPDATE apps SET profile_id = ? WHERE profile_id IS NULL").run(defaultProfileId);
+    db.prepare("UPDATE challenges SET profile_id = ? WHERE profile_id IS NULL").run(defaultProfileId);
+    db.prepare("UPDATE app_usage SET profile_id = ? WHERE profile_id IS NULL").run(defaultProfileId);
+    db.prepare("UPDATE challenge_completions SET profile_id = ? WHERE profile_id IS NULL").run(defaultProfileId);
+    console.log('Assigned existing data to Default profile');
+  }
+}
+
+// Add indexes for profile_id lookups
+db.exec("CREATE INDEX IF NOT EXISTS idx_apps_profile ON apps(profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_challenges_profile ON challenges(profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_app_usage_profile ON app_usage(profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_challenge_completions_profile ON challenge_completions(profile_id)");
+
 // Hash function for PIN
 export function hashPin(pin) {
   return crypto.createHash('sha256').update(pin).digest('hex');
+}
+
+// Seed default apps and challenges for a given profile
+export function seedProfileDefaults(profileId) {
+  const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id) VALUES (?, ?, ?, ?, ?, ?)');
+  const defaultApps = [
+    { name: 'Home', url: '/test-content', icon: '🏠', sort_order: 0, app_type: 'url' },
+    { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 1, app_type: 'builtin' },
+    { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 2, app_type: 'builtin' },
+    { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 3, app_type: 'builtin' },
+    { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 4, app_type: 'builtin' },
+  ];
+  for (const app of defaultApps) {
+    insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
+  }
+
+  const insertChallenge = db.prepare(
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, '{}', 0, profileId);
+  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, '{}', 1, profileId);
+  insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, '{}', 2, profileId);
+  insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, '{}', 3, profileId);
+  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 4, profileId);
+
+  console.log(`Seeded default apps and challenges for profile ${profileId}`);
 }
 
 // Initialize default PIN (1234) if not set
@@ -109,44 +182,13 @@ if (!existingPin) {
   console.log('Default PIN initialized');
 }
 
-// Seed with default apps if table is empty
-const count = db.prepare('SELECT COUNT(*) as count FROM apps').get();
-if (count.count === 0) {
-  const insert = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type) VALUES (?, ?, ?, ?, ?)');
-  const defaultApps = [
-    { name: 'Home', url: '/test-content', icon: '🏠', sort_order: 0, app_type: 'url' },
-    { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 1, app_type: 'builtin' },
-    { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 2, app_type: 'builtin' },
-    { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 3, app_type: 'builtin' },
-  ];
-
-  for (const app of defaultApps) {
-    insert.run(app.name, app.url, app.icon, app.sort_order, app.app_type);
-  }
-  console.log('Database seeded with default apps');
-}
-
-// Seed Challenges builtin app if it doesn't exist
-const challengesApp = db.prepare("SELECT id FROM apps WHERE app_type = 'builtin' AND url = 'challenges'").get();
-if (!challengesApp) {
-  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps').get();
-  db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, enabled) VALUES (?, ?, ?, ?, ?, ?)')
-    .run('Challenges', 'challenges', '🏆', (maxOrder.max || 0) + 1, 'builtin', 1);
-  console.log('Seeded Challenges builtin app');
-}
-
-// Seed default challenges if table is empty
-const challengeCount = db.prepare('SELECT COUNT(*) as count FROM challenges').get();
-if (challengeCount.count === 0) {
-  const insertChallenge = db.prepare(
-    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  );
-  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, '{}', 0);
-  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, '{}', 1);
-  insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, '{}', 2);
-  insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, '{}', 3);
-  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 4);
-  console.log('Seeded default challenges');
+// Fresh DB seeding: if no apps exist and no profiles exist, create a Default profile and seed
+const appCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();
+const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();
+if (appCount.count === 0 && profileCount.count === 0) {
+  const result = db.prepare("INSERT INTO profiles (name, icon, sort_order) VALUES (?, ?, ?)").run('Default', '👤', 0);
+  seedProfileDefaults(result.lastInsertRowid);
+  console.log('Fresh database: created Default profile with default apps and challenges');
 }
 
 export default db;

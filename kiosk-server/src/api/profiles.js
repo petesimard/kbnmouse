@@ -31,40 +31,60 @@ async function handleResponse(res) {
   return res.json();
 }
 
-export async function fetchAllChallenges(profileId) {
-  const url = profileId ? `/api/admin/challenges?profile=${profileId}` : '/api/admin/challenges';
-  const res = await fetch(url, { headers: headers() });
+// Public endpoints
+export async function fetchProfiles() {
+  const res = await fetch('/api/profiles');
+  return res.json();
+}
+
+export async function fetchActiveProfile() {
+  const res = await fetch('/api/active-profile');
+  return res.json();
+}
+
+export async function setActiveProfile(profileId) {
+  const res = await fetch('/api/active-profile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_id: profileId }),
+  });
+  return res.json();
+}
+
+// Admin endpoints
+export async function fetchAllProfiles() {
+  const res = await fetch('/api/admin/profiles', { headers: headers() });
   return handleResponse(res);
 }
 
-export async function createChallenge(challenge) {
-  const res = await fetch('/api/admin/challenges', {
+export async function createProfile(profile) {
+  const res = await fetch('/api/admin/profiles', {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify(challenge),
+    body: JSON.stringify(profile),
   });
   return handleResponse(res);
 }
 
-export async function updateChallenge(id, challenge) {
-  const res = await fetch(`/api/admin/challenges/${id}`, {
+export async function updateProfile(id, profile) {
+  const res = await fetch(`/api/admin/profiles/${id}`, {
     method: 'PUT',
     headers: headers(),
-    body: JSON.stringify(challenge),
+    body: JSON.stringify(profile),
   });
   return handleResponse(res);
 }
 
-export async function deleteChallenge(id) {
-  const res = await fetch(`/api/admin/challenges/${id}`, {
+export async function deleteProfile(id) {
+  const res = await fetch(`/api/admin/profiles/${id}`, {
     method: 'DELETE',
     headers: headers(),
   });
   return handleResponse(res);
 }
 
-export async function reorderChallenges(order) {
-  const res = await fetch('/api/admin/challenges/reorder', {
+export async function reorderProfiles(order) {
+  const res = await fetch('/api/admin/profiles/reorder', {
     method: 'PUT',
     headers: headers(),
     body: JSON.stringify({ order }),

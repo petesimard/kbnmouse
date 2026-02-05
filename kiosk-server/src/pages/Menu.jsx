@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useProfile } from '../contexts/ProfileContext';
 
 function formatRemaining(seconds) {
   if (seconds <= 0) return '0:00';
@@ -10,6 +11,8 @@ function formatRemaining(seconds) {
 }
 
 function Menu() {
+  const { profileId, profiles, loading: profilesLoading, clearProfile, refreshProfiles } = useProfile();
+
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,6 +20,23 @@ function Menu() {
   const [timeLimitError, setTimeLimitError] = useState(false);
   const [timeWarning, setTimeWarning] = useState(false);
   const [usageMap, setUsageMap] = useState({});
+
+  const needsProfileSelection = !profilesLoading && profiles.length > 1 && !profileId;
+  const loadedProfileSelectRef = useRef(false);
+
+  // Load /profiles in the content view when profile selection is needed
+  useEffect(() => {
+    if (!needsProfileSelection) {
+      loadedProfileSelectRef.current = false;
+      return;
+    }
+    if (loadedProfileSelectRef.current) return;
+    loadedProfileSelectRef.current = true;
+
+    if (window.kiosk?.content?.loadURL) {
+      window.kiosk.content.loadURL('/profiles');
+    }
+  }, [needsProfileSelection]);
 
   // Extract domains from URL-type apps and push to Electron whitelist
   const pushWhitelist = useCallback((appList) => {
@@ -66,9 +86,11 @@ function Menu() {
     });
   }, []);
 
-  // Fetch apps from the database
+  // Fetch apps from the database, scoped by profile
   const fetchApps = useCallback(() => {
-    fetch('/api/apps')
+    if (needsProfileSelection) return;
+    const url = profileId ? `/api/apps?profile=${profileId}` : '/api/apps';
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
         setApps(data);
@@ -80,17 +102,22 @@ function Menu() {
         console.error('Failed to load apps:', err);
         setLoading(false);
       });
-  }, [pushWhitelist, fetchUsage]);
+  }, [pushWhitelist, fetchUsage, profileId, needsProfileSelection]);
 
   useEffect(() => {
     // Check if running in Electron with kiosk API
     setHasKiosk(typeof window.kiosk?.content !== 'undefined');
 
-    // Initial fetch
     fetchApps();
   }, [fetchApps]);
 
-  // WebSocket connection for live updates
+  // Keep stable refs for WS handler so the connection doesn't tear down on every state change
+  const fetchAppsRef = useRef(fetchApps);
+  fetchAppsRef.current = fetchApps;
+  const refreshProfilesRef = useRef(refreshProfiles);
+  refreshProfilesRef.current = refreshProfiles;
+
+  // WebSocket connection for live updates (no deps — uses refs for stable connection)
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.hostname}:3001/ws`;
@@ -109,8 +136,9 @@ function Menu() {
         try {
           const data = JSON.parse(event.data);
           if (data.type === 'refresh') {
-            console.log('Received refresh signal, reloading apps...');
-            fetchApps();
+            console.log('Received refresh signal, reloading...');
+            refreshProfilesRef.current();
+            fetchAppsRef.current();
           }
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
@@ -136,7 +164,7 @@ function Menu() {
         ws.close();
       }
     };
-  }, [fetchApps]);
+  }, []);
 
   // Refresh just usage data (using current apps list)
   const refreshUsage = useCallback(() => {
@@ -223,10 +251,29 @@ function Menu() {
     }
   };
 
+  const handleSwitchUser = () => {
+    clearProfile();
+    if (window.kiosk?.content?.loadURL) {
+      window.kiosk.content.loadURL('/profiles');
+    }
+  };
+
+  // Find current profile for the switch button
+  const currentProfile = profiles.find(p => p.id === profileId);
+
   return (
     <div className="h-screen bg-slate-800 flex items-center justify-between px-4">
       {/* Navigation controls */}
       <div className="flex gap-2">
+        {profiles.length > 1 && (
+          <button
+            onClick={handleSwitchUser}
+            className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
+            title={currentProfile ? `Switch user (${currentProfile.name})` : 'Select profile'}
+          >
+            {currentProfile?.icon || '👤'}
+          </button>
+        )}
         <button
           onClick={handleBack}
           className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
@@ -252,7 +299,9 @@ function Menu() {
 
       {/* App shortcuts */}
       <div className="flex gap-3">
-        {loading ? (
+        {needsProfileSelection ? (
+          <span className="text-slate-400 text-sm">Select a profile to get started</span>
+        ) : loading ? (
           <span className="text-slate-400 text-sm">Loading...</span>
         ) : (
           apps.map((app) => (

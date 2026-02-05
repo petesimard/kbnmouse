@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getChallengeComponent } from '../challenges';
+import { useProfile } from '../../contexts/ProfileContext';
 
 export const meta = { key: 'challenges', name: 'Challenges', icon: '🏆', description: 'Earn bonus playtime' };
 
@@ -37,6 +38,7 @@ function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
 }
 
 function Challenges() {
+  const { profileId } = useProfile();
   const [activeChallenge, setActiveChallenge] = useState(null);
   const [challenges, setChallenges] = useState([]);
   const [bonusMinutes, setBonusMinutes] = useState(0);
@@ -44,9 +46,10 @@ function Challenges() {
 
   const fetchData = useCallback(async () => {
     try {
+      const profileParam = profileId ? `?profile=${profileId}` : '';
       const [challengesRes, bonusRes] = await Promise.all([
-        fetch('/api/challenges'),
-        fetch('/api/bonus-time'),
+        fetch(`/api/challenges${profileParam}`),
+        fetch(`/api/bonus-time${profileParam}`),
       ]);
       const challengesData = await challengesRes.json();
       const bonusData = await bonusRes.json();
@@ -57,7 +60,7 @@ function Challenges() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [profileId]);
 
   useEffect(() => {
     fetchData();
@@ -72,6 +75,7 @@ function Challenges() {
           challenge_type: challengeType,
           minutes_awarded: minutesAwarded,
           challenge_id: activeChallenge?.id,
+          profile_id: profileId || null,
         }),
       });
       const data = await res.json();
@@ -79,7 +83,7 @@ function Challenges() {
     } catch (err) {
       console.error('Failed to record challenge completion:', err);
     }
-  }, [activeChallenge]);
+  }, [activeChallenge, profileId]);
 
   const handleBack = useCallback(() => {
     setActiveChallenge(null);

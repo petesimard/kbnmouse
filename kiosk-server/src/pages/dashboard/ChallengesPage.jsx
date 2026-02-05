@@ -5,8 +5,8 @@ import ChallengeList from './ChallengeList';
 import ChallengeFormModal from './ChallengeFormModal';
 
 export default function ChallengesPage() {
-  const { logout } = useOutletContext();
-  const { challenges, loading, createChallenge, updateChallenge, deleteChallenge, reorderChallenges } = useChallenges(true, logout);
+  const { logout, dashboardProfileId } = useOutletContext();
+  const { challenges, loading, createChallenge, updateChallenge, deleteChallenge, reorderChallenges } = useChallenges(true, logout, dashboardProfileId);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingChallenge, setEditingChallenge] = useState(null);
@@ -26,7 +26,7 @@ export default function ChallengesPage() {
     if (editingChallenge) {
       await updateChallenge(editingChallenge.id, formData);
     } else {
-      await createChallenge(formData);
+      await createChallenge({ ...formData, profile_id: dashboardProfileId });
     }
   };
 

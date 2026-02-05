@@ -31,6 +31,15 @@ const navItems = [
     ),
   },
   {
+    to: '/dashboard/profiles',
+    label: 'Profiles',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+  },
+  {
     to: '/dashboard/settings',
     label: 'Settings',
     icon: (
@@ -62,7 +71,7 @@ function NavItem({ to, end, label, icon, onClick }) {
   );
 }
 
-export default function Sidebar({ logout }) {
+export default function Sidebar({ logout, profiles = [], dashboardProfileId, setDashboardProfileId }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const sidebarContent = (
@@ -70,6 +79,24 @@ export default function Sidebar({ logout }) {
       <div className="p-4 border-b border-slate-700">
         <h1 className="text-lg font-bold text-white">Parent Dashboard</h1>
       </div>
+
+      {/* Profile selector */}
+      {profiles.length > 1 && (
+        <div className="p-3 border-b border-slate-700">
+          <label className="block text-xs font-medium text-slate-400 mb-1.5 px-1">Profile</label>
+          <select
+            value={dashboardProfileId || ''}
+            onChange={(e) => setDashboardProfileId(Number(e.target.value))}
+            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.icon} {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <nav className="flex-1 p-3 space-y-1">
         {navItems.map((item) => (

@@ -6,8 +6,8 @@ import AppList from './AppList';
 import AppFormModal from './AppFormModal';
 
 export default function AppsPage() {
-  const { logout } = useOutletContext();
-  const { apps, loading: appsLoading, createApp, updateApp, deleteApp, reorderApps } = useApps(true, logout);
+  const { logout, dashboardProfileId } = useOutletContext();
+  const { apps, loading: appsLoading, createApp, updateApp, deleteApp, reorderApps } = useApps(true, logout, dashboardProfileId);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingApp, setEditingApp] = useState(null);
@@ -29,7 +29,7 @@ export default function AppsPage() {
     if (editingApp) {
       await updateApp(editingApp.id, formData);
     } else {
-      await createApp(formData);
+      await createApp({ ...formData, profile_id: dashboardProfileId });
     }
   };
 
@@ -42,7 +42,7 @@ export default function AppsPage() {
   };
 
   const handleAddBonusTime = async () => {
-    await addBonusTime(bonusMinutes);
+    await addBonusTime(bonusMinutes, dashboardProfileId);
     setBonusModalOpen(false);
     setBonusMinutes(15);
   };
