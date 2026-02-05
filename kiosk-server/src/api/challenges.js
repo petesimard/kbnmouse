@@ -31,6 +31,12 @@ async function handleResponse(res) {
   return res.json();
 }
 
+export async function fetchChallengeCompletions(profileId) {
+  const url = profileId ? `/api/admin/challenge-completions?profile=${profileId}` : '/api/admin/challenge-completions';
+  const res = await fetch(url, { headers: headers() });
+  return handleResponse(res);
+}
+
 export async function fetchAllChallenges(profileId) {
   const url = profileId ? `/api/admin/challenges?profile=${profileId}` : '/api/admin/challenges';
   const res = await fetch(url, { headers: headers() });

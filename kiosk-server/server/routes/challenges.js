@@ -54,6 +54,29 @@ router.post('/api/challenges/complete', (req, res) => {
 
 // --- Admin endpoints ---
 
+// GET /api/admin/challenge-completions - Get completion history
+router.get('/api/admin/challenge-completions', requirePin, (req, res) => {
+  const profileId = req.query.profile;
+  let completions;
+  if (profileId) {
+    completions = db.prepare(`
+      SELECT cc.id, cc.challenge_type, cc.minutes_awarded, cc.completed_at, cc.profile_id,
+             (SELECT c.name FROM challenges c WHERE c.challenge_type = cc.challenge_type AND c.profile_id = cc.profile_id LIMIT 1) as challenge_name
+      FROM challenge_completions cc
+      WHERE cc.profile_id = ?
+      ORDER BY cc.completed_at DESC
+    `).all(profileId);
+  } else {
+    completions = db.prepare(`
+      SELECT cc.id, cc.challenge_type, cc.minutes_awarded, cc.completed_at, cc.profile_id,
+             (SELECT c.name FROM challenges c WHERE c.challenge_type = cc.challenge_type AND c.profile_id = cc.profile_id LIMIT 1) as challenge_name
+      FROM challenge_completions cc
+      ORDER BY cc.completed_at DESC
+    `).all();
+  }
+  res.json(completions);
+});
+
 // GET /api/admin/challenges - Get all challenges including disabled
 router.get('/api/admin/challenges', requirePin, (req, res) => {
   const profileId = req.query.profile;
