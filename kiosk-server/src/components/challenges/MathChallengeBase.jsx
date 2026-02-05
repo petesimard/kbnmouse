@@ -15,15 +15,15 @@ export function makeMathConfigSchema({ description, minDefault = 10, maxDefault 
       label: 'Minimum Number',
       description: 'Smallest number in problems',
       type: 'number',
-      min: 1,
-      max: 999,
+      min: 0,
+      max: 99999,
     }),
     max_number: field(z.number().int().min(1).max(999).default(maxDefault), {
       label: 'Maximum Number',
       description: 'Largest number in problems',
       type: 'number',
-      min: 1,
-      max: 999,
+      min: 0,
+      max: 999999,
     }),
   };
 }
