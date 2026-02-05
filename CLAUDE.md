@@ -40,22 +40,31 @@ npm run dev:external   # Electron pointing to external kiosk-server
 
 ### Frontend Routes
 
-- `/menu` — Bottom navigation bar shown in Electron menu view. Fetches apps, manages whitelist, launches native apps.
-- `/dashboard` — PIN-protected parent dashboard with sub-routes: `/dashboard` (apps management), `/dashboard/usage` (7-day charts), `/dashboard/settings` (PIN, challenge config).
+- `/menu` — Bottom navigation bar shown in Electron menu view. Fetches apps (scoped by active profile), manages whitelist, launches native apps. Shows switch-user button when multiple profiles exist.
+- `/profiles` — Full-screen "Who's Playing?" profile selection. Loaded in the content view by the menu when no profile is active. After selection, navigates to `/test-content` and broadcasts refresh via WebSocket.
+- `/dashboard` — PIN-protected parent dashboard with sub-routes: `/dashboard` (apps management), `/dashboard/challenges`, `/dashboard/usage` (7-day charts), `/dashboard/profiles` (profile management), `/dashboard/settings` (PIN, challenge config). All data pages are scoped by a profile selector in the sidebar.
 - `/builtin/:key` — Built-in apps (clock, drawing, timer, calculator, challenges). Auto-discovered via `import.meta.glob`.
 
 ### Backend
 
-- `server/index.js` — Express API with public and admin (token-protected via `X-Admin-Token` header) endpoints.
-- `server/db.js` — SQLite schema init (WAL mode). Tables: `apps`, `app_usage`, `challenge_completions`, `settings`.
-- WebSocket server on same port broadcasts `{ type: 'refresh' }` when apps change — menu auto-reloads.
+- `server/index.js` — Express API with public and admin (token-protected via `X-Admin-Token` header) endpoints. Profile CRUD and active-profile endpoints.
+- `server/db.js` — SQLite schema init (WAL mode). Tables: `profiles`, `apps`, `app_usage`, `challenges`, `challenge_completions`, `settings`. Exports `seedProfileDefaults(profileId)` for seeding new profiles with default apps/challenges.
+- WebSocket server on same port broadcasts `{ type: 'refresh' }` when apps/profiles change — menu auto-reloads.
+
+### Multi-Profile System
+
+Each child has their own profile with isolated apps, challenges, usage tracking, and challenge completions. The `profiles` table stores id, name, icon, sort_order. All data tables (`apps`, `challenges`, `app_usage`, `challenge_completions`) have a `profile_id` column. API endpoints accept `?profile=<id>` query param or `profile_id` in request body to scope data.
+
+**Profile selection flow (Electron):** Menu detects no active profile → loads `/profiles` in content view via IPC → child picks profile → `POST /api/active-profile` persists choice and broadcasts WS refresh → menu picks up new profile and loads scoped apps. Menu and content view are separate BrowserViews with separate React instances; they communicate via the API + WebSocket, not shared React context.
+
+**ProfileContext** (`src/contexts/ProfileContext.jsx`) provides `profileId`, `profiles`, `selectProfile`, `clearProfile`, `refreshProfiles`. Used by the Challenges builtin and Dashboard (each in their own React instance). The menu's WebSocket handler calls `refreshProfiles()` on every refresh signal using stable refs to avoid WebSocket reconnection churn.
 
 ### Key Data Flow
 
-1. Menu fetches apps from `/api/apps`, connects to WebSocket for live updates
+1. Menu fetches apps from `/api/apps?profile=<id>`, connects to WebSocket for live updates
 2. App clicks → Electron IPC → content view navigates (URL apps) or native process spawns (native apps)
 3. Native apps: usage recorded to `/api/apps/:id/usage`, time limits enforced (daily/weekly + bonus minutes from challenges)
-4. Dashboard: PIN verified via `/api/admin/verify-pin` → token stored in localStorage → passed in `X-Admin-Token` header
+4. Dashboard: PIN verified via `/api/admin/verify-pin` → token stored in localStorage → passed in `X-Admin-Token` header. Profile selector in sidebar scopes all dashboard pages.
 
 ### API Authentication
 
@@ -63,7 +72,7 @@ Public endpoints need no auth. Admin endpoints require `X-Admin-Token` header wi
 
 ### Frontend API Layer
 
-`src/api/apps.js` — Centralized fetch functions with automatic token management and 401 handling. Custom hooks (`useApps`, `usePinAuth`, `useSettings`, `useBuiltinApps`) wrap these.
+`src/api/apps.js`, `src/api/challenges.js`, `src/api/profiles.js` — Centralized fetch functions with automatic token management and 401 handling. Custom hooks (`useApps`, `useChallenges`, `useProfiles`, `usePinAuth`, `useSettings`, `useBuiltinApps`) wrap these. Apps and challenges API functions accept optional `profileId` param for scoping.
 
 ### App Types
 
