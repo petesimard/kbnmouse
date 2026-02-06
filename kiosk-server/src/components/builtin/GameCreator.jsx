@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { z } from 'zod';
+import { field } from '../challenges/schemas.js';
 import { useProfile } from '../../contexts/ProfileContext';
 
 export const meta = {
@@ -7,6 +9,16 @@ export const meta = {
   icon: '🎮',
   description: 'Create your own games!',
   skipTracking: true,
+};
+
+export const configSchema = {
+  default_daily_limit: field(z.number().int().min(0).max(480).default(0), {
+    label: 'Default Daily Limit for Created Games',
+    description: 'Minutes per day for newly created games. 0 = no limit.',
+    type: 'number',
+    min: 0,
+    max: 480,
+  }),
 };
 
 function StatusBadge({ status }) {

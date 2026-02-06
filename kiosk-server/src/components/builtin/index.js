@@ -1,6 +1,9 @@
 // Auto-discover built-in apps from .jsx files in this directory.
 // Each file must export: `export const meta = { key, name, icon, description }`
 // and a default component. Drop in a new .jsx file and it registers itself.
+// Optionally export `configSchema` for dashboard-editable settings (same system as challenges).
+
+import { registerConfigSchema } from '../challenges/schemas.js';
 
 const modules = import.meta.glob('./*.jsx', { eager: true });
 
@@ -11,6 +14,9 @@ for (const [path, mod] of Object.entries(modules)) {
   if (!mod.meta || !mod.default) continue;
   apps.push(mod.meta);
   components[mod.meta.key] = mod.default;
+  if (mod.configSchema) {
+    registerConfigSchema(mod.meta.key, mod.configSchema);
+  }
 }
 
 // Plugin registration for apps loaded outside this directory

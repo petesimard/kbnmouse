@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBuiltinApps } from '../../hooks/useApps';
+import { getConfigFields, getDefaults } from '../../components/challenges/schemas.js';
+import ConfigField from '../../components/ConfigField';
 import IconPicker from '../../components/IconPicker';
 import AppIcon from '../../components/AppIcon';
 
@@ -24,6 +26,8 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
 
   useEffect(() => {
     if (app) {
+      const builtinKey = app.app_type === 'builtin' ? app.url : null;
+      const defaults = builtinKey ? getDefaults(builtinKey) : {};
       setFormData({
         name: app.name || '',
         url: app.url || '',
@@ -33,7 +37,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
         daily_limit_minutes: app.daily_limit_minutes ?? '',
         weekly_limit_minutes: app.weekly_limit_minutes ?? '',
         max_daily_minutes: app.max_daily_minutes || '',
-        config: app.config || {},
+        config: { ...defaults, ...app.config },
         folder_id: app.folder_id ?? null,
       });
     }
@@ -62,11 +66,13 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   };
 
   const handleBuiltinSelect = (builtin) => {
+    const defaults = getDefaults(builtin.key);
     setFormData((prev) => ({
       ...prev,
       name: prev.name || builtin.name,
       url: builtin.key,
       icon: prev.icon || builtin.icon,
+      config: { ...defaults, ...prev.config },
     }));
   };
 
@@ -260,6 +266,30 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                 </div>
               </>
             )}
+
+            {/* Schema-driven config fields for builtins */}
+            {formData.app_type === 'builtin' && formData.url && (() => {
+              const schemaFields = getConfigFields(formData.url);
+              const entries = Object.entries(schemaFields);
+              if (entries.length === 0) return null;
+              return (
+                <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">
+                    Settings
+                  </h3>
+                  {entries.map(([key, field]) => (
+                    <ConfigField
+                      key={key}
+                      fieldKey={key}
+                      field={field}
+                      value={formData.config[key] ?? ''}
+                      error={errors[`config.${key}`]}
+                      onChange={handleConfigChange}
+                    />
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Image Generator Settings (for imagegen builtin only) */}
             {formData.app_type === 'builtin' && formData.url === 'imagegen' && (

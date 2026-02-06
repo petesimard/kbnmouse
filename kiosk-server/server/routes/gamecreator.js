@@ -161,17 +161,24 @@ function onGameReady(gameId, name, profileId) {
 
   const folderId = getOrCreateMyGamesFolder(profileId);
 
+  // Read default_daily_limit from the gamecreator app's config
+  const creatorApp = db.prepare(
+    "SELECT config FROM apps WHERE app_type = 'builtin' AND url = 'gamecreator' AND profile_id = ?"
+  ).get(profileId);
+  const creatorConfig = JSON.parse(creatorApp?.config || '{}');
+  const dailyLimit = creatorConfig.default_daily_limit || null;
+
   // Get max sort_order for this profile's apps
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps WHERE profile_id = ?').get(profileId);
   const sortOrder = (maxOrder?.max || 0) + 1;
 
   // Add to apps table inside the "My Games" folder
   db.prepare(
-    'INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, profile_id, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(name, `/game/${gameId}`, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId);
+    'INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(name, `/game/${gameId}`, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId, dailyLimit);
 
   broadcastRefresh();
-  console.log(`[GameCreator] Game ${gameId} ready and added to apps`);
+  console.log(`[GameCreator] Game ${gameId} ready and added to apps${dailyLimit ? ` (daily limit: ${dailyLimit}min)` : ''}`);
 }
 
 export default router;
