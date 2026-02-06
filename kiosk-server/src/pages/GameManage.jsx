@@ -49,7 +49,9 @@ function GameManage() {
   }, [game, fetchGame]);
 
   const handlePlay = () => {
-    const url = `/customgames/${id}/index.html`;
+    // ?kiosk=1 triggers the server-injected Back button overlay.
+    // Shared QR URLs omit this param, so shared games won't show it.
+    const url = `/customgames/${id}/index.html?kiosk=1`;
     if (window.kiosk?.content?.loadURL) {
       window.kiosk.content.loadURL(url);
     } else {

@@ -81,3 +81,26 @@ Three types stored in `apps.app_type`: `url` (web pages), `builtin` (React compo
 ### Time Limit System
 
 Apps can have `daily_limit_minutes` and `weekly_limit_minutes`. Bonus minutes earned through challenges (`challenge_completions` table) or parent grants are added to limits. Usage tracked in `app_usage` table. Native app launcher calculates remaining time and auto-kills when expired.
+
+### Game Creator
+
+Kids can create custom Three.js games by describing what they want. The system uses Claude Code Agent SDK (`@anthropic-ai/claude-agent-sdk`) to generate self-contained HTML game files.
+
+**Frontend flow:**
+- `/builtin/gamecreator` — Builtin "My Games" list (`src/components/builtin/GameCreator.jsx`). Shows all games for the active profile with status badges (Generating/Ready/Error). Has a creation form (name + prompt). On create, navigates to the management page.
+- `/game/:id` — Game management page (`src/pages/GameManage.jsx`). Shows game status, PLAY button (enabled when ready), share (QR code), delete, and an "Update Game" form for iterative modifications. Polls every 3s while status is `generating`.
+
+**Backend flow:**
+- `server/routes/gamecreator.js` — CRUD API at `/api/games`. POST creates a `custom_games` record with status `generating` and kicks off background generation. On completion, `onGameReady()` sets status to `ready`, creates/finds a "My Games" folder (icon 🎮, color #6366f1), and adds an app entry (type `url`, URL `/game/:id`) so the game appears in the menu.
+- `server/agent/gameAgent.js` — Wraps `@anthropic-ai/claude-agent-sdk`'s `query()` function. Gives the agent a system prompt requesting a kid-friendly Three.js game, allows `Write, Edit, Read, Bash, Glob` tools, max 30 turns, `bypassPermissions` mode. Agent writes files to `data/games/<id>/`. Both `generateGame()` and `updateGame()` verify the agent actually wrote files.
+
+**Game serving:**
+- Games are static files in `data/games/<id>/` served at `/customgames/<id>/`.
+- `server/index.js` middleware intercepts HTML requests with `?kiosk=1` query param and injects a fixed-position Back button overlay (bottom-left) that navigates to `/game/<id>`. This button appears when playing from the management page but not when accessing via shared QR code URLs (which lack the param).
+- Vite proxies `/customgames` to Express in dev mode.
+
+**Key details:**
+- Games are profile-scoped (`custom_games.profile_id`).
+- Menu app entries link to `/game/<id>` (management page), not directly to the game.
+- Three-state status lifecycle: `generating` → `ready` | `error`.
+- Delete removes the app entry, DB record, and game directory from disk.

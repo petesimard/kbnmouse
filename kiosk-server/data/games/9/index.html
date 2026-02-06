@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Star Collector</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #1a1a2e; font-family: 'Segoe UI', Arial, sans-serif; }
+    canvas { display: block; }
+
+    #overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100;
+      background: linear-gradient(135deg, #667eea55, #764ba255);
+      backdrop-filter: blur(8px);
+      transition: opacity 0.5s;
+    }
+    #overlay.hidden { opacity: 0; pointer-events: none; }
+
+    #overlay h1 {
+      font-size: 4rem; color: #fff;
+      text-shadow: 0 4px 20px rgba(255,200,0,0.6), 0 0 40px rgba(255,200,0,0.3);
+      margin-bottom: 0.5rem;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    #overlay p {
+      font-size: 1.3rem; color: #e0e0ff;
+      margin-bottom: 2rem; text-align: center; line-height: 1.8;
+    }
+    #overlay .start-btn {
+      font-size: 1.6rem; padding: 16px 48px;
+      background: linear-gradient(135deg, #f5af19, #f12711);
+      color: #fff; border: none; border-radius: 50px;
+      cursor: pointer; font-weight: bold;
+      box-shadow: 0 6px 25px rgba(245,175,25,0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    #overlay .start-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 8px 35px rgba(245,175,25,0.7);
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    #hud {
+      position: fixed; top: 20px; left: 0; right: 0;
+      display: flex; justify-content: center; gap: 40px;
+      z-index: 50; pointer-events: none;
+    }
+    .hud-item {
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(6px);
+      padding: 10px 24px; border-radius: 20px;
+      color: #fff; font-size: 1.4rem; font-weight: bold;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .hud-item span { color: #ffd700; }
+
+    #message {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 3rem; color: #ffd700; font-weight: bold;
+      text-shadow: 0 0 30px rgba(255,215,0,0.8);
+      z-index: 60; pointer-events: none;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    #message.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div id="overlay">
+    <h1>Star Collector</h1>
+    <p>
+      Use <b>WASD</b> or <b>Arrow Keys</b> to move<br>
+      Press <b>Space</b> to jump<br>
+      Collect all the stars!
+    </p>
+    <button class="start-btn" id="startBtn">Play!</button>
+  </div>
+
+  <div id="hud">
+    <div class="hud-item">Stars: <span id="scoreText">0</span></div>
+    <div class="hud-item">Level: <span id="levelText">1</span></div>
+  </div>
+
+  <div id="message"></div>
+
+  <script>
+    // ============ AUDIO ============
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new AudioCtx();
+    }
+    function playTone(freq, duration, type = 'sine', volume = 0.15) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+    function playCollect() {
+      playTone(880, 0.12, 'sine', 0.15);
+      setTimeout(() => playTone(1320, 0.15, 'sine', 0.12), 80);
+    }
+    function playJump() {
+      playTone(330, 0.15, 'square', 0.08);
+    }
+    function playLevelUp() {
+      [523, 659, 784, 1047].forEach((f, i) => {
+        setTimeout(() => playTone(f, 0.2, 'sine', 0.12), i * 120);
+      });
+    }
+
+    // ============ SCENE SETUP ============
+    const scene = new THREE.Scene();
+
+    // Sky gradient background
+    const canvas2d = document.createElement('canvas');
+    canvas2d.width = 2; canvas2d.height = 256;
+    const ctx2d = canvas2d.getContext('2d');
+    const grad = ctx2d.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#1a1a4e');
+    grad.addColorStop(0.5, '#3a2d7e');
+    grad.addColorStop(1, '#6b4fa0');
+    ctx2d.fillStyle = grad;
+    ctx2d.fillRect(0, 0, 2, 256);
+    const bgTex = new THREE.CanvasTexture(canvas2d);
+    scene.background = bgTex;
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 12, 16);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // ============ LIGHTS ============
+    const ambientLight = new THREE.AmbientLight(0x9999ff, 0.5);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    dirLight.position.set(8, 15, 10);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(1024, 1024);
+    dirLight.shadow.camera.near = 1;
+    dirLight.shadow.camera.far = 50;
+    dirLight.shadow.camera.left = -20;
+    dirLight.shadow.camera.right = 20;
+    dirLight.shadow.camera.top = 20;
+    dirLight.shadow.camera.bottom = -20;
+    scene.add(dirLight);
+
+    const pointLight = new THREE.PointLight(0xff8844, 0.4, 30);
+    pointLight.position.set(-5, 8, -5);
+    scene.add(pointLight);
+
+    // ============ PLATFORM ============
+    const platformSize = 16;
+    const platformGeo = new THREE.BoxGeometry(platformSize, 0.5, platformSize);
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: 0x44bb77, roughness: 0.8, metalness: 0.1
+    });
+    const platform = new THREE.Mesh(platformGeo, platformMat);
+    platform.receiveShadow = true;
+    platform.position.y = -0.25;
+    scene.add(platform);
+
+    // Platform edge glow
+    const edgeGeo = new THREE.BoxGeometry(platformSize + 0.3, 0.6, platformSize + 0.3);
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: 0x22ff88, emissive: 0x11aa55, emissiveIntensity: 0.3,
+      roughness: 0.5, metalness: 0.3
+    });
+    const platformEdge = new THREE.Mesh(edgeGeo, edgeMat);
+    platformEdge.position.y = -0.3;
+    scene.add(platformEdge);
+
+    // Grid lines on platform
+    const gridHelper = new THREE.GridHelper(platformSize, 16, 0x33aa66, 0x33aa66);
+    gridHelper.position.y = 0.01;
+    gridHelper.material.opacity = 0.3;
+    gridHelper.material.transparent = true;
+    scene.add(gridHelper);
+
+    // ============ PLAYER ============
+    const playerGroup = new THREE.Group();
+
+    // Body
+    const bodyGeo = new THREE.SphereGeometry(0.5, 16, 16);
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xff6b9d, roughness: 0.4, metalness: 0.1
+    });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.castShadow = true;
+    body.position.y = 0.5;
+    playerGroup.add(body);
+
+    // Eyes
+    const eyeGeo = new THREE.SphereGeometry(0.12, 8, 8);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const pupilGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x222244 });
+
+    [-0.18, 0.18].forEach(x => {
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(x, 0.6, 0.4);
+      playerGroup.add(eye);
+      const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+      pupil.position.set(x, 0.6, 0.48);
+      playerGroup.add(pupil);
+    });
+
+    // Smile
+    const smileShape = new THREE.Shape();
+    smileShape.absarc(0, 0, 0.15, Math.PI * 0.2, Math.PI * 0.8, false);
+    const smileGeo = new THREE.ShapeGeometry(smileShape);
+    const smileMat = new THREE.MeshBasicMaterial({ color: 0xcc3366, side: THREE.DoubleSide });
+    const smile = new THREE.Mesh(smileGeo, smileMat);
+    smile.position.set(0, 0.4, 0.48);
+    smile.rotation.z = Math.PI;
+    playerGroup.add(smile);
+
+    scene.add(playerGroup);
+
+    // Player state
+    const player = {
+      x: 0, y: 0, z: 0,
+      vx: 0, vy: 0, vz: 0,
+      speed: 8, jumpForce: 10,
+      grounded: true,
+      squash: 1
+    };
+
+    // ============ STARS ============
+    let stars = [];
+    let score = 0;
+    let level = 1;
+    let gameStarted = false;
+
+    function createStar(x, z) {
+      const group = new THREE.Group();
+
+      // Star shape using octahedron + glow
+      const starGeo = new THREE.OctahedronGeometry(0.35, 0);
+      const starMat = new THREE.MeshStandardMaterial({
+        color: 0xffd700, emissive: 0xffaa00,
+        emissiveIntensity: 0.5, roughness: 0.3, metalness: 0.8
+      });
+      const starMesh = new THREE.Mesh(starGeo, starMat);
+      starMesh.castShadow = true;
+      group.add(starMesh);
+
+      // Glow sphere
+      const glowGeo = new THREE.SphereGeometry(0.5, 8, 8);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0xffdd44, transparent: true, opacity: 0.15
+      });
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      group.add(glow);
+
+      group.position.set(x, 1.2, z);
+      group.userData = { baseY: 1.2, phase: Math.random() * Math.PI * 2, collected: false };
+      scene.add(group);
+      return group;
+    }
+
+    function spawnStars() {
+      stars.forEach(s => scene.remove(s));
+      stars = [];
+      const count = 5 + level * 2;
+      const half = platformSize / 2 - 1.5;
+      for (let i = 0; i < count; i++) {
+        const x = (Math.random() - 0.5) * 2 * half;
+        const z = (Math.random() - 0.5) * 2 * half;
+        stars.push(createStar(x, z));
+      }
+    }
+
+    // ============ PARTICLES ============
+    const particles = [];
+
+    function spawnParticles(x, y, z, color, count = 12) {
+      for (let i = 0; i < count; i++) {
+        const geo = new THREE.SphereGeometry(0.08, 4, 4);
+        const mat = new THREE.MeshBasicMaterial({ color, transparent: true });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        const angle = Math.random() * Math.PI * 2;
+        const upForce = 2 + Math.random() * 4;
+        const outForce = 1 + Math.random() * 3;
+        mesh.userData = {
+          vx: Math.cos(angle) * outForce,
+          vy: upForce,
+          vz: Math.sin(angle) * outForce,
+          life: 1
+        };
+        scene.add(mesh);
+        particles.push(mesh);
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        const d = p.userData;
+        d.vy -= 12 * dt;
+        p.position.x += d.vx * dt;
+        p.position.y += d.vy * dt;
+        p.position.z += d.vz * dt;
+        d.life -= dt * 2;
+        p.material.opacity = Math.max(0, d.life);
+        if (d.life <= 0) {
+          scene.remove(p);
+          p.geometry.dispose();
+          p.material.dispose();
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    // ============ DECORATIONS ============
+    // Floating background spheres
+    const bgSpheres = [];
+    for (let i = 0; i < 20; i++) {
+      const size = 0.3 + Math.random() * 0.8;
+      const geo = new THREE.SphereGeometry(size, 8, 8);
+      const hue = Math.random();
+      const color = new THREE.Color().setHSL(hue, 0.6, 0.6);
+      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(
+        (Math.random() - 0.5) * 40,
+        3 + Math.random() * 15,
+        (Math.random() - 0.5) * 40
+      );
+      mesh.userData = {
+        baseY: mesh.position.y,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.3 + Math.random() * 0.5
+      };
+      scene.add(mesh);
+      bgSpheres.push(mesh);
+    }
+
+    // Small decorative pillars at corners
+    const pillarColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0xa29bfe];
+    const half = platformSize / 2;
+    [[-half, -half], [-half, half], [half, -half], [half, half]].forEach(([x, z], i) => {
+      const geo = new THREE.CylinderGeometry(0.3, 0.4, 1.5, 8);
+      const mat = new THREE.MeshStandardMaterial({
+        color: pillarColors[i], emissive: pillarColors[i], emissiveIntensity: 0.2,
+        roughness: 0.5
+      });
+      const pillar = new THREE.Mesh(geo, mat);
+      pillar.position.set(x, 0.75, z);
+      pillar.castShadow = true;
+      scene.add(pillar);
+
+      // Top sphere
+      const topGeo = new THREE.SphereGeometry(0.35, 8, 8);
+      const topMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, emissive: pillarColors[i], emissiveIntensity: 0.4
+      });
+      const top = new THREE.Mesh(topGeo, topMat);
+      top.position.set(x, 1.7, z);
+      scene.add(top);
+    });
+
+    // ============ INPUT ============
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'Space') e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // ============ GAME LOGIC ============
+    function showMessage(text, duration = 1500) {
+      const el = document.getElementById('message');
+      el.textContent = text;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), duration);
+    }
+
+    function updatePlayer(dt) {
+      // Input
+      let ix = 0, iz = 0;
+      if (keys['ArrowLeft'] || keys['KeyA']) ix -= 1;
+      if (keys['ArrowRight'] || keys['KeyD']) ix += 1;
+      if (keys['ArrowUp'] || keys['KeyW']) iz -= 1;
+      if (keys['ArrowDown'] || keys['KeyS']) iz += 1;
+
+      // Normalize diagonal movement
+      if (ix !== 0 && iz !== 0) {
+        ix *= 0.707; iz *= 0.707;
+      }
+
+      // Apply movement
+      const accel = player.grounded ? 40 : 20;
+      const friction = player.grounded ? 8 : 3;
+
+      player.vx += ix * accel * dt;
+      player.vz += iz * accel * dt;
+      player.vx -= player.vx * friction * dt;
+      player.vz -= player.vz * friction * dt;
+
+      // Clamp speed
+      const maxSpeed = player.speed;
+      const speed = Math.sqrt(player.vx ** 2 + player.vz ** 2);
+      if (speed > maxSpeed) {
+        player.vx = (player.vx / speed) * maxSpeed;
+        player.vz = (player.vz / speed) * maxSpeed;
+      }
+
+      // Jump
+      if ((keys['Space'] || keys['ArrowUp'] && false) && player.grounded) {
+        player.vy = player.jumpForce;
+        player.grounded = false;
+        player.squash = 1.3;
+        playJump();
+      }
+
+      // Gravity
+      player.vy -= 25 * dt;
+
+      // Update position
+      player.x += player.vx * dt;
+      player.y += player.vy * dt;
+      player.z += player.vz * dt;
+
+      // Floor collision
+      if (player.y <= 0) {
+        player.y = 0;
+        if (!player.grounded && player.vy < -2) {
+          player.squash = 0.6;
+        }
+        player.vy = 0;
+        player.grounded = true;
+      }
+
+      // Platform bounds
+      const bound = platformSize / 2 - 0.5;
+      if (player.x < -bound) { player.x = -bound; player.vx = 0; }
+      if (player.x > bound) { player.x = bound; player.vx = 0; }
+      if (player.z < -bound) { player.z = -bound; player.vz = 0; }
+      if (player.z > bound) { player.z = bound; player.vz = 0; }
+
+      // Squash & stretch animation
+      player.squash += (1 - player.squash) * 10 * dt;
+
+      // Update visual
+      playerGroup.position.set(player.x, player.y, player.z);
+      const sy = player.squash;
+      const sx = 1 + (1 - sy) * 0.5;
+      playerGroup.scale.set(sx, sy, sx);
+
+      // Face direction of movement
+      if (speed > 0.5) {
+        const targetAngle = Math.atan2(player.vx, player.vz);
+        let diff = targetAngle - playerGroup.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        playerGroup.rotation.y += diff * 8 * dt;
+      }
+    }
+
+    function checkStarCollision() {
+      for (const star of stars) {
+        if (star.userData.collected) continue;
+        const dx = player.x - star.position.x;
+        const dy = (player.y + 0.5) - star.position.y;
+        const dz = player.z - star.position.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 1.0) {
+          star.userData.collected = true;
+          scene.remove(star);
+          score++;
+          document.getElementById('scoreText').textContent = score;
+          playCollect();
+          spawnParticles(star.position.x, star.position.y, star.position.z, 0xffd700, 15);
+
+          // Check if all collected
+          if (stars.every(s => s.userData.collected)) {
+            level++;
+            document.getElementById('levelText').textContent = level;
+            showMessage('Level ' + level + '!');
+            playLevelUp();
+            setTimeout(spawnStars, 800);
+          }
+        }
+      }
+    }
+
+    // ============ ANIMATION ============
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.elapsedTime;
+
+      if (gameStarted) {
+        updatePlayer(dt);
+        checkStarCollision();
+      }
+
+      // Animate stars
+      for (const star of stars) {
+        if (star.userData.collected) continue;
+        const d = star.userData;
+        star.position.y = d.baseY + Math.sin(time * 2 + d.phase) * 0.3;
+        star.children[0].rotation.y = time * 2;
+        star.children[0].rotation.x = time * 1.5;
+        star.children[1].scale.setScalar(1 + Math.sin(time * 3 + d.phase) * 0.2);
+      }
+
+      // Animate background spheres
+      for (const s of bgSpheres) {
+        const d = s.userData;
+        s.position.y = d.baseY + Math.sin(time * d.speed + d.phase) * 1.5;
+        s.rotation.y = time * d.speed;
+      }
+
+      // Animate pillar top lights
+      dirLight.color.setHSL(0.1 + Math.sin(time * 0.2) * 0.05, 0.15, 0.95);
+
+      // Camera follow
+      if (gameStarted) {
+        const targetX = player.x * 0.4;
+        const targetZ = player.z * 0.4 + 16;
+        const targetY = 12 + player.y * 0.3;
+        camera.position.x += (targetX - camera.position.x) * 3 * dt;
+        camera.position.y += (targetY - camera.position.y) * 3 * dt;
+        camera.position.z += (targetZ - camera.position.z) * 3 * dt;
+        camera.lookAt(player.x * 0.5, player.y + 1, player.z * 0.5);
+      }
+
+      updateParticles(dt);
+      renderer.render(scene, camera);
+    }
+
+    // ============ START ============
+    document.getElementById('startBtn').addEventListener('click', () => {
+      initAudio();
+      gameStarted = true;
+      document.getElementById('overlay').classList.add('hidden');
+      spawnStars();
+      playTone(440, 0.2, 'sine', 0.1);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start render loop (scene visible behind overlay)
+    animate();
+  </script>
+</body>
+</html>
