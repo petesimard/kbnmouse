@@ -26,8 +26,6 @@ router.get('/prompt', async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5-mini',
-      temperature: 1.0,
-      max_tokens: 150,
       messages: [
         {
           role: 'system',
@@ -72,8 +70,6 @@ router.post('/evaluate', async (req, res) => {
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5-mini',
-      temperature: 0.3,
-      max_tokens: 200,
       messages: [
         {
           role: 'system',

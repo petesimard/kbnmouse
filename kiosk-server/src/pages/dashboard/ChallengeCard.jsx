@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getChallengeLabel } from '../../components/challenges';
+import AppIcon from '../../components/AppIcon';
 
 function ChallengeCard({ challenge, onEdit, onDelete, onToggle }) {
   const {
@@ -39,7 +40,7 @@ function ChallengeCard({ challenge, onEdit, onDelete, onToggle }) {
       </button>
 
       {/* Icon */}
-      <span className="text-3xl">{challenge.icon}</span>
+      <AppIcon icon={challenge.icon} className="text-3xl w-9 h-9 object-cover rounded" />
 
       {/* Info */}
       <div className="flex-1 min-w-0">

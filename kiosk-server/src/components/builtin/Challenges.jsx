@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getChallengeComponent } from '../challenges';
 import { useProfile } from '../../contexts/ProfileContext';
+import AppIcon from '../AppIcon';
 
 export const meta = { key: 'challenges', name: 'Challenges', icon: '🏆', description: 'Earn bonus playtime', skipTracking: true };
 
@@ -32,7 +33,9 @@ function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
                   : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700 hover:scale-105'
               }`}
             >
-              <div className="text-5xl mb-4">{challenge.icon}</div>
+              <div className="text-5xl mb-4">
+                <AppIcon icon={challenge.icon} className="inline-block w-12 h-12 object-cover rounded" />
+              </div>
               <div className="text-xl font-bold text-white mb-2">{challenge.name}</div>
               <div className="text-slate-400">{challenge.description}</div>
               <div className="mt-3 text-emerald-400 font-semibold">+{challenge.reward_minutes} min</div>
