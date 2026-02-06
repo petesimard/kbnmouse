@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Hide scrollbar for menu paging */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

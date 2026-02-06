@@ -26,10 +26,49 @@ function Menu() {
   const [timeWarning, setTimeWarning] = useState(false);
   const [usageMap, setUsageMap] = useState({});
 
+  // Paging state for app shortcuts overflow
+  const scrollContainerRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
   // Build set of builtin keys that opt out of usage tracking
   const skipTrackingKeys = useMemo(() => new Set(
     getBuiltinApps().filter((b) => b.skipTracking).map((b) => b.key)
   ), []);
+
+  // Update scroll overflow indicators
+  const updateScrollIndicators = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  // Observe container resize for overflow detection
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(updateScrollIndicators);
+    observer.observe(el);
+    // Also observe children changes
+    for (const child of el.children) observer.observe(child);
+    el.addEventListener('scroll', updateScrollIndicators, { passive: true });
+    updateScrollIndicators();
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('scroll', updateScrollIndicators);
+    };
+  }, [updateScrollIndicators, apps, folders, currentFolderId, loading, profileId]);
+
+  const scrollPage = useCallback((direction) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  }, []);
 
   const needsProfileSelection = !profilesLoading && profiles.length > 1 && !profileId;
   const loadedProfileSelectRef = useRef(false);
@@ -419,7 +458,7 @@ function Menu() {
     <button
       key={app.id}
       onClick={() => handleLoadURL(app)}
-      className={`px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 ${
+      className={`px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
         app.app_type === 'native' && !hasKiosk
           ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
           : 'bg-slate-700 hover:bg-slate-600'
@@ -439,9 +478,9 @@ function Menu() {
   );
 
   return (
-    <div className="h-screen bg-slate-800 flex items-center justify-between px-4">
+    <div className="h-screen bg-slate-800 flex items-center px-4 gap-4">
       {/* Navigation controls */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-shrink-0">
         {profiles.length > 1 && (
           <button
             onClick={handleSwitchUser}
@@ -481,57 +520,81 @@ function Menu() {
         </button>
       </div>
 
-      {/* App shortcuts */}
-      <div className="flex gap-3">
-        {needsProfileSelection ? (
-          <span className="text-slate-400 text-sm">Select a profile to get started</span>
-        ) : loading ? (
-          <span className="text-slate-400 text-sm">Loading...</span>
-        ) : currentFolderId ? (
-          /* Folder view */
-          <>
-            <button
-              onClick={() => setCurrentFolderId(null)}
-              className="px-4 py-2 rounded-xl text-white flex items-center gap-2 bg-slate-600 hover:bg-slate-500 transition-all duration-200 hover:scale-105"
-              title="Back to all apps"
-            >
-              <span className="text-lg">←</span>
-              <span className="text-sm">Back</span>
-            </button>
-            {currentFolder && (
-              <span className="flex items-center gap-1 text-slate-400 text-sm px-2">
-                <AppIcon icon={currentFolder.icon} className="text-lg w-5 h-5 object-contain" />
-                {currentFolder.name}
-              </span>
-            )}
-            {folderApps.length > 0 ? (
-              folderApps.map(renderAppButton)
-            ) : (
-              <span className="text-slate-500 text-sm">This folder is empty</span>
-            )}
-          </>
-        ) : (
-          /* Root view */
-          <>
-            {folders.map((folder) => (
+      {/* App shortcuts with overflow paging */}
+      <div className="flex-1 min-w-0 flex items-center relative">
+        {canScrollLeft && (
+          <button
+            onClick={() => scrollPage(-1)}
+            className="flex-shrink-0 w-7 h-7 mr-1 rounded-full bg-slate-600/80 hover:bg-slate-500 text-white flex items-center justify-center transition-colors text-sm"
+            title="Previous"
+          >
+            ‹
+          </button>
+        )}
+        <div
+          ref={scrollContainerRef}
+          className="flex gap-3 items-center overflow-x-auto flex-1 min-w-0 py-1 hide-scrollbar"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          {needsProfileSelection ? (
+            <span className="text-slate-400 text-sm whitespace-nowrap">Select a profile to get started</span>
+          ) : loading ? (
+            <span className="text-slate-400 text-sm whitespace-nowrap">Loading...</span>
+          ) : currentFolderId ? (
+            /* Folder view */
+            <>
               <button
-                key={`folder-${folder.id}`}
-                onClick={() => setCurrentFolderId(folder.id)}
-                className="px-4 py-2 rounded-xl text-white flex items-center gap-2 shadow-lg transition-all duration-200 hover:scale-105"
-                style={{ backgroundColor: folder.color }}
-                title={folder.name}
+                onClick={() => setCurrentFolderId(null)}
+                className="px-4 py-2 rounded-xl text-white flex items-center gap-2 bg-slate-600 hover:bg-slate-500 transition-all duration-200 hover:scale-105 flex-shrink-0"
+                title="Back to all apps"
               >
-                <AppIcon icon={folder.icon} className="text-lg w-5 h-5 object-contain" />
-                <span className="text-sm">{folder.name}</span>
+                <span className="text-lg">←</span>
+                <span className="text-sm">Back</span>
               </button>
-            ))}
-            {rootApps.map(renderAppButton)}
-          </>
+              {currentFolder && (
+                <span className="flex items-center gap-1 text-slate-400 text-sm px-2 flex-shrink-0">
+                  <AppIcon icon={currentFolder.icon} className="text-lg w-5 h-5 object-contain" />
+                  {currentFolder.name}
+                </span>
+              )}
+              {folderApps.length > 0 ? (
+                folderApps.map(renderAppButton)
+              ) : (
+                <span className="text-slate-500 text-sm whitespace-nowrap">This folder is empty</span>
+              )}
+            </>
+          ) : (
+            /* Root view */
+            <>
+              {folders.map((folder) => (
+                <button
+                  key={`folder-${folder.id}`}
+                  onClick={() => setCurrentFolderId(folder.id)}
+                  className="px-4 py-2 rounded-xl text-white flex items-center gap-2 shadow-lg transition-all duration-200 hover:scale-105 flex-shrink-0"
+                  style={{ backgroundColor: folder.color }}
+                  title={folder.name}
+                >
+                  <AppIcon icon={folder.icon} className="text-lg w-5 h-5 object-contain" />
+                  <span className="text-sm">{folder.name}</span>
+                </button>
+              ))}
+              {rootApps.map(renderAppButton)}
+            </>
+          )}
+        </div>
+        {canScrollRight && (
+          <button
+            onClick={() => scrollPage(1)}
+            className="flex-shrink-0 w-7 h-7 ml-1 rounded-full bg-slate-600/80 hover:bg-slate-500 text-white flex items-center justify-center transition-colors text-sm"
+            title="Next"
+          >
+            ›
+          </button>
         )}
       </div>
 
       {/* Status indicator */}
-      <div className="text-slate-500 text-xs">
+      <div className="text-slate-500 text-xs flex-shrink-0 whitespace-nowrap">
         {timeLimitError ? (
           <span className="text-red-400">● Time limit reached</span>
         ) : timeWarning ? (
