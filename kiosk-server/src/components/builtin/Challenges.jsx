@@ -16,7 +16,7 @@ function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl w-full">
+      <div className="flex flex-wrap justify-center gap-6 w-full px-8">
         {challenges.map((challenge) => {
           const hasLimit = challenge.max_completions_per_day > 0;
           const remaining = hasLimit ? challenge.max_completions_per_day - (challenge.today_completions || 0) : null;
@@ -27,7 +27,7 @@ function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
               key={challenge.id}
               onClick={() => !exhausted && onSelectChallenge(challenge)}
               disabled={exhausted}
-              className={`rounded-2xl p-8 text-center transition-all border ${
+              className={`w-64 rounded-2xl p-8 text-center transition-all border ${
                 exhausted
                   ? 'bg-slate-800/40 border-slate-700/50 opacity-60 cursor-not-allowed'
                   : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700 hover:scale-105'
