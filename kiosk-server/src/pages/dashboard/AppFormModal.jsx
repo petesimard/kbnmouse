@@ -4,6 +4,7 @@ import { getConfigFields, getDefaults } from '../../components/challenges/schema
 import ConfigField from '../../components/ConfigField';
 import IconPicker from '../../components/IconPicker';
 import AppIcon from '../../components/AppIcon';
+import SearchableSelect from '../../components/SearchableSelect';
 
 function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const { builtinApps } = useBuiltinApps();
@@ -174,26 +175,30 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Select Built-in App
                 </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {builtinApps.map((builtin) => (
-                    <button
-                      key={builtin.key}
-                      type="button"
-                      onClick={() => handleBuiltinSelect(builtin)}
-                      className={`flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
-                        formData.url === builtin.key
-                          ? 'bg-purple-600/30 border border-purple-500'
-                          : 'bg-slate-700 hover:bg-slate-600'
-                      }`}
-                    >
-                      <AppIcon icon={builtin.icon} className="text-2xl w-8 h-8 object-contain" />
+                <SearchableSelect
+                  options={builtinApps.map((b) => ({ value: b.key, label: b.name, icon: b.icon, description: b.description }))}
+                  value={formData.url}
+                  onChange={(key) => {
+                    const builtin = builtinApps.find((b) => b.key === key);
+                    if (builtin) handleBuiltinSelect(builtin);
+                  }}
+                  placeholder="Search built-in apps..."
+                  renderSelected={(opt) => (
+                    <span className="flex items-center gap-2 text-white">
+                      <AppIcon icon={opt.icon} className="text-lg w-5 h-5 object-contain" />
+                      {opt.label}
+                    </span>
+                  )}
+                  renderOption={(opt) => (
+                    <div className="flex items-center gap-2">
+                      <AppIcon icon={opt.icon} className="text-lg w-5 h-5 object-contain" />
                       <div>
-                        <div className="text-white font-medium">{builtin.name}</div>
-                        <div className="text-slate-400 text-sm">{builtin.description}</div>
+                        <div className="text-sm font-medium">{opt.label}</div>
+                        <div className="text-xs text-slate-400">{opt.description}</div>
                       </div>
-                    </button>
-                  ))}
-                </div>
+                    </div>
+                  )}
+                />
                 {errors.url && (
                   <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
                 )}

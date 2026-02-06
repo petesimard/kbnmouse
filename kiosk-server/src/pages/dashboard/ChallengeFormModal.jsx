@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getChallengeTypes, getChallengeLabel, getConfigFields, getDefaults, buildZodSchema } from '../../components/challenges';
 import ConfigField from '../../components/ConfigField';
 import IconPicker from '../../components/IconPicker';
+import SearchableSelect from '../../components/SearchableSelect';
 
 function ChallengeFormModal({ challenge, onSave, onClose }) {
   const isEditing = !!challenge;
@@ -129,18 +130,12 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Challenge Type
               </label>
-              <select
-                name="challenge_type"
+              <SearchableSelect
+                options={challengeTypes.map((type) => ({ value: type, label: getChallengeLabel(type) }))}
                 value={formData.challenge_type}
-                onChange={handleChange}
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {challengeTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {getChallengeLabel(type)}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => handleChange({ target: { name: 'challenge_type', value } })}
+                placeholder="Search challenge types..."
+              />
               {errors.challenge_type && (
                 <p className="mt-1 text-red-400 text-sm">{errors.challenge_type}</p>
               )}
