@@ -126,26 +126,27 @@ export default function StoryWriterChallenge({ config = {}, reward, onComplete, 
 
   // Writing / Rejected / Submitting states
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex flex-col items-center p-8">
-      <button
-        onClick={onBack}
-        className="absolute top-6 left-6 px-4 py-2 bg-slate-700/80 hover:bg-slate-600/80 text-slate-300 rounded-lg transition-colors"
-      >
-        ← Back
-      </button>
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex flex-col p-6 overflow-hidden">
+      <div className="flex items-center gap-4 mb-3 shrink-0">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-slate-700/80 hover:bg-slate-600/80 text-slate-300 rounded-lg transition-colors"
+        >
+          ← Back
+        </button>
+        <span className="text-3xl">✏️</span>
+        <h2 className="text-2xl font-bold text-white">Story Writer</h2>
+      </div>
 
-      <div className="w-full max-w-2xl mt-16 flex flex-col items-center">
-        <div className="text-5xl mb-4">✏️</div>
-        <h2 className="text-3xl font-bold text-white mb-6">Story Writer</h2>
-
-        <div className="w-full bg-slate-800/60 rounded-xl p-5 mb-6 border border-slate-700">
+      <div className="w-full max-w-3xl mx-auto flex flex-col min-h-0 flex-1">
+        <div className="w-full bg-slate-800/60 rounded-xl p-4 mb-3 border border-slate-700 shrink-0">
           <p className="text-sm text-slate-400 mb-1 uppercase tracking-wide font-medium">Story Idea</p>
-          <p className="text-xl text-white leading-relaxed">{prompt}</p>
+          <p className="text-lg text-white leading-snug">{prompt}</p>
         </div>
 
         {state === 'REJECTED' && feedback && (
-          <div className="w-full bg-amber-900/40 border border-amber-600/50 rounded-xl p-4 mb-4">
-            <p className="text-amber-300 text-lg">{feedback}</p>
+          <div className="w-full bg-amber-900/40 border border-amber-600/50 rounded-xl p-3 mb-3 shrink-0">
+            <p className="text-amber-300">{feedback}</p>
           </div>
         )}
 
@@ -155,26 +156,27 @@ export default function StoryWriterChallenge({ config = {}, reward, onComplete, 
           onChange={(e) => setStory(e.target.value)}
           placeholder="Write your story here..."
           disabled={state === 'SUBMITTING'}
-          className="w-full h-64 p-4 text-lg bg-slate-800 text-white border-2 border-slate-600 focus:border-blue-500 rounded-xl outline-none resize-none transition-colors disabled:opacity-50"
+          className="w-full flex-1 min-h-0 p-4 text-lg bg-slate-800 text-white border-2 border-slate-600 focus:border-blue-500 rounded-xl outline-none resize-none transition-colors disabled:opacity-50"
           autoFocus
         />
 
-        <div className="w-full flex items-center justify-between mt-3 mb-6">
+        <div className="w-full flex items-center justify-between mt-2 shrink-0">
           <span className={`text-lg ${story.length >= minChars ? 'text-emerald-400' : 'text-slate-400'}`}>
             {story.length} / {minChars} characters
           </span>
-          {state === 'SUBMITTING' && (
-            <span className="text-slate-400 text-lg animate-pulse">Checking your story...</span>
-          )}
+          <div className="flex items-center gap-4">
+            {state === 'SUBMITTING' && (
+              <span className="text-slate-400 text-lg animate-pulse">Checking your story...</span>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="px-8 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white text-lg font-medium rounded-full transition-colors"
+            >
+              Submit Story
+            </button>
+          </div>
         </div>
-
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="px-10 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 text-white text-xl font-medium rounded-full transition-colors"
-        >
-          Submit Story
-        </button>
       </div>
     </div>
   );
