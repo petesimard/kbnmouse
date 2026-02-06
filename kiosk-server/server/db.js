@@ -199,6 +199,7 @@ export function seedProfileDefaults(profileId) {
     { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 2, app_type: 'builtin' },
     { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 3, app_type: 'builtin' },
     { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 4, app_type: 'builtin' },
+    { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 5, app_type: 'builtin' },
   ];
   for (const app of defaultApps) {
     insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
@@ -222,6 +223,22 @@ if (!existingPin) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('pin', ?)").run(hashPin('1234'));
   console.log('Default PIN initialized');
 }
+
+// Create custom_games table for game creator feature
+db.exec(`
+  CREATE TABLE IF NOT EXISTS custom_games (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    prompt TEXT NOT NULL,
+    profile_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'generating',
+    error_message TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_custom_games_profile ON custom_games(profile_id)");
 
 // Fresh DB seeding: if no apps exist and no profiles exist, create a Default profile and seed
 const appCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();

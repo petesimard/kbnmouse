@@ -12,6 +12,7 @@ import ChallengesPage from './pages/dashboard/ChallengesPage.jsx'
 import AppUsagePage from './pages/dashboard/AppUsagePage.jsx'
 import SettingsPage from './pages/dashboard/SettingsPage.jsx'
 import ProfilesPage from './pages/dashboard/ProfilesPage.jsx'
+import GameManage from './pages/GameManage.jsx'
 import { getBuiltinApps, getBuiltinComponents } from './components/builtin'
 
 const builtinComponents = getBuiltinComponents()
@@ -31,6 +32,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="profiles" element={<ProfilesPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
+          <Route path="/game/:id" element={<GameManage />} />
           {getBuiltinApps().map(({ key }) => {
             const Component = builtinComponents[key]
             return Component ? <Route key={key} path={`/builtin/${key}`} element={<Component />} /> : null
