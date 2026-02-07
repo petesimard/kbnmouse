@@ -12,6 +12,7 @@ import ChallengesPage from './pages/dashboard/ChallengesPage.jsx'
 import AppUsagePage from './pages/dashboard/AppUsagePage.jsx'
 import SettingsPage from './pages/dashboard/SettingsPage.jsx'
 import ProfilesPage from './pages/dashboard/ProfilesPage.jsx'
+import KiosksPage from './pages/dashboard/KiosksPage.jsx'
 import GameManage from './pages/GameManage.jsx'
 import { getBuiltinApps, getBuiltinComponents } from './components/builtin'
 
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="challenges" element={<ChallengesPage />} />
             <Route path="usage" element={<AppUsagePage />} />
             <Route path="profiles" element={<ProfilesPage />} />
+            <Route path="kiosks" element={<KiosksPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="/game/:id" element={<GameManage />} />

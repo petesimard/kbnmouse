@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db, { seedProfileDefaults } from '../db.js';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
@@ -36,13 +36,13 @@ router.post('/api/active-profile', (req, res) => {
 // --- Admin endpoints ---
 
 // GET /api/admin/profiles - Get all profiles (admin)
-router.get('/api/admin/profiles', requirePin, (req, res) => {
+router.get('/api/admin/profiles', requireAuth, (req, res) => {
   const profiles = db.prepare('SELECT * FROM profiles ORDER BY sort_order').all();
   res.json(profiles);
 });
 
 // POST /api/admin/profiles - Create profile
-router.post('/api/admin/profiles', requirePin, (req, res) => {
+router.post('/api/admin/profiles', requireAuth, (req, res) => {
   const { name, icon = '👤' } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
@@ -62,7 +62,7 @@ router.post('/api/admin/profiles', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/profiles/reorder - Bulk reorder profiles
-router.put('/api/admin/profiles/reorder', requirePin, (req, res) => {
+router.put('/api/admin/profiles/reorder', requireAuth, (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) {
     return res.status(400).json({ error: 'order must be an array' });
@@ -82,7 +82,7 @@ router.put('/api/admin/profiles/reorder', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/profiles/:id - Update profile
-router.put('/api/admin/profiles/:id', requirePin, (req, res) => {
+router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
   const { name, icon } = req.body;
   const existing = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
   if (!existing) {
@@ -102,7 +102,7 @@ router.put('/api/admin/profiles/:id', requirePin, (req, res) => {
 });
 
 // DELETE /api/admin/profiles/:id - Delete profile
-router.delete('/api/admin/profiles/:id', requirePin, (req, res) => {
+router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
   const profileId = req.params.id;
 
   const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();

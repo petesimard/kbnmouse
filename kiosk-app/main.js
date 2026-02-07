@@ -20,6 +20,38 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+// Kiosk registration (pairing) persistence
+const registrationPath = path.join(__dirname, 'data', 'kiosk-registration.json');
+let kioskToken = null;
+
+function loadRegistration() {
+  try {
+    if (fs.existsSync(registrationPath)) {
+      const data = JSON.parse(fs.readFileSync(registrationPath, 'utf-8'));
+      kioskToken = data.kioskToken || null;
+      return !!kioskToken;
+    }
+  } catch {}
+  return false;
+}
+
+function saveRegistration(token, kioskId) {
+  const dir = path.dirname(registrationPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(registrationPath, JSON.stringify({
+    kioskToken: token,
+    kioskId,
+    registeredAt: new Date().toISOString(),
+  }, null, 2));
+  kioskToken = token;
+}
+
+function kioskHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (kioskToken) h['X-Kiosk-Token'] = kioskToken;
+  return h;
+}
+
 let mainWindow;
 let contentView;
 let menuView;
@@ -186,11 +218,15 @@ function createWindow() {
   menuView.setBounds({ x: 0, y: contentHeight, width: winWidth, height: menuHeight });
   menuView.setAutoResize({ width: true, height: false });
 
-  // Load URLs
-  console.log(`Loading content: ${baseURL}/test-content`);
-  console.log(`Loading menu: ${baseURL}/menu`);
-  contentView.webContents.loadURL(`${baseURL}/test-content`);
-  menuView.webContents.loadURL(`${baseURL}/menu`);
+  // Load URLs (skip if pairing mode — startPairingFlow will handle content)
+  if (loadRegistration()) {
+    console.log(`Loading content: ${baseURL}/test-content`);
+    console.log(`Loading menu: ${baseURL}/menu`);
+    contentView.webContents.loadURL(`${baseURL}/test-content`);
+    menuView.webContents.loadURL(`${baseURL}/menu`);
+  } else {
+    console.log('Not registered — waiting for pairing flow');
+  }
 
   // Handle window resize
   mainWindow.on('resize', () => {
@@ -257,6 +293,80 @@ function createWindow() {
   });
 }
 
+function showPairingScreen(message) {
+  const html = `
+    <html>
+    <head><style>
+      body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
+      .container { text-align: center; }
+      h1 { font-size: 28px; margin-bottom: 8px; color: #94a3b8; font-weight: 500; }
+      .code { font-size: 96px; font-weight: 700; letter-spacing: 0.2em; margin: 32px 0; color: #38bdf8; font-family: monospace; }
+      p { color: #64748b; font-size: 16px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+      .pulse { animation: pulse 2s infinite; }
+      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    </style></head>
+    <body><div class="container">${message}</div></body>
+    </html>`;
+  if (contentView) {
+    contentView.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  }
+}
+
+// Show pairing code on the content view and poll for claim
+async function startPairingFlow() {
+  const apiBase = getApiBaseUrl();
+
+  // Show a connecting screen immediately
+  showPairingScreen(`
+    <h1>Kiosk Pairing</h1>
+    <p class="pulse">Connecting to server...</p>
+  `);
+
+  let code;
+  try {
+    const res = await fetch(`${apiBase}/api/pairing/code`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    code = data.code;
+  } catch (err) {
+    console.error('Failed to get pairing code:', err.message);
+    showPairingScreen(`
+      <h1>Kiosk Pairing</h1>
+      <p>Waiting for server...</p>
+      <p class="pulse" style="margin-top: 16px; font-size: 14px; color: #475569;">Retrying in 5 seconds</p>
+    `);
+    setTimeout(startPairingFlow, 5000);
+    return;
+  }
+
+  // Display the code full-screen
+  showPairingScreen(`
+    <h1>Kiosk Pairing</h1>
+    <div class="code">${code}</div>
+    <p>Enter this code in the Parent Dashboard to register this kiosk.</p>
+    <p class="pulse" style="margin-top: 24px; color: #475569; font-size: 14px;">Waiting for pairing...</p>
+  `);
+
+  // Poll for claim every 3 seconds
+  const pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/pairing/status/${code}`);
+      const data = await res.json();
+      if (data.claimed && data.kioskToken) {
+        clearInterval(pollInterval);
+        saveRegistration(data.kioskToken, data.kioskId);
+        console.log('Kiosk paired successfully!');
+        // Proceed to normal operation
+        const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
+        if (contentView) contentView.webContents.loadURL(`${baseURL}/test-content`);
+        if (menuView) menuView.webContents.loadURL(`${baseURL}/menu`);
+      }
+    } catch (err) {
+      console.error('Pairing poll error:', err.message);
+    }
+  }, 3000);
+}
+
 // Start app (with or without built-in server)
 app.whenReady().then(() => {
   if (USE_BUILT_IN_SERVER) {
@@ -274,10 +384,12 @@ app.whenReady().then(() => {
     server.listen(PORT, () => {
       console.log(`Built-in server running on http://localhost:${PORT}`);
       createWindow();
+      if (!kioskToken) startPairingFlow();
     });
   } else {
     console.log('Using external server');
     createWindow();
+    if (!kioskToken) startPairingFlow();
   }
 });
 
@@ -404,7 +516,7 @@ ipcMain.handle('native:launch', async (event, command, appId) => {
         const apiBase = getApiBaseUrl();
         fetch(`${apiBase}/api/apps/${currentAppId}/usage`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: kioskHeaders(),
           body: JSON.stringify({ started_at: currentSessionStart, ended_at: endedAt, duration_seconds: durationSeconds }),
         }).catch(err => console.error('Failed to record usage:', err.message));
       }

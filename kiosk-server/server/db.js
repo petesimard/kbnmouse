@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -185,10 +184,55 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_challenge_completions_profile ON challen
 db.exec("CREATE INDEX IF NOT EXISTS idx_apps_folder ON apps(folder_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_folders_profile ON folders(profile_id)");
 
-// Hash function for PIN
-export function hashPin(pin) {
-  return crypto.createHash('sha256').update(pin).digest('hex');
-}
+// --- Account & auth tables ---
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS kiosks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS pairing_codes (
+    code TEXT PRIMARY KEY,
+    expires_at TEXT NOT NULL,
+    claimed INTEGER DEFAULT 0
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS email_tokens (
+    token TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    token_type TEXT NOT NULL CHECK(token_type IN ('magic_link', 'password_reset')),
+    expires_at TEXT NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
 // Seed default apps and challenges for a given profile
 export function seedProfileDefaults(profileId) {
@@ -217,12 +261,6 @@ export function seedProfileDefaults(profileId) {
   console.log(`Seeded default apps and challenges for profile ${profileId}`);
 }
 
-// Initialize default PIN (1234) if not set
-const existingPin = db.prepare("SELECT value FROM settings WHERE key = 'pin'").get();
-if (!existingPin) {
-  db.prepare("INSERT INTO settings (key, value) VALUES ('pin', ?)").run(hashPin('1234'));
-  console.log('Default PIN initialized');
-}
 
 // Create custom_games table for game creator feature
 db.exec(`

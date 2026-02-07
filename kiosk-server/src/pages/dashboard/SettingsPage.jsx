@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { changePin } from '../../api/apps';
 import { useSettings } from '../../hooks/useSettings';
+import { changePassword } from '../../api/auth';
 
 export default function SettingsPage() {
   const { logout } = useOutletContext();
@@ -14,11 +14,20 @@ export default function SettingsPage() {
   const [openaiError, setOpenaiError] = useState('');
   const [openaiSuccess, setOpenaiSuccess] = useState('');
 
+  // Resend email config state
+  const [resendApiKey, setResendApiKey] = useState(null);
+  const [resendFromEmail, setResendFromEmail] = useState(null);
+  const [resendSaving, setResendSaving] = useState(false);
+  const [resendError, setResendError] = useState('');
+  const [resendSuccess, setResendSuccess] = useState('');
+
   // Sync settings into local state once loaded
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   if (!settingsLoading && !settingsLoaded) {
     setOpenaiApiKey(settings.openai_api_key || '');
     setOpenaiEndpointUrl(settings.openai_endpoint_url || '');
+    setResendApiKey(settings.resend_api_key || '');
+    setResendFromEmail(settings.resend_from_email || '');
     setSettingsLoaded(true);
   }
 
@@ -40,39 +49,57 @@ export default function SettingsPage() {
     }
   };
 
-  // Change PIN state
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin, setNewPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [pinError, setPinError] = useState('');
-  const [pinSuccess, setPinSuccess] = useState('');
-  const [pinSaving, setPinSaving] = useState(false);
-
-  const handleChangePin = async (e) => {
+  const handleSaveResend = async (e) => {
     e.preventDefault();
-    setPinError('');
-    setPinSuccess('');
-
-    if (!/^\d{4,6}$/.test(newPin)) {
-      setPinError('PIN must be 4-6 digits');
-      return;
-    }
-    if (newPin !== confirmPin) {
-      setPinError('PINs do not match');
-      return;
-    }
-
-    setPinSaving(true);
+    setResendError('');
+    setResendSuccess('');
+    setResendSaving(true);
     try {
-      await changePin(currentPin, newPin);
-      setPinSuccess('PIN changed successfully');
-      setCurrentPin('');
-      setNewPin('');
-      setConfirmPin('');
+      await updateSettings({
+        resend_api_key: resendApiKey,
+        resend_from_email: resendFromEmail,
+      });
+      setResendSuccess('Email settings saved');
     } catch (err) {
-      setPinError(err.message);
+      setResendError(err.message);
     } finally {
-      setPinSaving(false);
+      setResendSaving(false);
+    }
+  };
+
+  // Change password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+
+    if (newPassword.length < 8) {
+      setPwError('Password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('Passwords do not match');
+      return;
+    }
+
+    setPwSaving(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPwSuccess('Password changed successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      setPwError(err.message);
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -81,6 +108,53 @@ export default function SettingsPage() {
       <h2 className="text-lg font-medium text-white mb-6">Settings</h2>
 
       <div className="space-y-8">
+        {/* Change Password */}
+        <div className="bg-slate-800 rounded-xl p-5">
+          <h3 className="text-white font-medium mb-4">Change Password</h3>
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-sm">
+            <div>
+              <label className="block text-slate-400 text-sm mb-1">Current Password</label>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-slate-400 text-sm mb-1">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 8 characters"
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-slate-400 text-sm mb-1">Confirm New Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            {pwError && <p className="text-red-400 text-sm">{pwError}</p>}
+            {pwSuccess && <p className="text-emerald-400 text-sm">{pwSuccess}</p>}
+            <button
+              type="submit"
+              disabled={pwSaving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+            >
+              {pwSaving ? 'Saving...' : 'Change Password'}
+            </button>
+          </form>
+        </div>
+
         {/* OpenAI Configuration */}
         <div className="bg-slate-800 rounded-xl p-5">
           <h3 className="text-white font-medium mb-4">OpenAI Configuration</h3>
@@ -123,52 +197,44 @@ export default function SettingsPage() {
           </form>
         </div>
 
-        {/* Change PIN */}
+        {/* Resend Email Configuration */}
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Change PIN</h3>
-          <form onSubmit={handleChangePin} className="space-y-4 max-w-sm">
+          <h3 className="text-white font-medium mb-4">Email Configuration (Resend)</h3>
+          <form onSubmit={handleSaveResend} className="space-y-4 max-w-sm">
             <div>
-              <label className="block text-slate-400 text-sm mb-1">Current PIN</label>
+              <label className="block text-slate-400 text-sm mb-1">Resend API Key</label>
               <input
                 type="password"
-                inputMode="numeric"
-                value={currentPin}
-                onChange={(e) => setCurrentPin(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
-                required
+                value={resendApiKey ?? ''}
+                onChange={(e) => setResendApiKey(e.target.value)}
+                placeholder="re_..."
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Required for magic link login and password reset emails. Get one from resend.com
+              </p>
             </div>
             <div>
-              <label className="block text-slate-400 text-sm mb-1">New PIN</label>
+              <label className="block text-slate-400 text-sm mb-1">From Email</label>
               <input
-                type="password"
-                inputMode="numeric"
-                value={newPin}
-                onChange={(e) => setNewPin(e.target.value)}
-                placeholder="4-6 digits"
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
-                required
+                type="email"
+                value={resendFromEmail ?? ''}
+                onChange={(e) => setResendFromEmail(e.target.value)}
+                placeholder="Kiosk <noreply@yourdomain.com>"
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                The email address used as the sender for magic links and password resets.
+              </p>
             </div>
-            <div>
-              <label className="block text-slate-400 text-sm mb-1">Confirm New PIN</label>
-              <input
-                type="password"
-                inputMode="numeric"
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
-                required
-              />
-            </div>
-            {pinError && <p className="text-red-400 text-sm">{pinError}</p>}
-            {pinSuccess && <p className="text-emerald-400 text-sm">{pinSuccess}</p>}
+            {resendError && <p className="text-red-400 text-sm">{resendError}</p>}
+            {resendSuccess && <p className="text-emerald-400 text-sm">{resendSuccess}</p>}
             <button
               type="submit"
-              disabled={pinSaving}
+              disabled={resendSaving || !settingsLoaded}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
             >
-              {pinSaving ? 'Saving...' : 'Change PIN'}
+              {resendSaving ? 'Saving...' : 'Save'}
             </button>
           </form>
         </div>

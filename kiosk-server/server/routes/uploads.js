@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join, resolve, extname } from 'node:path';
@@ -14,7 +14,7 @@ if (!existsSync(UPLOADS_DIR)) {
 }
 
 // POST /api/admin/uploads - Upload an image (base64 in JSON body)
-router.post('/api/admin/uploads', requirePin, (req, res) => {
+router.post('/api/admin/uploads', requireAuth, (req, res) => {
   const { data, filename } = req.body;
   if (!data) {
     return res.status(400).json({ error: 'No image data provided' });

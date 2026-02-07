@@ -17,6 +17,8 @@ import foldersRouter from './routes/folders.js';
 import uploadsRouter from './routes/uploads.js';
 import storywriterRouter from './routes/storywriter.js';
 import gamecreatorRouter from './routes/gamecreator.js';
+import authRouter from './routes/auth.js';
+import pairingRouter from './routes/pairing.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +32,8 @@ setupWebSocket(server);
 app.use(express.json({ limit: '2mb' }));
 
 // Mount all routes (each router defines its full paths)
+app.use(authRouter);
+app.use(pairingRouter);
 app.use(profilesRouter);
 app.use(appsRouter);
 app.use(challengesRouter);

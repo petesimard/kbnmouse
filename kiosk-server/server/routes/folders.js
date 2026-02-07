@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
@@ -22,7 +22,7 @@ router.get('/api/folders', (req, res) => {
 // --- Admin endpoints ---
 
 // GET /api/admin/folders - Get all folders (admin)
-router.get('/api/admin/folders', requirePin, (req, res) => {
+router.get('/api/admin/folders', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let folders;
   if (profileId) {
@@ -34,7 +34,7 @@ router.get('/api/admin/folders', requirePin, (req, res) => {
 });
 
 // POST /api/admin/folders - Create folder
-router.post('/api/admin/folders', requirePin, (req, res) => {
+router.post('/api/admin/folders', requireAuth, (req, res) => {
   const { name, icon = '📁', color = '#6366f1', sort_order, profile_id = null } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
@@ -58,7 +58,7 @@ router.post('/api/admin/folders', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/folders/reorder - Bulk reorder folders
-router.put('/api/admin/folders/reorder', requirePin, (req, res) => {
+router.put('/api/admin/folders/reorder', requireAuth, (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) {
     return res.status(400).json({ error: 'order must be an array' });
@@ -78,7 +78,7 @@ router.put('/api/admin/folders/reorder', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/folders/:id - Update folder
-router.put('/api/admin/folders/:id', requirePin, (req, res) => {
+router.put('/api/admin/folders/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'Folder not found' });
@@ -101,7 +101,7 @@ router.put('/api/admin/folders/:id', requirePin, (req, res) => {
 });
 
 // DELETE /api/admin/folders/:id - Delete folder (moves apps to root first)
-router.delete('/api/admin/folders/:id', requirePin, (req, res) => {
+router.delete('/api/admin/folders/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'Folder not found' });

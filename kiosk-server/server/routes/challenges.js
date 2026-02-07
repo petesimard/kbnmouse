@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
@@ -75,7 +75,7 @@ router.post('/api/challenges/complete', (req, res) => {
 // --- Admin endpoints ---
 
 // GET /api/admin/challenge-completions - Get completion history
-router.get('/api/admin/challenge-completions', requirePin, (req, res) => {
+router.get('/api/admin/challenge-completions', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let completions;
   if (profileId) {
@@ -98,7 +98,7 @@ router.get('/api/admin/challenge-completions', requirePin, (req, res) => {
 });
 
 // GET /api/admin/challenges - Get all challenges including disabled
-router.get('/api/admin/challenges', requirePin, (req, res) => {
+router.get('/api/admin/challenges', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let challenges;
   if (profileId) {
@@ -111,7 +111,7 @@ router.get('/api/admin/challenges', requirePin, (req, res) => {
 });
 
 // POST /api/admin/challenges - Create new challenge
-router.post('/api/admin/challenges', requirePin, (req, res) => {
+router.post('/api/admin/challenges', requireAuth, (req, res) => {
   const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null, max_completions_per_day = 0 } = req.body;
   if (!name || !icon || !challenge_type) {
     return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
@@ -140,7 +140,7 @@ router.post('/api/admin/challenges', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/challenges/reorder - Bulk reorder challenges
-router.put('/api/admin/challenges/reorder', requirePin, (req, res) => {
+router.put('/api/admin/challenges/reorder', requireAuth, (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) {
     return res.status(400).json({ error: 'order must be an array' });
@@ -162,7 +162,7 @@ router.put('/api/admin/challenges/reorder', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/challenges/:id - Update challenge
-router.put('/api/admin/challenges/:id', requirePin, (req, res) => {
+router.put('/api/admin/challenges/:id', requireAuth, (req, res) => {
   const { name, icon, description, challenge_type, reward_minutes, config, sort_order, enabled, max_completions_per_day } = req.body;
   const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
 
@@ -193,7 +193,7 @@ router.put('/api/admin/challenges/:id', requirePin, (req, res) => {
 });
 
 // DELETE /api/admin/challenges/:id - Delete challenge
-router.delete('/api/admin/challenges/:id', requirePin, (req, res) => {
+router.delete('/api/admin/challenges/:id', requireAuth, (req, res) => {
   const result = db.prepare('DELETE FROM challenges WHERE id = ?').run(req.params.id);
   if (result.changes === 0) {
     return res.status(404).json({ error: 'Challenge not found' });

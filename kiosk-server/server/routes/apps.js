@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
@@ -31,7 +31,7 @@ router.get('/api/apps/:id', (req, res) => {
 // --- Admin endpoints ---
 
 // GET /api/admin/apps - Get all apps including disabled
-router.get('/api/admin/apps', requirePin, (req, res) => {
+router.get('/api/admin/apps', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let apps;
   if (profileId) {
@@ -44,7 +44,7 @@ router.get('/api/admin/apps', requirePin, (req, res) => {
 });
 
 // POST /api/admin/apps - Create new app
-router.post('/api/admin/apps', requirePin, (req, res) => {
+router.post('/api/admin/apps', requireAuth, (req, res) => {
   const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {}, folder_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
@@ -70,7 +70,7 @@ router.post('/api/admin/apps', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/apps/reorder - Bulk reorder apps
-router.put('/api/admin/apps/reorder', requirePin, (req, res) => {
+router.put('/api/admin/apps/reorder', requireAuth, (req, res) => {
   const { order } = req.body;
   if (!Array.isArray(order)) {
     return res.status(400).json({ error: 'order must be an array' });
@@ -91,7 +91,7 @@ router.put('/api/admin/apps/reorder', requirePin, (req, res) => {
 });
 
 // PUT /api/admin/apps/:id - Update app
-router.put('/api/admin/apps/:id', requirePin, (req, res) => {
+router.put('/api/admin/apps/:id', requireAuth, (req, res) => {
   const { name, url, icon, sort_order, enabled, app_type, daily_limit_minutes, weekly_limit_minutes, max_daily_minutes, config } = req.body;
   const existing = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
 
@@ -128,7 +128,7 @@ router.put('/api/admin/apps/:id', requirePin, (req, res) => {
 });
 
 // DELETE /api/admin/apps/:id - Delete app
-router.delete('/api/admin/apps/:id', requirePin, (req, res) => {
+router.delete('/api/admin/apps/:id', requireAuth, (req, res) => {
   const result = db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
   if (result.changes === 0) {
     return res.status(404).json({ error: 'App not found' });

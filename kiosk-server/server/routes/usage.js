@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { requirePin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -88,7 +88,7 @@ router.post('/api/apps/:id/usage', (req, res) => {
 });
 
 // GET /api/admin/usage-summary - Get aggregated usage summary for all apps over past 7 days
-router.get('/api/admin/usage-summary', requirePin, (req, res) => {
+router.get('/api/admin/usage-summary', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   const now = new Date();
   const dates = [];

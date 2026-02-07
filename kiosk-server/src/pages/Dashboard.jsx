@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import { usePinAuth } from '../hooks/usePinAuth';
+import { useAuth } from '../hooks/useAuth';
 import { fetchProfiles } from '../api/profiles';
-import PinGate from './dashboard/PinGate';
+import AuthGate from './dashboard/AuthGate';
 import Sidebar from './dashboard/Sidebar';
 
 function Dashboard() {
-  const { isAuthenticated, loading: authLoading, verifyPin, logout } = usePinAuth();
+  const auth = useAuth();
+  const { isAuthenticated, loading: authLoading, logout } = auth;
   const [profiles, setProfiles] = useState([]);
   const [dashboardProfileId, setDashboardProfileId] = useState(null);
 
@@ -40,7 +41,7 @@ function Dashboard() {
   }
 
   if (!isAuthenticated) {
-    return <PinGate onVerify={verifyPin} />;
+    return <AuthGate auth={auth} />;
   }
 
   return (
