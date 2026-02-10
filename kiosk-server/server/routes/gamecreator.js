@@ -124,13 +124,13 @@ function startUpdate(gameId, prompt) {
       const { updateGame } = await import('../agent/gameAgent.js');
       await updateGame(gameId, prompt);
       db.prepare(
-        "UPDATE custom_games SET status = 'ready', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        "UPDATE custom_games SET status = 'ready', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
       ).run(gameId);
       broadcastRefresh();
     } catch (err) {
       console.error(`[GameCreator] Update failed for game ${gameId}:`, err.message);
       db.prepare(
-        "UPDATE custom_games SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        "UPDATE custom_games SET status = 'ready', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
       ).run(err.message, gameId);
       broadcastRefresh();
     }

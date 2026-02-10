@@ -42,13 +42,13 @@ npm run dev:external   # Electron pointing to external kiosk-server
 
 - `/menu` — Bottom navigation bar shown in Electron menu view. Fetches apps (scoped by active profile), manages whitelist, launches native apps. Shows switch-user button when multiple profiles exist.
 - `/profiles` — Full-screen "Who's Playing?" profile selection. Loaded in the content view by the menu when no profile is active. After selection, navigates to `/test-content` and broadcasts refresh via WebSocket.
-- `/dashboard` — PIN-protected parent dashboard with sub-routes: `/dashboard` (apps management), `/dashboard/challenges`, `/dashboard/usage` (7-day charts), `/dashboard/profiles` (profile management), `/dashboard/settings` (PIN, challenge config). All data pages are scoped by a profile selector in the sidebar.
+- `/dashboard` — Account-protected parent dashboard with sub-routes: `/dashboard` (apps management), `/dashboard/challenges`, `/dashboard/usage` (7-day charts), `/dashboard/profiles` (profile management), `/dashboard/kiosks` (kiosk pairing), `/dashboard/settings` (password, API keys). All data pages are scoped by a profile selector in the sidebar. Supports `?magic=<token>` and `?reset=<token>` query params for magic link login and password reset flows.
 - `/builtin/:key` — Built-in apps (clock, drawing, timer, calculator, challenges). Auto-discovered via `import.meta.glob`.
 
 ### Backend
 
 - `server/index.js` — Express API with public and admin (token-protected via `X-Admin-Token` header) endpoints. Profile CRUD and active-profile endpoints.
-- `server/db.js` — SQLite schema init (WAL mode). Tables: `profiles`, `apps`, `app_usage`, `challenges`, `challenge_completions`, `settings`. Exports `seedProfileDefaults(profileId)` for seeding new profiles with default apps/challenges.
+- `server/db.js` — SQLite schema init (WAL mode). Tables: `profiles`, `apps`, `app_usage`, `challenges`, `challenge_completions`, `settings`, `accounts`, `sessions`, `kiosks`, `pairing_codes`, `email_tokens`. Exports `seedProfileDefaults(profileId)` for seeding new profiles with default apps/challenges.
 - WebSocket server on same port broadcasts `{ type: 'refresh' }` when apps/profiles change — menu auto-reloads.
 
 ### Multi-Profile System
@@ -64,15 +64,47 @@ Each child has their own profile with isolated apps, challenges, usage tracking,
 1. Menu fetches apps from `/api/apps?profile=<id>`, connects to WebSocket for live updates
 2. App clicks → Electron IPC → content view navigates (URL apps) or native process spawns (native apps)
 3. Native apps: usage recorded to `/api/apps/:id/usage`, time limits enforced (daily/weekly + bonus minutes from challenges)
-4. Dashboard: PIN verified via `/api/admin/verify-pin` → token stored in localStorage → passed in `X-Admin-Token` header. Profile selector in sidebar scopes all dashboard pages.
+4. Dashboard: email+password login → session token stored in localStorage → passed in `X-Admin-Token` header. Profile selector in sidebar scopes all dashboard pages.
 
-### API Authentication
+### Authentication & Accounts
 
-Public endpoints need no auth. Admin endpoints require `X-Admin-Token` header with token from PIN verification. Frontend handles 401 by clearing token and redirecting to PIN entry.
+**Account system** — Single email+password account per server (enforced at app level). Password hashed with `crypto.scryptSync` (`server/utils/password.js`). Fresh databases show a registration form; subsequent visits show login.
+
+**Session management** — `server/middleware/auth.js` manages DB-backed sessions (24h expiry) in the `sessions` table. Exports: `createSession(accountId)`, `cleanupSessions()`, `requireAuth` middleware (checks `X-Admin-Token` header), `requireKiosk` middleware (checks `X-Kiosk-Token` header), `hasAccount()`.
+
+**Auth routes** (`server/routes/auth.js`):
+- `GET /api/auth/status` — returns `{ hasAccount }` (public)
+- `POST /api/auth/register` — create account + session (only if no account exists)
+- `POST /api/auth/login` — email + password → session token
+- `POST /api/auth/magic-link` — send magic login link via Resend email API
+- `POST /api/auth/verify-magic-link` — verify token → session
+- `POST /api/auth/forgot-password` — send password reset email
+- `POST /api/auth/reset-password` — verify token + set new password → session
+- `POST /api/auth/change-password` — change password (requireAuth)
+- `DELETE /api/auth/session` — logout (requireAuth)
+
+**Email** — `server/services/email.js` sends via Resend API. Reads `resend_api_key` and `resend_from_email` from `settings` table. Configured in Dashboard > Settings.
+
+**Frontend auth** — `src/hooks/useAuth.js` replaces old `usePinAuth`. `src/api/client.js` provides shared `getToken`/`setToken`/`clearToken`/`authHeaders`/`handleResponse` used by all API modules. `src/pages/dashboard/AuthGate.jsx` handles register/login/magic-link/password-reset flows.
+
+### Kiosk Pairing
+
+Kiosks register with the server via a 5-digit pairing code flow.
+
+**Pairing routes** (`server/routes/pairing.js`):
+- `POST /api/pairing/code` — kiosk generates 5-digit code (10min TTL)
+- `POST /api/pairing/claim` — dashboard claims code → creates kiosk + issues token (requireAuth)
+- `GET /api/pairing/status/:code` — kiosk polls for claim result (returns `kioskToken` when claimed)
+- `GET /api/admin/kiosks` — list registered kiosks (requireAuth)
+- `DELETE /api/admin/kiosks/:id` — remove a kiosk (requireAuth)
+
+**Kiosk-app flow** (`kiosk-app/main.js`): On startup, checks `data/kiosk-registration.json` for saved token. If absent: shows "Connecting..." screen → `POST /api/pairing/code` → displays 5-digit code full-screen → polls `/api/pairing/status/:code` every 3s → on claim, saves token and proceeds to normal operation. Passes `X-Kiosk-Token` header in API calls (usage tracking).
+
+**Dashboard page** — `/dashboard/kiosks` (`src/pages/dashboard/KiosksPage.jsx`) lets parents enter the pairing code and manage registered kiosks.
 
 ### Frontend API Layer
 
-`src/api/apps.js`, `src/api/challenges.js`, `src/api/profiles.js` — Centralized fetch functions with automatic token management and 401 handling. Custom hooks (`useApps`, `useChallenges`, `useProfiles`, `usePinAuth`, `useSettings`, `useBuiltinApps`) wrap these. Apps and challenges API functions accept optional `profileId` param for scoping.
+`src/api/client.js` — Shared token management and response handling. `src/api/apps.js`, `src/api/challenges.js`, `src/api/profiles.js`, `src/api/folders.js`, `src/api/auth.js` — Centralized fetch functions importing from `client.js`. Custom hooks (`useApps`, `useChallenges`, `useProfiles`, `useAuth`, `useSettings`, `useBuiltinApps`) wrap these. Apps and challenges API functions accept optional `profileId` param for scoping.
 
 ### App Types
 

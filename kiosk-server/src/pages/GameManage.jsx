@@ -235,6 +235,11 @@ function GameManage() {
               Something went wrong: {game.error_message || 'Unknown error'}
             </div>
           )}
+          {isReady && game.error_message && (
+            <div className="text-yellow-400 text-base mt-2">
+              Update failed: {game.error_message}
+            </div>
+          )}
         </div>
 
         {/* PLAY button */}
