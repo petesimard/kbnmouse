@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KidKit — Safe, Smart Screen Time for Families</title>
+<meta name="description" content="A secure kiosk desktop for children. Learning challenges earn screen time. Family bulletin board. AI game creator. Free and open source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ════════════════ NAV ════════════════ -->
+<nav class="nav" id="nav">
+  <div class="container nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      KidKit
+    </a>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#challenges">Challenges</a></li>
+      <li><a href="#community">Family</a></li>
+      <li><a href="#dashboard">Dashboard</a></li>
+      <li><a href="#install" class="nav-cta">Get Started</a></li>
+    </ul>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section class="hero" id="hero">
+  <div class="container hero-grid">
+    <div class="hero-content">
+      <div class="hero-badge reveal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Open Source &amp; Self-Hosted
+      </div>
+      <h1 class="reveal reveal-delay-1">Screen time that<br><em>rewards learning</em></h1>
+      <p class="hero-sub reveal reveal-delay-2">A secure Linux desktop for kids. They earn screen time by completing learning challenges, create games with AI, and stay connected with family — all under your control.</p>
+      <div class="hero-actions reveal reveal-delay-3">
+        <a href="#install" class="btn-primary">
+          Install Guide
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+        <a href="https://github.com/pscripter/kids-desktop" class="btn-secondary" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+    <div class="hero-visual reveal reveal-delay-2">
+      <div class="hero-mockup">
+        <div class="hero-screen">
+          <div class="hero-screen-top">
+            <span class="hero-screen-dot"></span>
+            <span class="hero-screen-dot"></span>
+            <span class="hero-screen-dot"></span>
+          </div>
+          <div class="hero-screen-content">
+            <div class="hero-app-tile">
+              <span>🧮</span>
+              <span class="hero-app-label">Math</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>⌨️</span>
+              <span class="hero-app-label">Typing</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>🎨</span>
+              <span class="hero-app-label">Drawing</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>🎮</span>
+              <span class="hero-app-label">Games</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>📖</span>
+              <span class="hero-app-label">Stories</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>⏱️</span>
+              <span class="hero-app-label">Timer</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>🔢</span>
+              <span class="hero-app-label">Calc</span>
+            </div>
+            <div class="hero-app-tile">
+              <span>🌐</span>
+              <span class="hero-app-label">Browser</span>
+            </div>
+          </div>
+          <div class="hero-menu-bar">
+            <div class="hero-menu-item active"></div>
+            <div class="hero-menu-item"></div>
+            <div class="hero-menu-item"></div>
+            <div class="hero-menu-item"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-float hero-float-1">
+        <span>✅</span> Challenge complete! +15 min
+      </div>
+      <div class="hero-float hero-float-2">
+        <span>🎮</span> New game created
+      </div>
+      <div class="hero-float hero-float-3">
+        <span>📋</span> Family bulletin
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ PROBLEM ════════════════ -->
+<section class="problem" id="problem">
+  <div class="container">
+    <div class="section-label reveal" style="color: var(--warmth);">
+      <span style="display:inline-block; width:24px; height:2px; background:var(--warmth); border-radius:2px;"></span>
+      The Problem
+    </div>
+    <h2 class="section-title reveal reveal-delay-1">Kids need computers.<br>But the internet is a wild place.</h2>
+    <p class="section-desc reveal reveal-delay-2">Finding the balance between access and safety shouldn't require a PhD in parenting.</p>
+
+    <div class="problem-grid">
+      <div class="problem-card reveal reveal-delay-1">
+        <div class="problem-icon">🔓</div>
+        <h3>Too much freedom</h3>
+        <p>Unrestricted PC access means YouTube rabbit holes, inappropriate content, and hours lost to mindless browsing.</p>
+      </div>
+      <div class="problem-card reveal reveal-delay-2">
+        <div class="problem-icon">🔒</div>
+        <h3>Too many restrictions</h3>
+        <p>Most parental controls just block things. They don't encourage learning or reward good habits.</p>
+      </div>
+      <div class="problem-card reveal reveal-delay-3">
+        <div class="problem-icon">💡</div>
+        <h3>A better way</h3>
+        <p>What if screen time was <em>earned</em> through learning? What if the computer was a tool for growth, not just entertainment?</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ FEATURES ════════════════ -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="features-header">
+      <div class="section-label reveal">Features</div>
+      <h2 class="section-title reveal reveal-delay-1">Everything families need</h2>
+      <p class="section-desc reveal reveal-delay-2">Not just restrictions — a complete environment designed to make screen time productive, creative, and connected.</p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">🏆</div>
+        <h3>Learning Challenges</h3>
+        <p>Math problems, typing practice, story writing. Complete challenges to earn bonus screen time minutes.</p>
+      </div>
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">📋</div>
+        <h3>Family Bulletin Board</h3>
+        <p>A cork-board style shared space. Post notes, announcements, and encouragement. Emoji reactions from the whole family.</p>
+      </div>
+      <div class="feature-card reveal reveal-delay-3">
+        <div class="feature-icon">💬</div>
+        <h3>Family Messaging</h3>
+        <p>Kids can safely message parents and siblings. Stay connected without needing a phone or social media.</p>
+      </div>
+      <div class="feature-card reveal reveal-delay-4">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Game Creator</h3>
+        <p>Kids describe a game idea, and AI builds it. A creative outlet that turns imagination into playable 3D games.</p>
+      </div>
+      <div class="feature-card reveal reveal-delay-5">
+        <div class="feature-icon">⏱️</div>
+        <h3>Smart Time Controls</h3>
+        <p>Per-app daily and weekly limits. Bonus time earned through challenges. Usage auto-tracked and enforced.</p>
+      </div>
+      <div class="feature-card reveal reveal-delay-5">
+        <div class="feature-icon">👤</div>
+        <h3>Multi-Profile</h3>
+        <p>Each child gets their own isolated space with separate apps, challenges, and time limits. One PC, many kids.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ CHALLENGES ════════════════ -->
+<section class="challenges" id="challenges">
+  <div class="container challenges-grid">
+    <div class="challenges-content">
+      <div class="section-label reveal">Learning Rewards</div>
+      <h2 class="section-title reveal reveal-delay-1">Screen time that<br>teaches something</h2>
+      <p class="section-desc reveal reveal-delay-2">Instead of just limiting minutes, KidKit turns screen time into a reward for learning. Kids are motivated because they choose when and what to learn.</p>
+
+      <div class="challenge-flow reveal reveal-delay-3">
+        <div class="challenge-step">
+          <div class="challenge-step-num">1</div>
+          <div class="challenge-step-text">
+            <h4>Pick a challenge</h4>
+            <p>Math problems, typing speed tests, creative story prompts — kids choose what interests them.</p>
+          </div>
+        </div>
+        <div class="challenge-step">
+          <div class="challenge-step-num">2</div>
+          <div class="challenge-step-text">
+            <h4>Complete it</h4>
+            <p>Challenges are age-appropriate and designed to be achievable. No frustration, just learning.</p>
+          </div>
+        </div>
+        <div class="challenge-step">
+          <div class="challenge-step-num">3</div>
+          <div class="challenge-step-text">
+            <h4>Earn bonus time</h4>
+            <p>Each completed challenge adds bonus minutes to their screen time. More learning = more play.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="challenge-visual reveal reveal-delay-2">
+      <div class="reward-loop">
+        <div class="reward-loop-title">Today's Progress</div>
+        <div class="reward-ring">
+          <div class="reward-item">
+            <div class="reward-item-icon">🧮</div>
+            <div class="reward-item-text">
+              <strong>Multiplication Sprint</strong>
+              <span>Completed — earned 15 minutes</span>
+            </div>
+            <span style="color:var(--sage);font-weight:700;font-size:0.85rem;">+15m</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-item-icon">⌨️</div>
+            <div class="reward-item-text">
+              <strong>Typing Challenge</strong>
+              <span>45 WPM — earned 10 minutes</span>
+            </div>
+            <span style="color:var(--sage);font-weight:700;font-size:0.85rem;">+10m</span>
+          </div>
+          <div class="reward-item">
+            <div class="reward-item-icon">📝</div>
+            <div class="reward-item-text">
+              <strong>Story Writing</strong>
+              <span>Not started yet</span>
+            </div>
+            <span style="color:var(--ink-muted);font-weight:600;font-size:0.85rem;">20m</span>
+          </div>
+          <div style="text-align:center;padding:0.8rem 0 0;">
+            <div style="font-size:0.78rem;color:var(--ink-muted);font-weight:500;margin-bottom:0.3rem;">Bonus time earned today</div>
+            <div style="font-family:var(--font-display);font-size:1.8rem;color:var(--honey);">25 minutes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ COMMUNITY ════════════════ -->
+<section class="community" id="community">
+  <div class="container community-grid">
+    <div class="bulletin-visual reveal">
+      <div class="bulletin-board">
+        <div class="note note-1">
+          <span class="note-author">Mom</span>
+          Pizza night Friday! Who's in? 🍕
+          <div class="note-reactions">❤️ 3 &nbsp; 🎉 2</div>
+        </div>
+        <div class="note note-2">
+          <span class="note-author">Lily</span>
+          I made a new game! Come try it!!
+          <div class="note-reactions">👏 4</div>
+        </div>
+        <div class="note note-3">
+          <span class="note-author">Dad</span>
+          Great job on your math challenges this week, Marcus!
+          <div class="note-reactions">❤️ 2 &nbsp; 🌟 1</div>
+        </div>
+        <div class="note note-4">
+          <span class="note-author">Marcus</span>
+          Can we go to the park tomorrow?
+          <div class="note-reactions">👍 3</div>
+        </div>
+        <div class="note note-5">
+          <span class="note-author">Lily</span>
+          Look at my drawing! 🎨
+          <div class="note-reactions">❤️ 5</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="community-content">
+      <div class="section-label reveal">Family Space</div>
+      <h2 class="section-title reveal reveal-delay-1">A digital<br>family room</h2>
+      <p class="section-desc reveal reveal-delay-2">KidKit isn't just about restrictions — it's about connection. A shared space where families communicate, celebrate, and stay close.</p>
+
+      <div class="community-features reveal reveal-delay-3">
+        <div class="community-feat">
+          <div class="community-feat-icon">📌</div>
+          <div>
+            <h4>Bulletin Board</h4>
+            <p>Post-it style notes visible to the whole family. React with emojis.</p>
+          </div>
+        </div>
+        <div class="community-feat">
+          <div class="community-feat-icon">💬</div>
+          <div>
+            <h4>Safe Messaging</h4>
+            <p>Kids message parents and siblings without needing phones or social media.</p>
+          </div>
+        </div>
+        <div class="community-feat">
+          <div class="community-feat-icon">📢</div>
+          <div>
+            <h4>Parent Announcements</h4>
+            <p>Pin important messages so every child sees them when they log in.</p>
+          </div>
+        </div>
+        <div class="community-feat">
+          <div class="community-feat-icon">🌟</div>
+          <div>
+            <h4>Encouragement</h4>
+            <p>Celebrate achievements and milestones as a family.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ DASHBOARD ════════════════ -->
+<section class="dashboard" id="dashboard">
+  <div class="container">
+    <div class="dashboard-header">
+      <div class="section-label reveal">For Parents</div>
+      <h2 class="section-title reveal reveal-delay-1">Full visibility,<br>total control</h2>
+      <p class="section-desc reveal reveal-delay-2">A web-based dashboard accessible from any device on your network. See usage, manage apps, set limits — all in one place.</p>
+    </div>
+
+    <div class="dashboard-mockup reveal reveal-delay-3">
+      <div class="dash-titlebar">
+        <span class="dash-titlebar-dot"></span>
+        <span class="dash-titlebar-dot"></span>
+        <span class="dash-titlebar-dot"></span>
+      </div>
+      <div class="dash-body">
+        <div class="dash-sidebar">
+          <div class="dash-nav-item active"><div class="dash-nav-icon"></div> Usage</div>
+          <div class="dash-nav-item"><div class="dash-nav-icon"></div> Apps</div>
+          <div class="dash-nav-item"><div class="dash-nav-icon"></div> Challenges</div>
+          <div class="dash-nav-item"><div class="dash-nav-icon"></div> Profiles</div>
+          <div class="dash-nav-item"><div class="dash-nav-icon"></div> Kiosks</div>
+          <div class="dash-nav-item"><div class="dash-nav-icon"></div> Settings</div>
+        </div>
+        <div class="dash-main">
+          <h3>Screen Time — Last 7 Days</h3>
+          <div class="dash-chart">
+            <div class="dash-bar"><span class="dash-bar-label">Mon</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Tue</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Wed</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Thu</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Fri</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Sat</span></div>
+            <div class="dash-bar"><span class="dash-bar-label">Sun</span></div>
+          </div>
+          <div class="dash-stats">
+            <div class="dash-stat">
+              <div class="dash-stat-value">3.2h</div>
+              <div class="dash-stat-label">Avg. Daily</div>
+            </div>
+            <div class="dash-stat">
+              <div class="dash-stat-value">12</div>
+              <div class="dash-stat-label">Challenges Done</div>
+            </div>
+            <div class="dash-stat">
+              <div class="dash-stat-value">45m</div>
+              <div class="dash-stat-label">Bonus Earned</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ HOW IT WORKS ════════════════ -->
+<section class="how-it-works" id="how-it-works">
+  <div class="container">
+    <div class="how-header">
+      <div class="section-label reveal">Setup</div>
+      <h2 class="section-title reveal reveal-delay-1">Up and running in minutes</h2>
+      <p class="section-desc reveal reveal-delay-2">KidKit runs on any Linux PC. Perfect for repurposing an old laptop or desktop into a dedicated kids' computer.</p>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal reveal-delay-1">
+        <div class="step-num">1</div>
+        <h3>Install on Linux</h3>
+        <p>Clone the repo and run the setup script. Works on Ubuntu, Debian, and most Linux distros.</p>
+      </div>
+      <div class="step reveal reveal-delay-2">
+        <div class="step-num">2</div>
+        <h3>Create profiles</h3>
+        <p>Add a profile for each child with their own apps, challenges, and time limits.</p>
+      </div>
+      <div class="step reveal reveal-delay-3">
+        <div class="step-num">3</div>
+        <h3>Kids start learning</h3>
+        <p>Children pick their profile, complete challenges, and earn screen time. You monitor from the dashboard.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ CTA ════════════════ -->
+<section class="cta-section" id="install">
+  <div class="container">
+    <div class="cta-card reveal">
+      <div class="cta-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Free &amp; Open Source
+      </div>
+      <h2 class="cta-title">Your data stays yours.<br>Forever free.</h2>
+      <p class="cta-desc">KidKit is self-hosted — nothing leaves your home network. No subscriptions, no tracking, no ads. Just a better computer for your kids.</p>
+      <div class="cta-buttons">
+        <a href="https://github.com/pscripter/kids-desktop#installation" class="btn-primary" target="_blank" rel="noopener">
+          Install Guide
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+        <a href="https://github.com/pscripter/kids-desktop" class="btn-secondary" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <div class="cta-features">
+        <div class="cta-feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Self-hosted
+        </div>
+        <div class="cta-feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          No subscriptions
+        </div>
+        <div class="cta-feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          MIT License
+        </div>
+        <div class="cta-feature">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Runs on any Linux PC
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════ FOOTER ════════════════ -->
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <div class="footer-brand-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      KidKit
+    </div>
+    <ul class="footer-links">
+      <li><a href="https://github.com/pscripter/kids-desktop" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://github.com/pscripter/kids-desktop#installation" target="_blank" rel="noopener">Install</a></li>
+      <li><a href="https://github.com/pscripter/kids-desktop/issues" target="_blank" rel="noopener">Issues</a></li>
+      <li><a href="https://github.com/pscripter/kids-desktop/blob/main/LICENSE" target="_blank" rel="noopener">License</a></li>
+    </ul>
+    <p class="footer-copy">MIT License. Built for families.</p>
+  </div>
+</footer>
+
+<!-- ════════════════ JS ════════════════ -->
+<script>
+// Mobile nav toggle
+const toggle = document.getElementById('navToggle');
+const links = document.getElementById('navLinks');
+toggle.addEventListener('click', () => {
+  toggle.classList.toggle('open');
+  links.classList.toggle('open');
+});
+links.querySelectorAll('a').forEach(a => {
+  a.addEventListener('click', () => {
+    toggle.classList.remove('open');
+    links.classList.remove('open');
+  });
+});
+
+// Sticky nav
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 40);
+}, { passive: true });
+
+// Scroll-triggered reveal
+const reveals = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, {
+  threshold: 0.1,
+  rootMargin: '0px 0px -60px 0px'
+});
+reveals.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
