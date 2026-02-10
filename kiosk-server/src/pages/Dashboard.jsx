@@ -1,17 +1,32 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { fetchProfiles } from '../api/profiles';
 import { fetchUnreadCount } from '../api/messages';
+import { fetchKiosks } from '../api/auth';
 import AuthGate from './dashboard/AuthGate';
 import Sidebar from './dashboard/Sidebar';
 
 function Dashboard() {
   const auth = useAuth();
   const { isAuthenticated, loading: authLoading, logout } = auth;
+  const navigate = useNavigate();
+  const location = useLocation();
   const [profiles, setProfiles] = useState([]);
   const [dashboardProfileId, setDashboardProfileId] = useState(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [kiosksChecked, setKiosksChecked] = useState(false);
+
+  // On login, redirect to kiosks page if none are paired
+  useEffect(() => {
+    if (!isAuthenticated || kiosksChecked) return;
+    setKiosksChecked(true);
+    fetchKiosks().then((kiosks) => {
+      if (kiosks.length === 0 && location.pathname === '/dashboard') {
+        navigate('/dashboard/kiosks', { replace: true });
+      }
+    }).catch(() => {});
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;

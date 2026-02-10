@@ -249,6 +249,12 @@ export default function AuthGate({ auth }) {
               {loading ? 'Creating...' : 'Create Account'}
             </button>
           </form>
+          <p className="mt-4 text-slate-400 text-sm text-center">
+            Already have an account?{' '}
+            <button onClick={() => { setView('login'); setError(''); }} className="text-blue-400 hover:text-blue-300">
+              Sign in
+            </button>
+          </p>
         </div>
       </div>
     );

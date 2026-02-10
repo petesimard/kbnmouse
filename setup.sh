@@ -1,13 +1,6 @@
 #!/bin/bash
 #
-# Kids Desktop - One-line setup
-#
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/petesimard/kids-desktop/main/setup.sh | bash
-#
-# Or clone first and run:
-#   git clone https://github.com/petesimard/kids-desktop.git && cd kids-desktop && bash setup.sh
-#
+
 set -e
 
 # --- Colors ---
@@ -21,6 +14,16 @@ info()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
 error() { echo -e "${RED}[✗]${NC} $1"; }
 step()  { echo -e "\n${BOLD}→ $1${NC}"; }
+
+# --- Must run as root ---
+if [[ $EUID -ne 0 ]]; then
+  error "This script must be run as root."
+  echo "  Usage: sudo bash setup.sh"
+  echo ""
+  echo "  Or via curl:"
+  echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash"
+  exit 1
+fi
 
 # --- Check prerequisites ---
 step "Checking prerequisites"
@@ -58,10 +61,10 @@ fi
 info "npm $(npm -v) found"
 
 # --- Clone if needed ---
-REPO_URL="https://github.com/petesimard/kids-desktop.git"
-INSTALL_DIR="kids-desktop"
+REPO_URL="https://github.com/petesimard/kbnmouse.git"
+INSTALL_DIR="kbnmouse"
 
-if [ -f "kiosk-server/package.json" ] && [ -f "kiosk-app/package.json" ]; then
+if [ -f "kiosk-app/package.json" ]; then
   # Already inside the project directory
   PROJECT_DIR="$(pwd)"
   info "Already in project directory"
@@ -79,42 +82,12 @@ else
   info "Cloned to $PROJECT_DIR"
 fi
 
-# --- Install kiosk-server ---
-step "Installing kiosk-server dependencies"
-cd "$PROJECT_DIR/kiosk-server"
-npm install
-info "kiosk-server dependencies installed"
-
 # --- Install kiosk-app ---
 step "Installing kiosk-app dependencies"
 cd "$PROJECT_DIR/kiosk-app"
 npm install
 info "kiosk-app dependencies installed"
 
-# --- Build frontend ---
-step "Building frontend"
-cd "$PROJECT_DIR/kiosk-server"
-npm run build
-info "Frontend built"
-
-# --- Done ---
-echo ""
-echo -e "${GREEN}${BOLD}══════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}  Kids Desktop installed successfully!${NC}"
-echo -e "${GREEN}${BOLD}══════════════════════════════════════════${NC}"
-echo ""
-echo -e "${BOLD}To start the server (development):${NC}"
-echo "  cd $PROJECT_DIR/kiosk-server"
-echo "  npm run dev"
-echo ""
-echo -e "${BOLD}Then open:${NC}"
-echo "  http://localhost:3000            # Kiosk UI"
-echo "  http://localhost:3000/dashboard  # Parent Dashboard"
-echo ""
-echo -e "${BOLD}To start the Electron kiosk app:${NC}"
-echo "  cd $PROJECT_DIR/kiosk-app"
-echo "  npm run dev"
-echo ""
-echo -e "${BOLD}For full kiosk mode on Linux:${NC}"
-echo "  sudo bash $PROJECT_DIR/kiosk-setup/install.sh"
-echo ""
+# --- Run kiosk system install ---
+step "Installing kiosk system configuration"
+bash "$PROJECT_DIR/kiosk-setup/install.sh"
