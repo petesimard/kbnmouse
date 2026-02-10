@@ -25,31 +25,101 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# --- Check prerequisites ---
+# --- Detect distro ---
+step "Detecting distribution"
+
+DISTRO=""
+PKG_INSTALL=""
+
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  case "$ID" in
+    ubuntu|debian|linuxmint|pop|elementary|zorin)
+      DISTRO="debian"
+      PKG_INSTALL="apt install -y"
+      ;;
+    fedora)
+      DISTRO="fedora"
+      PKG_INSTALL="dnf install -y"
+      ;;
+    rhel|centos|rocky|alma)
+      DISTRO="rhel"
+      PKG_INSTALL="dnf install -y"
+      ;;
+    arch|manjaro|endeavouros)
+      DISTRO="arch"
+      PKG_INSTALL="pacman -S --noconfirm"
+      ;;
+    opensuse*|sles)
+      DISTRO="suse"
+      PKG_INSTALL="zypper install -y"
+      ;;
+  esac
+fi
+
+if [[ -z "$DISTRO" ]]; then
+  # Fallback: detect by available package manager
+  if command -v apt &>/dev/null; then
+    DISTRO="debian"
+    PKG_INSTALL="apt install -y"
+  elif command -v dnf &>/dev/null; then
+    DISTRO="fedora"
+    PKG_INSTALL="dnf install -y"
+  elif command -v pacman &>/dev/null; then
+    DISTRO="arch"
+    PKG_INSTALL="pacman -S --noconfirm"
+  elif command -v zypper &>/dev/null; then
+    DISTRO="suse"
+    PKG_INSTALL="zypper install -y"
+  else
+    error "Unsupported distribution. Supported: Debian/Ubuntu, Fedora/RHEL, Arch, openSUSE"
+    exit 1
+  fi
+fi
+
+info "Detected: $DISTRO ($PKG_INSTALL)"
+
+# --- Install git if missing ---
 step "Checking prerequisites"
 
 if ! command -v git &>/dev/null; then
-  error "git is not installed. Install it first:"
-  echo "  sudo apt install git   # Debian/Ubuntu"
-  echo "  sudo dnf install git   # Fedora"
-  exit 1
+  warn "git not found, installing..."
+  $PKG_INSTALL git
 fi
 info "git found"
 
-# Check for Node.js
+# --- Install Node.js if missing ---
 if ! command -v node &>/dev/null; then
-  error "Node.js is not installed. Install Node.js 18+ first:"
+  warn "Node.js not found, installing..."
+  case "$DISTRO" in
+    debian)
+      $PKG_INSTALL nodejs npm
+      ;;
+    fedora|rhel)
+      $PKG_INSTALL nodejs npm
+      ;;
+    arch)
+      $PKG_INSTALL nodejs npm
+      ;;
+    suse)
+      $PKG_INSTALL nodejs npm
+      ;;
+  esac
+fi
+
+if ! command -v node &>/dev/null; then
+  error "Failed to install Node.js. Install Node.js 18+ manually:"
   echo "  https://nodejs.org/"
-  echo ""
-  echo "  Or via nvm:"
-  echo "    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash"
-  echo "    nvm install 20"
   exit 1
 fi
 
 NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
 if [ "$NODE_VERSION" -lt 18 ]; then
   error "Node.js 18+ required (found v$(node -v | sed 's/v//'))"
+  echo "  The version from your distro's repos is too old."
+  echo "  Install a newer version via https://nodejs.org/ or nvm:"
+  echo "    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash"
+  echo "    nvm install 20"
   exit 1
 fi
 info "Node.js $(node -v) found"

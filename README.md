@@ -26,8 +26,8 @@ On boot, LightDM auto-logs in as a non-admin user, starts an Openbox session, an
 
 ## Requirements
 
-- **OS:** Debian/Ubuntu Linux (uses `apt`)
-- **Node.js:** 18+
+- **OS:** Linux with X11 — Debian/Ubuntu, Fedora/RHEL, Arch, openSUSE (and derivatives)
+- **Node.js:** 18+ (auto-installed from distro repos if missing)
 
 The script requires root — it installs system packages, configures LightDM autologin, and sets up the kiosk X session. It will:
 

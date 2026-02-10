@@ -4,12 +4,74 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# --- Colors ---
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+info()  { echo -e "${GREEN}[✓]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
+error() { echo -e "${RED}[✗]${NC} $1"; }
+
 # --- Must run as root ---
 if [[ $EUID -ne 0 ]]; then
-  echo "Error: This script must be run as root." >&2
-  echo "Usage: sudo $0" >&2
+  error "This script must be run as root."
+  echo "  Usage: sudo $0" >&2
   exit 1
 fi
+
+# --- Detect distro ---
+DISTRO=""
+PKG_INSTALL=""
+
+if [ -f /etc/os-release ]; then
+  . /etc/os-release
+  case "$ID" in
+    ubuntu|debian|linuxmint|pop|elementary|zorin)
+      DISTRO="debian"
+      PKG_INSTALL="apt install -y"
+      ;;
+    fedora)
+      DISTRO="fedora"
+      PKG_INSTALL="dnf install -y"
+      ;;
+    rhel|centos|rocky|alma)
+      DISTRO="rhel"
+      PKG_INSTALL="dnf install -y"
+      ;;
+    arch|manjaro|endeavouros)
+      DISTRO="arch"
+      PKG_INSTALL="pacman -S --noconfirm"
+      ;;
+    opensuse*|sles)
+      DISTRO="suse"
+      PKG_INSTALL="zypper install -y"
+      ;;
+  esac
+fi
+
+if [[ -z "$DISTRO" ]]; then
+  if command -v apt &>/dev/null; then
+    DISTRO="debian"
+    PKG_INSTALL="apt install -y"
+  elif command -v dnf &>/dev/null; then
+    DISTRO="fedora"
+    PKG_INSTALL="dnf install -y"
+  elif command -v pacman &>/dev/null; then
+    DISTRO="arch"
+    PKG_INSTALL="pacman -S --noconfirm"
+  elif command -v zypper &>/dev/null; then
+    DISTRO="suse"
+    PKG_INSTALL="zypper install -y"
+  else
+    error "Unsupported distribution. Supported: Debian/Ubuntu, Fedora/RHEL, Arch, openSUSE"
+    exit 1
+  fi
+fi
+
+info "Detected distro family: $DISTRO"
 
 # --- Collect non-admin (non-sudo) user accounts ---
 # Get human users (UID >= 1000, excluding nobody), filter out anyone in sudo/wheel/admin groups
@@ -42,21 +104,13 @@ if [[ ${#candidates[@]} -eq 0 ]]; then
   echo "No non-admin user accounts found."
   echo "You need a non-admin account for kiosk mode."
   echo ""
-  echo "Opening user account manager..."
-
-  # Try common user-management GUIs
-  if command -v gnome-control-center &>/dev/null; then
-    gnome-control-center user-accounts &
-  elif command -v users-admin &>/dev/null; then
-    users-admin &
-  elif command -v kuser &>/dev/null; then
-    kuser &
-  elif command -v system-config-users &>/dev/null; then
-    system-config-users &
-  else
-    echo "Could not find a graphical user manager." >&2
-    echo "Create a user manually:  sudo adduser <username>" >&2
-  fi
+  echo "Create a user manually:"
+  case "$DISTRO" in
+    debian)       echo "  sudo adduser <username>" ;;
+    fedora|rhel)  echo "  sudo useradd -m <username> && sudo passwd <username>" ;;
+    arch)         echo "  sudo useradd -m -s /bin/bash <username> && sudo passwd <username>" ;;
+    suse)         echo "  sudo useradd -m <username> && sudo passwd <username>" ;;
+  esac
   exit 1
 fi
 
@@ -83,7 +137,37 @@ echo ""
 
 # --- Install system dependencies ---
 echo "Installing system dependencies..."
-apt install -y openbox unclutter nodejs npm
+
+case "$DISTRO" in
+  debian)
+    apt update -y
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    ;;
+  fedora|rhel)
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    ;;
+  arch)
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    ;;
+  suse)
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    ;;
+esac
+
+info "System dependencies installed"
+
+# --- Enable LightDM ---
+echo "Enabling LightDM display manager..."
+if command -v systemctl &>/dev/null; then
+  # Disable other display managers that may conflict
+  for dm in gdm gdm3 sddm lxdm; do
+    systemctl disable "$dm" 2>/dev/null || true
+  done
+  systemctl enable lightdm
+  info "LightDM enabled"
+else
+  warn "systemctl not found — enable LightDM manually"
+fi
 
 # --- Install kiosk session ---
 echo "Installing kiosk session..."
@@ -95,6 +179,7 @@ chmod +x /usr/local/bin/kiosk-start.sh
 
 # --- Configure LightDM for selected user ---
 echo "Configuring LightDM..."
+mkdir -p /etc/lightdm
 cat > /etc/lightdm/lightdm.conf <<EOF
 [Seat:*]
 autologin-user=$KIOSK_USER
@@ -102,13 +187,19 @@ autologin-session=kiosk
 EOF
 
 # --- Configure AccountsService for selected user ---
-echo "Configuring AccountsService for $KIOSK_USER..."
-cat > "/var/lib/AccountsService/users/$KIOSK_USER" <<EOF
+if [ -d /var/lib/AccountsService ] || command -v accountsservice &>/dev/null; then
+  echo "Configuring AccountsService for $KIOSK_USER..."
+  mkdir -p /var/lib/AccountsService/users
+  cat > "/var/lib/AccountsService/users/$KIOSK_USER" <<EOF
 [User]
 Session=kiosk
 XSession=kiosk
 SystemAccount=false
 EOF
+  info "AccountsService configured"
+else
+  warn "AccountsService not found — skipping (LightDM autologin will still work)"
+fi
 
 # --- Install Electron kiosk app ---
 echo "Installing Electron kiosk app to /opt/kiosk-app..."
@@ -121,7 +212,7 @@ cd /opt/kiosk-app
 sudo -u "$KIOSK_USER" npm install
 
 echo ""
-echo "=== Kiosk mode installed successfully! ==="
+info "=== Kiosk mode installed successfully! ==="
 echo "Kiosk user: $KIOSK_USER"
 echo "Reboot to start kiosk mode."
 echo ""
@@ -130,3 +221,4 @@ echo "  sudo systemctl restart lightdm"
 echo ""
 echo "For development with hot-reload, run:"
 echo "  cd /opt/kiosk-app && npm run dev"
+echo ""
