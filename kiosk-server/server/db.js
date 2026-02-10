@@ -295,6 +295,31 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_type,
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipient_type, recipient_profile_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)");
 
+// Create bulletin_pins table for community bulletin board
+db.exec(`
+  CREATE TABLE IF NOT EXISTS bulletin_pins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pin_type TEXT NOT NULL CHECK(pin_type IN ('message', 'emoji')),
+    content TEXT NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    rotation REAL DEFAULT 0,
+    color TEXT DEFAULT '#fef08a',
+    profile_id INTEGER DEFAULT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_bulletin_pins_created ON bulletin_pins(created_at)");
+
+// Seed default bulletin pin if table is empty
+const pinCount = db.prepare('SELECT COUNT(*) as count FROM bulletin_pins').get();
+if (pinCount.count === 0) {
+  db.prepare(
+    'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run('message', 'Click the icons below to explore, or post your own note on this board for everyone to see!', 50, 45, -2, '#fef08a');
+  console.log('Seeded default bulletin board pin');
+}
+
 // Fresh DB seeding: if no apps exist and no profiles exist, create a Default profile and seed
 const appCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();
 const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();

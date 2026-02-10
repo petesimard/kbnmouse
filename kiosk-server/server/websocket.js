@@ -45,6 +45,16 @@ export function broadcastNewMessage(msg) {
   }
 }
 
+// Broadcast bulletin board pin update
+export function broadcastBulletinPin(action, pin) {
+  const payload = JSON.stringify({ type: 'bulletin_pin', action, pin });
+  for (const client of clients) {
+    if (client.readyState === 1) {
+      client.send(payload);
+    }
+  }
+}
+
 // Broadcast that a message was marked as read
 export function broadcastMessageRead(messageId, recipientProfileId) {
   const payload = JSON.stringify({ type: 'message_read', message_id: messageId, recipient_profile_id: recipientProfileId });
