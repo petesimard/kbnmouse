@@ -34,3 +34,23 @@ export function broadcastRefresh() {
   }
   console.log(`Broadcast refresh to ${clients.size} clients`);
 }
+
+// Broadcast a new message to all connected clients for instant delivery
+export function broadcastNewMessage(msg) {
+  const payload = JSON.stringify({ type: 'new_message', message: msg });
+  for (const client of clients) {
+    if (client.readyState === 1) {
+      client.send(payload);
+    }
+  }
+}
+
+// Broadcast that a message was marked as read
+export function broadcastMessageRead(messageId, recipientProfileId) {
+  const payload = JSON.stringify({ type: 'message_read', message_id: messageId, recipient_profile_id: recipientProfileId });
+  for (const client of clients) {
+    if (client.readyState === 1) {
+      client.send(payload);
+    }
+  }
+}

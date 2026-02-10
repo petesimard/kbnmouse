@@ -110,6 +110,7 @@ router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Cannot delete the last profile' });
   }
 
+  db.prepare('DELETE FROM messages WHERE sender_profile_id = ? OR recipient_profile_id = ?').run(profileId, profileId);
   db.prepare('DELETE FROM challenge_completions WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM app_usage WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM challenges WHERE profile_id = ?').run(profileId);

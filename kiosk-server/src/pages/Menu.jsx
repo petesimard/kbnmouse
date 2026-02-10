@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
 import { calculateRemainingSeconds } from '../utils/timeLimit';
 import { getBuiltinApps } from '../components/builtin';
+import { fetchKidUnreadCount } from '../api/messages';
 import AppIcon from '../components/AppIcon';
 
 function formatRemaining(seconds) {
@@ -25,6 +26,8 @@ function Menu() {
   const [timeLimitError, setTimeLimitError] = useState(false);
   const [timeWarning, setTimeWarning] = useState(false);
   const [usageMap, setUsageMap] = useState({});
+
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   // Paging state for app shortcuts overflow
   const scrollContainerRef = useRef(null);
@@ -76,6 +79,7 @@ function Menu() {
   // Session tracking for URL/builtin apps
   // Shape: { appId, startedAt, enforcementTimer, warningTimer }
   const sessionRef = useRef(null);
+  const activeBuiltinRef = useRef(null);
 
   // Load /profiles in the content view when profile selection is needed
   useEffect(() => {
@@ -170,16 +174,20 @@ function Menu() {
   fetchAppsRef.current = fetchApps;
   const refreshProfilesRef = useRef(refreshProfiles);
   refreshProfilesRef.current = refreshProfiles;
+  const profileIdRef = useRef(profileId);
+  profileIdRef.current = profileId;
 
   // WebSocket connection for live updates (no deps — uses refs for stable connection)
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:3001/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     let ws;
     let reconnectTimeout;
+    let disposed = false;
 
     const connect = () => {
+      if (disposed) return;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -194,6 +202,29 @@ function Menu() {
             refreshProfilesRef.current();
             fetchAppsRef.current();
             setCurrentFolderId(null);
+          } else if (data.type === 'new_message' && data.message) {
+            const msg = data.message;
+            const pid = profileIdRef.current;
+            // If this message is addressed to our profile, bump unread + notify
+            // Skip if Messages builtin is currently open (it handles its own read state)
+            if (msg.recipient_type === 'profile' && msg.recipient_profile_id === pid && activeBuiltinRef.current !== 'messages') {
+              setUnreadMessageCount((prev) => prev + 1);
+              if ('Notification' in window && Notification.permission === 'granted') {
+                const senderName = msg.sender_type === 'parent'
+                  ? 'Parents'
+                  : msg.sender_profile_name || 'Someone';
+                new Notification(`Message from ${senderName}`, {
+                  body: msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content,
+                  icon: '/favicon.ico',
+                  tag: `msg-${msg.id}`,
+                });
+              }
+            }
+          } else if (data.type === 'message_read') {
+            const pid = profileIdRef.current;
+            if (data.recipient_profile_id === pid) {
+              setUnreadMessageCount((prev) => Math.max(0, prev - 1));
+            }
           }
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
@@ -201,25 +232,40 @@ function Menu() {
       };
 
       ws.onclose = () => {
-        console.log('WebSocket closed, reconnecting in 3s...');
-        reconnectTimeout = setTimeout(connect, 3000);
+        if (!disposed) reconnectTimeout = setTimeout(connect, 3000);
       };
 
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
-      };
+      ws.onerror = () => ws.close();
     };
 
     connect();
 
     return () => {
+      disposed = true;
       clearTimeout(reconnectTimeout);
       if (ws) {
-        ws.close();
+        ws.onclose = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        if (ws.readyState === WebSocket.OPEN) ws.close();
       }
     };
   }, []);
+
+  // Unread message count — initial fetch + 30s fallback poll (primary updates from WS new_message)
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!profileId) return;
+    const poll = () => fetchKidUnreadCount(profileId).then((d) => setUnreadMessageCount(d.count)).catch(() => {});
+    poll();
+    const interval = setInterval(poll, 30000);
+    return () => clearInterval(interval);
+  }, [profileId]);
 
   // Refresh just usage data (using current apps list)
   const refreshUsage = useCallback(() => {
@@ -395,6 +441,9 @@ function Menu() {
     let url = app.url;
     if (app.app_type === 'builtin') {
       url = `/builtin/${app.url}`;
+      activeBuiltinRef.current = app.url;
+    } else {
+      activeBuiltinRef.current = null;
     }
 
     if (hasKiosk) {
@@ -454,28 +503,36 @@ function Menu() {
   const folderApps = currentFolderId ? apps.filter(a => a.folder_id === currentFolderId) : [];
   const currentFolder = folders.find(f => f.id === currentFolderId);
 
-  const renderAppButton = (app) => (
-    <button
-      key={app.id}
-      onClick={() => handleLoadURL(app)}
-      className={`px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
-        app.app_type === 'native' && !hasKiosk
-          ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-          : 'bg-slate-700 hover:bg-slate-600'
-      }`}
-      title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
-    >
-      <div className="flex items-center gap-2">
-        <AppIcon icon={app.icon} className="text-lg w-5 h-5 object-contain" />
-        <span className="text-sm">{app.name}</span>
-      </div>
-      {usageMap[app.id] != null && (
-        <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
-          {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
-        </span>
-      )}
-    </button>
-  );
+  const renderAppButton = (app) => {
+    const isMessages = app.app_type === 'builtin' && app.url === 'messages';
+    return (
+      <button
+        key={app.id}
+        onClick={() => handleLoadURL(app)}
+        className={`relative px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
+          app.app_type === 'native' && !hasKiosk
+            ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+            : 'bg-slate-700 hover:bg-slate-600'
+        }`}
+        title={app.app_type === 'native' && !hasKiosk ? 'Native apps require the kiosk desktop' : app.name}
+      >
+        {isMessages && unreadMessageCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+            {unreadMessageCount}
+          </span>
+        )}
+        <div className="flex items-center gap-2">
+          <AppIcon icon={app.icon} className="text-lg w-5 h-5 object-contain" />
+          <span className="text-sm">{app.name}</span>
+        </div>
+        {usageMap[app.id] != null && (
+          <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
+            {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="h-screen bg-slate-800 flex items-center px-4 gap-4">

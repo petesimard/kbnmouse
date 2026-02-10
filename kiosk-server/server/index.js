@@ -19,6 +19,7 @@ import storywriterRouter from './routes/storywriter.js';
 import gamecreatorRouter from './routes/gamecreator.js';
 import authRouter from './routes/auth.js';
 import pairingRouter from './routes/pairing.js';
+import messagesRouter from './routes/messages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +46,7 @@ app.use(foldersRouter);
 app.use(uploadsRouter);
 app.use('/api/storywriter', storywriterRouter);
 app.use('/api/games', gamecreatorRouter);
+app.use(messagesRouter);
 
 // Serve static game files at /customgames/:id/
 // When ?kiosk=1 is present, inject an overlay Back button into HTML files

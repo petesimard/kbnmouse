@@ -278,6 +278,23 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_custom_games_profile ON custom_games(profile_id)");
 
+// Create messages table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_type TEXT NOT NULL CHECK(sender_type IN ('profile', 'parent')),
+    sender_profile_id INTEGER DEFAULT NULL,
+    recipient_type TEXT NOT NULL CHECK(recipient_type IN ('profile', 'parent')),
+    recipient_profile_id INTEGER DEFAULT NULL,
+    content TEXT NOT NULL,
+    read INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_type, sender_profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_messages_recipient ON messages(recipient_type, recipient_profile_id)");
+db.exec("CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)");
+
 // Fresh DB seeding: if no apps exist and no profiles exist, create a Default profile and seed
 const appCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();
 const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();
