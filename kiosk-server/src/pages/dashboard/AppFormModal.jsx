@@ -27,6 +27,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const [saving, setSaving] = useState(false);
   const [installedApps, setInstalledApps] = useState([]);
   const [installedAppsLoaded, setInstalledAppsLoaded] = useState(false);
+  const [savedPerType, setSavedPerType] = useState({ url: {}, builtin: {}, native: {} });
 
   useEffect(() => {
     if (app) {
@@ -61,9 +62,9 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
     if (app) {
       setFormData((prev) => ({
         ...prev,
-        name: prev.name || app.name,
+        name: app.name,
         url: app.exec,
-        icon: prev.icon || app.icon,
+        icon: app.iconKey ? `/api/admin/app-icon/${app.iconKey}` : '',
       }));
     }
   };
@@ -75,12 +76,23 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   };
 
   const handleTypeChange = (type) => {
-    setFormData((prev) => ({
-      ...prev,
-      app_type: type,
-      url: '',
-      config: {},
-    }));
+    setFormData((prev) => {
+      // Save current name/icon for the old type
+      setSavedPerType((s) => ({
+        ...s,
+        [prev.app_type]: { name: prev.name, icon: prev.icon },
+      }));
+      // Restore saved name/icon for the new type
+      const restored = savedPerType[type] || {};
+      return {
+        ...prev,
+        app_type: type,
+        url: '',
+        config: {},
+        name: restored.name || '',
+        icon: restored.icon || '',
+      };
+    });
   };
 
   const handleConfigChange = (key, value) => {
@@ -94,10 +106,10 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
     const defaults = getDefaults(builtin.key);
     setFormData((prev) => ({
       ...prev,
-      name: prev.name || builtin.name,
+      name: builtin.name,
       url: builtin.key,
-      icon: prev.icon || builtin.icon,
-      config: { ...defaults, ...prev.config },
+      icon: builtin.icon,
+      config: { ...defaults },
     }));
   };
 
@@ -450,19 +462,29 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                       options={installedApps.map((a) => ({
                         value: a.exec,
                         label: a.name,
-                        icon: a.icon,
+                        iconUrl: a.iconKey ? `/api/admin/app-icon/${a.iconKey}` : '',
                         description: a.exec,
                       }))}
                       value={formData.url}
                       onChange={handleNativeAppSelect}
                       placeholder="Search installed apps..."
                       renderSelected={(opt) => (
-                        <span className="text-white">{opt.label}</span>
+                        <span className="flex items-center gap-2 text-white">
+                          {opt.iconUrl && <img src={opt.iconUrl} loading="lazy" className="w-5 h-5 object-contain" alt="" />}
+                          {opt.label}
+                        </span>
                       )}
                       renderOption={(opt) => (
-                        <div>
-                          <div className="text-sm font-medium">{opt.label}</div>
-                          <div className="text-xs text-slate-400 font-mono">{opt.description}</div>
+                        <div className="flex items-center gap-2">
+                          {opt.iconUrl ? (
+                            <img src={opt.iconUrl} loading="lazy" className="w-5 h-5 object-contain" alt="" />
+                          ) : (
+                            <span className="w-5 h-5" />
+                          )}
+                          <div>
+                            <div className="text-sm font-medium">{opt.label}</div>
+                            <div className="text-xs text-slate-400 font-mono">{opt.description}</div>
+                          </div>
                         </div>
                       )}
                     />

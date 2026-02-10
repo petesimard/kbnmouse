@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import path from 'path';
+import fs from 'fs';
+import express from 'express';
 import db from '../db.js';
 import crypto from 'crypto';
 import { requireAuth, requireKiosk } from '../middleware/auth.js';
@@ -94,6 +97,119 @@ router.post('/api/kiosk/installed-apps', requireKiosk, (req, res) => {
   db.prepare('UPDATE kiosks SET installed_apps = ? WHERE id = ?').run(JSON.stringify(apps), req.kioskId);
   res.json({ ok: true });
 });
+
+// POST /api/kiosk/app-icons — Kiosk pushes icon files (lazy, in batches)
+router.post('/api/kiosk/app-icons', requireKiosk, express.json({ limit: '5mb' }), (req, res) => {
+  const { icons } = req.body;
+  if (!Array.isArray(icons)) {
+    return res.status(400).json({ error: 'icons must be an array' });
+  }
+
+  const iconsDir = path.join(process.cwd(), 'data', 'app-icons');
+  if (!fs.existsSync(iconsDir)) {
+    fs.mkdirSync(iconsDir, { recursive: true });
+  }
+
+  for (const icon of icons) {
+    if (!icon.name || !icon.data) continue;
+    const safeName = icon.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath = path.join(iconsDir, `${safeName}.png`);
+    try {
+      fs.writeFileSync(filePath, Buffer.from(icon.data, 'base64'));
+    } catch {}
+  }
+
+  res.json({ ok: true });
+});
+
+// GET /api/admin/app-icon/:name — Serve an app icon file (PNG)
+router.get('/api/admin/app-icon/:name', (req, res) => {
+  const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const iconsDir = path.join(process.cwd(), 'data', 'app-icons');
+  const contentTypes = { '.png': 'image/png', '.svg': 'image/svg+xml', '.xpm': 'image/x-xpixmap' };
+
+  // Check pushed icons first (always PNG after kiosk conversion)
+  const pngPath = path.join(iconsDir, `${safeName}.png`);
+  if (fs.existsSync(pngPath)) {
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(path.resolve(pngPath));
+  }
+
+  // Fallback: resolve from local icon themes (works when server runs on same machine)
+  const resolved = resolveLocalIcon(req.params.name);
+  if (resolved) {
+    const ext = path.extname(resolved);
+    res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(path.resolve(resolved));
+  }
+
+  res.status(404).end();
+});
+
+function resolveLocalIcon(iconName) {
+  if (!iconName) return null;
+  const extensions = ['.png', '.svg', '.xpm'];
+
+  for (const ext of extensions) {
+    const p = `/usr/share/pixmaps/${iconName}${ext}`;
+    if (fs.existsSync(p)) return p;
+  }
+
+  const iconBases = ['/usr/share/icons'];
+  const homedir = process.env.HOME;
+  if (homedir) iconBases.push(path.join(homedir, '.local/share/icons'));
+
+  const prefSizes = ['64', '48', '256', '128', '96', '32', '64x64', '48x48', '128x128', '256x256', 'scalable'];
+
+  for (const iconsBase of iconBases) {
+    let themeDirs = [];
+    try {
+      themeDirs = fs.readdirSync(iconsBase).filter(d => {
+        try { return fs.statSync(path.join(iconsBase, d)).isDirectory(); } catch { return false; }
+      });
+    } catch { continue; }
+
+    for (const theme of themeDirs) {
+      const themeBase = path.join(iconsBase, theme);
+
+      for (const size of prefSizes) {
+        // Standard layout: theme/size/*/icon (hicolor, Adwaita)
+        const stdSizeDir = path.join(themeBase, size);
+        try {
+          for (const sub of fs.readdirSync(stdSizeDir)) {
+            for (const ext of extensions) {
+              const p = path.join(stdSizeDir, sub, `${iconName}${ext}`);
+              if (fs.existsSync(p)) return p;
+            }
+          }
+        } catch {}
+      }
+
+      // Flat layout: theme/*/size/icon (Mint-Y, Papirus)
+      let topDirs = [];
+      try {
+        topDirs = fs.readdirSync(themeBase).filter(d => {
+          try { return fs.statSync(path.join(themeBase, d)).isDirectory(); } catch { return false; }
+        });
+      } catch {}
+
+      for (const sub of topDirs) {
+        for (const size of prefSizes) {
+          for (const ext of extensions) {
+            const flat = path.join(themeBase, sub, size, `${iconName}${ext}`);
+            if (fs.existsSync(flat)) return flat;
+            const hidpi = path.join(themeBase, sub, `${size}@2x`, `${iconName}${ext}`);
+            if (fs.existsSync(hidpi)) return hidpi;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
 
 // GET /api/admin/installed-apps — Dashboard fetches installed apps from kiosks
 router.get('/api/admin/installed-apps', requireAuth, (req, res) => {

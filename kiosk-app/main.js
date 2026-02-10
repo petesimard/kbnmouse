@@ -137,12 +137,94 @@ function parseDesktopEntry(content) {
   // Strip field codes (%u, %f, %F, %U, etc.) from Exec
   const exec = fields.Exec.replace(/%[a-zA-Z]/g, '').trim();
 
+  const rawIcon = fields.Icon || '';
+
   return {
     name: fields.Name,
     exec,
-    icon: fields.Icon || '',
+    icon: rawIcon,
+    iconKey: getIconKey(rawIcon),
     categories: fields.Categories || '',
   };
+}
+
+function getIconKey(iconField) {
+  if (!iconField) return '';
+  if (iconField.startsWith('/')) {
+    return path.basename(iconField, path.extname(iconField)).replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+  return iconField.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+function resolveIconPath(iconName) {
+  if (!iconName) return null;
+
+  // Absolute path
+  if (iconName.startsWith('/')) {
+    return fs.existsSync(iconName) ? iconName : null;
+  }
+
+  const os = require('os');
+  const extensions = ['.png', '.svg', '.xpm'];
+
+  // Check /usr/share/pixmaps
+  for (const ext of extensions) {
+    const p = `/usr/share/pixmaps/${iconName}${ext}`;
+    if (fs.existsSync(p)) return p;
+  }
+
+  const iconBases = ['/usr/share/icons'];
+  const homedir = os.homedir();
+  if (homedir) iconBases.push(path.join(homedir, '.local/share/icons'));
+
+  const prefSizes = ['64', '48', '256', '128', '96', '32', '64x64', '48x48', '128x128', '256x256', 'scalable'];
+
+  for (const iconsBase of iconBases) {
+    let themeDirs = [];
+    try {
+      themeDirs = fs.readdirSync(iconsBase).filter(d => {
+        try { return fs.statSync(path.join(iconsBase, d)).isDirectory(); } catch { return false; }
+      });
+    } catch { continue; }
+
+    for (const theme of themeDirs) {
+      const themeBase = path.join(iconsBase, theme);
+
+      for (const size of prefSizes) {
+        // Standard layout: theme/size/*/icon (hicolor, Adwaita)
+        const stdSizeDir = path.join(themeBase, size);
+        try {
+          for (const sub of fs.readdirSync(stdSizeDir)) {
+            for (const ext of extensions) {
+              const p = path.join(stdSizeDir, sub, `${iconName}${ext}`);
+              if (fs.existsSync(p)) return p;
+            }
+          }
+        } catch {}
+      }
+
+      // Flat layout: theme/*/size/icon (Mint-Y, Papirus)
+      let topDirs = [];
+      try {
+        topDirs = fs.readdirSync(themeBase).filter(d => {
+          try { return fs.statSync(path.join(themeBase, d)).isDirectory(); } catch { return false; }
+        });
+      } catch {}
+
+      for (const sub of topDirs) {
+        for (const size of prefSizes) {
+          for (const ext of extensions) {
+            const flat = path.join(themeBase, sub, size, `${iconName}${ext}`);
+            if (fs.existsSync(flat)) return flat;
+            const hidpi = path.join(themeBase, sub, `${size}@2x`, `${iconName}${ext}`);
+            if (fs.existsSync(hidpi)) return hidpi;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 async function pushInstalledApps() {
@@ -157,12 +239,51 @@ async function pushInstalledApps() {
     });
     if (res.ok) {
       console.log(`Pushed ${apps.length} installed apps to server`);
+      // Push icons lazily in the background
+      pushAppIcons(apps);
     } else {
       console.error('Failed to push installed apps:', res.status);
     }
   } catch (err) {
     console.error('Failed to push installed apps:', err.message);
   }
+}
+
+async function pushAppIcons(apps) {
+  if (!kioskToken) return;
+  const { nativeImage } = require('electron');
+  const apiBase = getApiBaseUrl();
+
+  const icons = [];
+  for (const app of apps) {
+    if (!app.icon || !app.iconKey) continue;
+    const iconPath = resolveIconPath(app.icon);
+    if (!iconPath) continue;
+    try {
+      const img = nativeImage.createFromPath(iconPath);
+      if (img.isEmpty()) continue;
+      const resized = img.resize({ width: 64, height: 64 });
+      const pngData = resized.toPNG();
+      icons.push({ name: app.iconKey, data: pngData.toString('base64'), ext: 'png' });
+    } catch {}
+  }
+
+  if (icons.length === 0) return;
+
+  // Send in batches of 20
+  for (let i = 0; i < icons.length; i += 20) {
+    const batch = icons.slice(i, i + 20);
+    try {
+      await fetch(`${apiBase}/api/kiosk/app-icons`, {
+        method: 'POST',
+        headers: kioskHeaders(),
+        body: JSON.stringify({ icons: batch }),
+      });
+    } catch (err) {
+      console.error('Failed to push app icons batch:', err.message);
+    }
+  }
+  console.log(`Pushed ${icons.length} app icons to server`);
 }
 
 /**
