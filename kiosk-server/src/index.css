@@ -1,6 +1,38 @@
 @import "tailwindcss";
 
+/* Dark-themed scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Hide scrollbar for menu paging */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
 }

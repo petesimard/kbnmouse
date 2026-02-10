@@ -173,77 +173,121 @@ export default function MessagesPage() {
     );
   }
 
+  const [activeTab, setActiveTab] = useState('parent');
+  const hasSiblings = otherProfiles.length > 0;
+
+  // Count total sibling messages for the badge
+  const siblingMessageCount = useMemo(() => {
+    if (!hasSiblings) return 0;
+    return otherProfiles.reduce((sum, s) => sum + siblingMessages(s.id).length, 0);
+  }, [otherProfiles, hasSiblings, siblingMessages]);
+
   return (
-    <div>
+    <div className="flex flex-col h-[calc(100vh-5rem)] md:h-[calc(100vh-4rem)]">
       <h2 className="text-2xl font-bold text-white mb-6">Messages</h2>
 
-      {/* Parent <-> Child chat */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-6 flex flex-col" style={{ height: '50vh' }}>
-        <div className="p-4 border-b border-slate-700 flex items-center gap-2">
-          <span className="text-xl">{selectedProfile.icon}</span>
-          <span className="text-lg font-semibold text-white">{selectedProfile.name}</span>
-          <span className="text-sm text-slate-400 ml-2">— your conversation</span>
+      {/* Tabs */}
+      {hasSiblings && (
+        <div className="flex gap-1 mb-4 bg-slate-800 rounded-xl p-1 border border-slate-700 w-fit shrink-0">
+          <button
+            onClick={() => setActiveTab('parent')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'parent'
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            Parent Chat
+          </button>
+          <button
+            onClick={() => setActiveTab('siblings')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+              activeTab === 'siblings'
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+          >
+            Sibling Conversations
+            {siblingMessageCount > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'siblings' ? 'bg-blue-500 text-white' : 'bg-slate-600 text-slate-300'
+              }`}>
+                {siblingMessageCount}
+              </span>
+            )}
+          </button>
         </div>
+      )}
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {loading && parentMessages.length === 0 && (
-            <div className="text-center text-slate-500 mt-8">Loading...</div>
-          )}
-          {!loading && parentMessages.length === 0 && (
-            <div className="text-center text-slate-500 mt-8">
-              No messages yet. Send a message to {selectedProfile.name}!
-            </div>
-          )}
-          {parentMessages.map((msg) => {
-            const isParent = msg.sender_type === 'parent';
-            return (
-              <div key={msg.id} className={`flex ${isParent ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-xs md:max-w-md px-4 py-2 rounded-2xl ${
-                    isParent
-                      ? 'bg-blue-600 text-white rounded-br-md'
-                      : 'bg-slate-700 text-slate-100 rounded-bl-md'
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-                  <div className={`text-xs mt-1 ${isParent ? 'text-blue-200' : 'text-slate-400'}`}>
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+      {/* Parent <-> Child chat */}
+      {activeTab === 'parent' && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col flex-1 min-h-0">
+          <div className="p-4 border-b border-slate-700 flex items-center gap-2">
+            <span className="text-xl">{selectedProfile.icon}</span>
+            <span className="text-lg font-semibold text-white">{selectedProfile.name}</span>
+            <span className="text-sm text-slate-400 ml-2">— your conversation</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {loading && parentMessages.length === 0 && (
+              <div className="text-center text-slate-500 mt-8">Loading...</div>
+            )}
+            {!loading && parentMessages.length === 0 && (
+              <div className="text-center text-slate-500 mt-8">
+                No messages yet. Send a message to {selectedProfile.name}!
+              </div>
+            )}
+            {parentMessages.map((msg) => {
+              const isParent = msg.sender_type === 'parent';
+              return (
+                <div key={msg.id} className={`flex ${isParent ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-xs md:max-w-md px-4 py-2 rounded-2xl ${
+                      isParent
+                        ? 'bg-blue-600 text-white rounded-br-md'
+                        : 'bg-slate-700 text-slate-100 rounded-bl-md'
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    <div className={`text-xs mt-1 ${isParent ? 'text-blue-200' : 'text-slate-400'}`}>
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={parentChatEndRef} />
-        </div>
+              );
+            })}
+            <div ref={parentChatEndRef} />
+          </div>
 
-        <div className="p-4 border-t border-slate-700">
-          <div className="flex gap-2">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={`Message ${selectedProfile.name}...`}
-              rows={1}
-              maxLength={500}
-              className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-xl border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-            <button
-              onClick={handleSend}
-              disabled={!text.trim() || sending}
-              className="px-6 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Send
-            </button>
+          <div className="p-4 border-t border-slate-700">
+            <div className="flex gap-2">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${selectedProfile.name}...`}
+                rows={1}
+                maxLength={500}
+                className="flex-1 px-4 py-2 bg-slate-700 text-white rounded-xl border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!text.trim() || sending}
+                className="px-6 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Send
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sibling conversations (read-only) */}
-      {otherProfiles.length > 0 && (
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-3">
-            {selectedProfile.name}'s conversations with siblings
-          </h3>
+      {activeTab === 'siblings' && hasSiblings && (
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <p className="text-sm text-slate-400 mb-4">
+            {selectedProfile.name}'s conversations with siblings (read-only)
+          </p>
           <div className="space-y-4">
             {otherProfiles.map((sibling) => {
               const msgs = siblingMessages(sibling.id);
