@@ -199,7 +199,7 @@ function Home() {
             }}
           >
             {pin.pin_type === 'message' ? (
-              <PostItNote content={pin.content} color={pin.color} profileName={pin.profile_name} profileIcon={pin.profile_icon} />
+              <PostItNote content={pin.content} color={pin.color} profileName={pin.profile_name} profileIcon={pin.profile_icon} isParent={!!pin.is_parent} />
             ) : (
               <EmojiPin content={pin.content} />
             )}
@@ -306,21 +306,29 @@ function Home() {
   );
 }
 
-function PostItNote({ content, color = '#fef08a', profileName, profileIcon }) {
+function PostItNote({ content, color = '#fef08a', profileName, profileIcon, isParent }) {
+  const pinColor = isParent
+    ? 'radial-gradient(circle at 35% 35%, #facc15, #a16207)'
+    : 'radial-gradient(circle at 35% 35%, #ef4444, #991b1b)';
+  const pinBorder = isParent ? '1px solid #854d0e' : '1px solid #7f1d1d';
   return (
     <div
       className="w-40 shadow-lg"
       style={{
-        background: color,
+        background: isParent ? '#e0f2fe' : color,
         padding: '12px 14px 10px',
         fontFamily: '"Comic Sans MS", "Chalkboard SE", cursive',
-        position: 'relative'
+        position: 'relative',
+        border: isParent ? '2px solid #7dd3fc' : 'none'
       }}
     >
       <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full shadow-md z-10"
-        style={{ background: 'radial-gradient(circle at 35% 35%, #ef4444, #991b1b)', border: '1px solid #7f1d1d' }} />
-      <p className="text-amber-900 text-xs leading-snug break-words whitespace-pre-wrap">{content}</p>
-      {profileName && (
+        style={{ background: pinColor, border: pinBorder }} />
+      {isParent && (
+        <div className="text-sky-600 font-bold mb-1" style={{ fontSize: '10px' }}>From Mom & Dad</div>
+      )}
+      <p className={`text-xs leading-snug break-words whitespace-pre-wrap ${isParent ? 'text-sky-900' : 'text-amber-900'}`}>{content}</p>
+      {profileName && !isParent && (
         <div className="mt-2 text-right text-amber-700/70" style={{ fontSize: '10px' }}>
           {profileIcon} {profileName}
         </div>

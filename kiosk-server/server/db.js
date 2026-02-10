@@ -311,6 +311,13 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_bulletin_pins_created ON bulletin_pins(created_at)");
 
+// Migration: add is_parent column to bulletin_pins
+const bpCols = db.prepare("PRAGMA table_info(bulletin_pins)").all();
+if (!bpCols.find(col => col.name === 'is_parent')) {
+  db.exec("ALTER TABLE bulletin_pins ADD COLUMN is_parent INTEGER DEFAULT 0");
+  console.log('Added is_parent column to bulletin_pins table');
+}
+
 // Seed default bulletin pin if table is empty
 const pinCount = db.prepare('SELECT COUNT(*) as count FROM bulletin_pins').get();
 if (pinCount.count === 0) {

@@ -14,6 +14,7 @@ import SettingsPage from './pages/dashboard/SettingsPage.jsx'
 import ProfilesPage from './pages/dashboard/ProfilesPage.jsx'
 import KiosksPage from './pages/dashboard/KiosksPage.jsx'
 import MessagesPage from './pages/dashboard/MessagesPage.jsx'
+import BulletinPage from './pages/dashboard/BulletinPage.jsx'
 import GameManage from './pages/GameManage.jsx'
 import { getBuiltinApps, getBuiltinComponents } from './components/builtin'
 
@@ -33,6 +34,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="usage" element={<AppUsagePage />} />
             <Route path="profiles" element={<ProfilesPage />} />
             <Route path="messages" element={<MessagesPage />} />
+            <Route path="bulletin" element={<BulletinPage />} />
             <Route path="kiosks" element={<KiosksPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
