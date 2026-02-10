@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
 import crypto from 'crypto';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireKiosk } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -10,6 +10,12 @@ const pairingCols = db.prepare("PRAGMA table_info(pairing_codes)").all();
 if (!pairingCols.find(col => col.name === 'kiosk_id')) {
   db.exec("ALTER TABLE pairing_codes ADD COLUMN kiosk_id INTEGER DEFAULT NULL");
   db.exec("ALTER TABLE pairing_codes ADD COLUMN kiosk_token TEXT DEFAULT NULL");
+}
+
+// Migration: add installed_apps column to kiosks if not present
+const kioskCols = db.prepare("PRAGMA table_info(kiosks)").all();
+if (!kioskCols.find(col => col.name === 'installed_apps')) {
+  db.exec("ALTER TABLE kiosks ADD COLUMN installed_apps TEXT DEFAULT NULL");
 }
 
 // POST /api/pairing/code — Kiosk generates a 5-digit pairing code
@@ -76,6 +82,46 @@ router.delete('/api/admin/kiosks/:id', requireAuth, (req, res) => {
   }
 
   res.status(204).end();
+});
+
+// POST /api/kiosk/installed-apps — Kiosk pushes its list of installed desktop apps
+router.post('/api/kiosk/installed-apps', requireKiosk, (req, res) => {
+  const { apps } = req.body;
+  if (!Array.isArray(apps)) {
+    return res.status(400).json({ error: 'apps must be an array' });
+  }
+
+  db.prepare('UPDATE kiosks SET installed_apps = ? WHERE id = ?').run(JSON.stringify(apps), req.kioskId);
+  res.json({ ok: true });
+});
+
+// GET /api/admin/installed-apps — Dashboard fetches installed apps from kiosks
+router.get('/api/admin/installed-apps', requireAuth, (req, res) => {
+  const kiosks = db.prepare(
+    'SELECT installed_apps FROM kiosks WHERE account_id = ? AND installed_apps IS NOT NULL ORDER BY created_at DESC'
+  ).all(req.accountId);
+
+  if (kiosks.length === 0) {
+    return res.json([]);
+  }
+
+  // Merge apps from all kiosks, deduplicating by exec command
+  const seen = new Set();
+  const merged = [];
+  for (const kiosk of kiosks) {
+    try {
+      const apps = JSON.parse(kiosk.installed_apps);
+      for (const app of apps) {
+        if (!seen.has(app.exec)) {
+          seen.add(app.exec);
+          merged.push(app);
+        }
+      }
+    } catch {}
+  }
+
+  merged.sort((a, b) => a.name.localeCompare(b.name));
+  res.json(merged);
 });
 
 export default router;

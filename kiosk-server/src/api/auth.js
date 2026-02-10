@@ -113,3 +113,8 @@ export async function deleteKiosk(id) {
   });
   return handleResponse(res);
 }
+
+export async function fetchInstalledApps() {
+  const res = await fetch('/api/admin/installed-apps', { headers: authHeaders() });
+  return handleResponse(res);
+}

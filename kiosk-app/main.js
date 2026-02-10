@@ -62,6 +62,109 @@ let killTimer = null;
 let currentSessionStart = null;
 let currentAppId = null;
 
+// Scan .desktop files to discover installed applications
+function scanInstalledApps() {
+  const os = require('os');
+  const dirs = [
+    '/usr/share/applications',
+    '/usr/local/share/applications',
+    path.join(os.homedir(), '.local/share/applications'),
+    '/var/lib/snapd/desktop/applications',
+    '/var/lib/flatpak/exports/share/applications',
+  ];
+
+  const apps = [];
+  for (const dir of dirs) {
+    let files;
+    try {
+      files = fs.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const file of files) {
+      if (!file.endsWith('.desktop')) continue;
+      try {
+        const content = fs.readFileSync(path.join(dir, file), 'utf-8');
+        const entry = parseDesktopEntry(content);
+        if (entry) apps.push(entry);
+      } catch {}
+    }
+  }
+
+  // Deduplicate by exec command, keeping first occurrence
+  const seen = new Set();
+  const unique = [];
+  for (const app of apps) {
+    if (!seen.has(app.exec)) {
+      seen.add(app.exec);
+      unique.push(app);
+    }
+  }
+
+  unique.sort((a, b) => a.name.localeCompare(b.name));
+  return unique;
+}
+
+function parseDesktopEntry(content) {
+  const lines = content.split('\n');
+  let inDesktopEntry = false;
+  const fields = {};
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '[Desktop Entry]') {
+      inDesktopEntry = true;
+      continue;
+    }
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      if (inDesktopEntry) break; // Done with [Desktop Entry] section
+      continue;
+    }
+    if (!inDesktopEntry) continue;
+
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim();
+    fields[key] = val;
+  }
+
+  // Filter out non-applications and hidden entries
+  if (fields.Type && fields.Type !== 'Application') return null;
+  if (fields.NoDisplay === 'true' || fields.Hidden === 'true') return null;
+  if (!fields.Name || !fields.Exec) return null;
+
+  // Strip field codes (%u, %f, %F, %U, etc.) from Exec
+  const exec = fields.Exec.replace(/%[a-zA-Z]/g, '').trim();
+
+  return {
+    name: fields.Name,
+    exec,
+    icon: fields.Icon || '',
+    categories: fields.Categories || '',
+  };
+}
+
+async function pushInstalledApps() {
+  if (!kioskToken) return;
+  try {
+    const apps = scanInstalledApps();
+    const apiBase = getApiBaseUrl();
+    const res = await fetch(`${apiBase}/api/kiosk/installed-apps`, {
+      method: 'POST',
+      headers: kioskHeaders(),
+      body: JSON.stringify({ apps }),
+    });
+    if (res.ok) {
+      console.log(`Pushed ${apps.length} installed apps to server`);
+    } else {
+      console.error('Failed to push installed apps:', res.status);
+    }
+  } catch (err) {
+    console.error('Failed to push installed apps:', err.message);
+  }
+}
+
 /**
  * Calculate remaining seconds for an app based on usage data.
  * This mirrors the logic in kiosk-server/src/utils/timeLimit.js
@@ -224,6 +327,7 @@ function createWindow() {
     console.log(`Loading menu: ${baseURL}/menu`);
     contentView.webContents.loadURL(`${baseURL}/test-content`);
     menuView.webContents.loadURL(`${baseURL}/menu`);
+    pushInstalledApps();
   } else {
     console.log('Not registered — waiting for pairing flow');
   }
@@ -356,6 +460,7 @@ async function startPairingFlow() {
         clearInterval(pollInterval);
         saveRegistration(data.kioskToken, data.kioskId);
         console.log('Kiosk paired successfully!');
+        pushInstalledApps();
         // Proceed to normal operation
         const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
         if (contentView) contentView.webContents.loadURL(`${baseURL}/test-content`);

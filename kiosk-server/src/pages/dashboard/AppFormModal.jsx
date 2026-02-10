@@ -5,6 +5,7 @@ import ConfigField from '../../components/ConfigField';
 import IconPicker from '../../components/IconPicker';
 import AppIcon from '../../components/AppIcon';
 import SearchableSelect from '../../components/SearchableSelect';
+import { fetchInstalledApps } from '../../api/auth';
 
 function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const { builtinApps } = useBuiltinApps();
@@ -24,6 +25,8 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [installedApps, setInstalledApps] = useState([]);
+  const [installedAppsLoaded, setInstalledAppsLoaded] = useState(false);
 
   useEffect(() => {
     if (app) {
@@ -43,6 +46,27 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
       });
     }
   }, [app]);
+
+  useEffect(() => {
+    if (formData.app_type === 'native' && !installedAppsLoaded) {
+      fetchInstalledApps()
+        .then((apps) => setInstalledApps(apps))
+        .catch(() => {})
+        .finally(() => setInstalledAppsLoaded(true));
+    }
+  }, [formData.app_type, installedAppsLoaded]);
+
+  const handleNativeAppSelect = (exec, opt) => {
+    const app = installedApps.find((a) => a.exec === exec);
+    if (app) {
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || app.name,
+        url: app.exec,
+        icon: prev.icon || app.icon,
+      }));
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -414,24 +438,58 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
               </div>
             )}
 
-            {/* Launch Command (for native type only) */}
+            {/* Native App Picker + Launch Command (for native type only) */}
             {formData.app_type === 'native' && (
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Launch Command
-                </label>
-                <input
-                  type="text"
-                  name="url"
-                  value={formData.url}
-                  onChange={handleChange}
-                  placeholder="e.g. gnome-calculator"
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
-                />
-                {errors.url && (
-                  <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
+              <>
+                {installedApps.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Installed Apps
+                    </label>
+                    <SearchableSelect
+                      options={installedApps.map((a) => ({
+                        value: a.exec,
+                        label: a.name,
+                        icon: a.icon,
+                        description: a.exec,
+                      }))}
+                      value={formData.url}
+                      onChange={handleNativeAppSelect}
+                      placeholder="Search installed apps..."
+                      renderSelected={(opt) => (
+                        <span className="text-white">{opt.label}</span>
+                      )}
+                      renderOption={(opt) => (
+                        <div>
+                          <div className="text-sm font-medium">{opt.label}</div>
+                          <div className="text-xs text-slate-400 font-mono">{opt.description}</div>
+                        </div>
+                      )}
+                    />
+                  </div>
                 )}
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Launch Command
+                  </label>
+                  <input
+                    type="text"
+                    name="url"
+                    value={formData.url}
+                    onChange={handleChange}
+                    placeholder="e.g. gnome-calculator"
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono"
+                  />
+                  {installedApps.length > 0 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Select from above or type a custom command.
+                    </p>
+                  )}
+                  {errors.url && (
+                    <p className="mt-1 text-red-400 text-sm">{errors.url}</p>
+                  )}
+                </div>
+              </>
             )}
 
             {/* Time Limits */}
