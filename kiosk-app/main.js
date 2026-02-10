@@ -444,10 +444,10 @@ function createWindow() {
 
   // Load URLs (skip if pairing mode — startPairingFlow will handle content)
   if (loadRegistration()) {
-    console.log(`Loading content: ${baseURL}/test-content`);
-    console.log(`Loading menu: ${baseURL}/menu`);
-    contentView.webContents.loadURL(`${baseURL}/test-content`);
-    menuView.webContents.loadURL(`${baseURL}/menu`);
+    console.log(`Loading content: ${baseURL}/kiosk/test-content`);
+    console.log(`Loading menu: ${baseURL}/kiosk/menu`);
+    contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
+    menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
     pushInstalledApps();
   } else {
     console.log('Not registered — waiting for pairing flow');
@@ -584,8 +584,8 @@ async function startPairingFlow() {
         pushInstalledApps();
         // Proceed to normal operation
         const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
-        if (contentView) contentView.webContents.loadURL(`${baseURL}/test-content`);
-        if (menuView) menuView.webContents.loadURL(`${baseURL}/menu`);
+        if (contentView) contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
+        if (menuView) menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
       }
     } catch (err) {
       console.error('Pairing poll error:', err.message);

@@ -16,7 +16,7 @@ export default function ProfileSelect() {
 
   const handleSelect = async (id) => {
     await setActiveProfile(id);
-    navigate('/test-content');
+    navigate('/kiosk/test-content');
   };
 
   if (loading) {

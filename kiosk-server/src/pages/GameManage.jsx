@@ -60,7 +60,7 @@ function GameManage() {
   };
 
   const handleBack = () => {
-    const url = '/builtin/gamecreator';
+    const url = '/kiosk/builtin/gamecreator';
     if (window.kiosk?.content?.loadURL) {
       window.kiosk.content.loadURL(url);
     } else {

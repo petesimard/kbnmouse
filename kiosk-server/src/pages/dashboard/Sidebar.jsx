@@ -110,7 +110,7 @@ export default function Sidebar({ logout, profiles = [], dashboardProfileId, set
   const sidebarContent = (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-slate-700">
-        <h1 className="text-lg font-bold text-white">Parent Dashboard</h1>
+        <h1 className="text-lg font-bold text-white">kbnmouse</h1>
       </div>
 
       {/* Profile selector */}
@@ -144,7 +144,7 @@ export default function Sidebar({ logout, profiles = [], dashboardProfileId, set
 
       <div className="p-3 border-t border-slate-700 space-y-1">
         <a
-          href="/menu"
+          href="/kiosk/menu"
           className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -211,7 +211,7 @@ export default function AuthGate({ auth }) {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-sm">
           <h1 className="text-2xl font-bold text-white text-center mb-2">Create Account</h1>
-          <p className="text-slate-400 text-center mb-6 text-sm">Set up your parent account to manage this kiosk</p>
+          <p className="text-slate-400 text-center mb-6 text-sm">Set up your parent account for kbnmouse</p>
           <form onSubmit={handleRegister}>
             <div className="space-y-4">
               <input
@@ -258,7 +258,7 @@ export default function AuthGate({ auth }) {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center">
       <div className="bg-slate-800 p-8 rounded-2xl shadow-xl w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-white text-center mb-2">Parent Dashboard</h1>
+        <h1 className="text-2xl font-bold text-white text-center mb-2">kbnmouse</h1>
         <p className="text-slate-400 text-center mb-6 text-sm">Sign in to continue</p>
         <form onSubmit={handleLogin}>
           <div className="space-y-4">

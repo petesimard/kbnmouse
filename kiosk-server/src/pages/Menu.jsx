@@ -91,7 +91,7 @@ function Menu() {
     loadedProfileSelectRef.current = true;
 
     if (window.kiosk?.content?.loadURL) {
-      window.kiosk.content.loadURL('/profiles');
+      window.kiosk.content.loadURL('/kiosk/profiles');
     }
   }, [needsProfileSelection]);
 
@@ -314,7 +314,7 @@ function Menu() {
         setTimeLimitError(true);
         setTimeout(() => setTimeLimitError(false), 5000);
         if (window.kiosk?.content?.loadURL) {
-          window.kiosk.content.loadURL('/builtin/home');
+          window.kiosk.content.loadURL('/kiosk/builtin/home');
         }
         // Flush the session that just expired
         const s = sessionRef.current;
@@ -440,7 +440,7 @@ function Menu() {
     // Determine the URL based on app type
     let url = app.url;
     if (app.app_type === 'builtin') {
-      url = `/builtin/${app.url}`;
+      url = `/kiosk/builtin/${app.url}`;
       activeBuiltinRef.current = app.url;
     } else {
       activeBuiltinRef.current = null;
@@ -474,9 +474,9 @@ function Menu() {
     flushSession();
     setTimeWarning(false);
     if (hasKiosk) {
-      window.kiosk.content.loadURL('/builtin/home');
+      window.kiosk.content.loadURL('/kiosk/builtin/home');
     } else {
-      window.location.href = '/builtin/home';
+      window.location.href = '/kiosk/builtin/home';
     }
   };
 
@@ -491,7 +491,7 @@ function Menu() {
     setTimeWarning(false);
     clearProfile();
     if (window.kiosk?.content?.loadURL) {
-      window.kiosk.content.loadURL('/profiles');
+      window.kiosk.content.loadURL('/kiosk/profiles');
     }
   };
 

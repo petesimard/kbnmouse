@@ -220,7 +220,7 @@ export default function SettingsPage() {
                 type="email"
                 value={resendFromEmail ?? ''}
                 onChange={(e) => setResendFromEmail(e.target.value)}
-                placeholder="Kiosk <noreply@yourdomain.com>"
+                placeholder="kbnmouse <noreply@yourdomain.com>"
                 className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
               />
               <p className="text-xs text-slate-500 mt-1">

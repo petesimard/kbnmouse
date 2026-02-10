@@ -25,9 +25,10 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <ProfileProvider>
         <Routes>
-          <Route path="/menu" element={<Menu />} />
-          <Route path="/profiles" element={<ProfileSelect />} />
-          <Route path="/test-content" element={<TestContent />} />
+          <Route path="/kiosk/menu" element={<Menu />} />
+          <Route path="/kiosk/profiles" element={<ProfileSelect />} />
+          <Route path="/kiosk/test-content" element={<TestContent />} />
+          <Route path="/kiosk" element={<Navigate to="/kiosk/test-content" replace />} />
           <Route path="/dashboard" element={<Dashboard />}>
             <Route index element={<AppsPage />} />
             <Route path="challenges" element={<ChallengesPage />} />
@@ -41,9 +42,9 @@ createRoot(document.getElementById('root')).render(
           <Route path="/game/:id" element={<GameManage />} />
           {getBuiltinApps().map(({ key }) => {
             const Component = builtinComponents[key]
-            return Component ? <Route key={key} path={`/builtin/${key}`} element={<Component />} /> : null
+            return Component ? <Route key={key} path={`/kiosk/builtin/${key}`} element={<Component />} /> : null
           })}
-          <Route path="/" element={<Navigate to="/test-content" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </ProfileProvider>
     </BrowserRouter>

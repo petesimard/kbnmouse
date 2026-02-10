@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 
 function TestContent() {
-  return <Navigate to="/builtin/home" replace />;
+  return <Navigate to="/kiosk/builtin/home" replace />;
 }
 
 export default TestContent;
