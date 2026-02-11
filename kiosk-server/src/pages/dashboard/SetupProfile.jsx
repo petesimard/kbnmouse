@@ -1,7 +1,16 @@
 import { useState } from 'react';
 import { createProfile } from '../../api/profiles';
 
-const EMOJI_OPTIONS = ['👧', '👦', '👶', '🧒', '👸', '🤴', '🦸', '🧙', '🐱', '🐶', '🦊', '🐼', '🐸', '🦄', '🐝', '👤'];
+const EMOJI_OPTIONS = [
+  // People
+  '👧', '👦', '👶', '🧒', '👦🏻', '👧🏽', '👶🏾', '🧑', '👩', '👨', '👩‍🦱', '👨‍🦱', '👩‍🦰', '👨‍🦰', '👩‍🦳', '👨‍🦳', '👩‍🦲', '👨‍🦲', '👩‍🎓', '👨‍🎓',
+  '👸', '🤴', '🤱', '🧑‍🍼', '🧓', '👵', '👴', '🧙', '🦸', '🦹', '🧝', '🧚', '🧜', '🧞', '🧟', '🧑‍🚀', '🧑‍⚕️', '🧑‍🔬', '🧑‍🏫', '🧑‍🎤', '🧑‍💻', 
+  // Animals
+  '🐱', '🐶', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🦄', '🦓', '🦒', '🦌', '🐔', '🐣', '🦉', '🦜',
+  '🐢', '🐍', '🐬', '🐳', '🐠', '🦋', 
+  // Fantasy/Other
+  '👤', '👽', '🤖', '👾', '🎃', '👻', '💀', '☠️', '👹', '👺',
+];
 
 export default function SetupProfile({ onProfileCreated }) {
   const [formData, setFormData] = useState({ name: '', icon: '👧' });
@@ -37,7 +46,7 @@ export default function SetupProfile({ onProfileCreated }) {
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-3">Welcome to kbnmouse!</h1>
           <p className="text-slate-400">
@@ -71,7 +80,7 @@ export default function SetupProfile({ onProfileCreated }) {
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Icon
               </label>
-              <div className="grid grid-cols-8 gap-2 mb-2">
+              <div className="grid grid-cols-10 gap-2 mb-2">
                 {EMOJI_OPTIONS.map((emoji) => (
                   <button
                     key={emoji}
