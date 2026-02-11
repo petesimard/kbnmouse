@@ -8,26 +8,29 @@ import { requireAuth, requireKiosk } from '../middleware/auth.js';
 
 const router = Router();
 
-// Rate limiting for pairing status polling
-const statusAttempts = new Map();
+// Rate limiting for pairing endpoints
+const rateLimitMaps = { status: new Map(), codeGen: new Map() };
 const RATE_WINDOW_MS = 60_000;
 const MAX_STATUS_CHECKS = 30;
+const MAX_CODE_GENS = 6;
 
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, attempts] of statusAttempts) {
-    const recent = attempts.filter(t => now - t < RATE_WINDOW_MS);
-    if (recent.length === 0) statusAttempts.delete(ip);
-    else statusAttempts.set(ip, recent);
+  for (const map of Object.values(rateLimitMaps)) {
+    for (const [ip, attempts] of map) {
+      const recent = attempts.filter(t => now - t < RATE_WINDOW_MS);
+      if (recent.length === 0) map.delete(ip);
+      else map.set(ip, recent);
+    }
   }
 }, 5 * 60_000);
 
-function checkStatusRateLimit(ip) {
+function checkRateLimit(map, ip, max) {
   const now = Date.now();
-  const attempts = (statusAttempts.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS);
-  if (attempts.length >= MAX_STATUS_CHECKS) return false;
+  const attempts = (map.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS);
+  if (attempts.length >= max) return false;
   attempts.push(now);
-  statusAttempts.set(ip, attempts);
+  map.set(ip, attempts);
   return true;
 }
 
@@ -36,6 +39,10 @@ const pairingCols = db.prepare("PRAGMA table_info(pairing_codes)").all();
 if (!pairingCols.find(col => col.name === 'kiosk_id')) {
   db.exec("ALTER TABLE pairing_codes ADD COLUMN kiosk_id INTEGER DEFAULT NULL");
   db.exec("ALTER TABLE pairing_codes ADD COLUMN kiosk_token TEXT DEFAULT NULL");
+}
+// Migration: add claim_secret column for secure polling
+if (!pairingCols.find(col => col.name === 'claim_secret')) {
+  db.exec("ALTER TABLE pairing_codes ADD COLUMN claim_secret TEXT DEFAULT NULL");
 }
 
 // Migration: add installed_apps column to kiosks if not present
@@ -46,15 +53,20 @@ if (!kioskCols.find(col => col.name === 'installed_apps')) {
 
 // POST /api/pairing/code — Kiosk generates a 5-digit pairing code
 router.post('/api/pairing/code', (req, res) => {
+  if (!checkRateLimit(rateLimitMaps.codeGen, req.ip, MAX_CODE_GENS)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
   const code = String(Math.floor(10000 + Math.random() * 90000));
+  const claimSecret = crypto.randomBytes(32).toString('hex');
   const expires_at = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
   // Clean up expired codes
   db.prepare('DELETE FROM pairing_codes WHERE expires_at < ?').run(new Date().toISOString());
 
-  db.prepare('INSERT INTO pairing_codes (code, expires_at, claimed) VALUES (?, ?, 0)').run(code, expires_at);
+  db.prepare('INSERT INTO pairing_codes (code, expires_at, claimed, claim_secret) VALUES (?, ?, 0, ?)').run(code, expires_at, claimSecret);
 
-  res.json({ code, expires_at });
+  res.json({ code, claimSecret, expires_at });
 });
 
 // POST /api/pairing/claim — Dashboard claims a code and registers a kiosk
@@ -78,13 +90,18 @@ router.post('/api/pairing/claim', requireAuth, (req, res) => {
   res.json({ kioskId: Number(kioskId), kioskToken });
 });
 
-// GET /api/pairing/status/:code — Kiosk polls for claim result
+// GET /api/pairing/status/:code — Kiosk polls for claim result (requires claim_secret)
 router.get('/api/pairing/status/:code', (req, res) => {
-  if (!checkStatusRateLimit(req.ip)) {
+  if (!checkRateLimit(rateLimitMaps.status, req.ip, MAX_STATUS_CHECKS)) {
     return res.status(429).json({ error: 'Too many requests' });
   }
 
-  const row = db.prepare('SELECT * FROM pairing_codes WHERE code = ?').get(req.params.code);
+  const secret = req.query.secret;
+  if (!secret) {
+    return res.status(400).json({ error: 'secret query param is required' });
+  }
+
+  const row = db.prepare('SELECT * FROM pairing_codes WHERE code = ? AND claim_secret = ?').get(req.params.code, secret);
 
   if (!row) {
     return res.status(404).json({ error: 'Pairing code not found' });

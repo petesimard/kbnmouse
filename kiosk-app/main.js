@@ -636,12 +636,13 @@ async function startPairingFlow() {
     <p class="pulse">Connecting to server...</p>
   `);
 
-  let code;
+  let code, claimSecret;
   try {
     const res = await fetch(`${apiBase}/api/pairing/code`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     code = data.code;
+    claimSecret = data.claimSecret;
   } catch (err) {
     console.error('Failed to get pairing code:', err.message);
     showPairingScreen(`
@@ -664,7 +665,7 @@ async function startPairingFlow() {
   // Poll for claim every 3 seconds
   const pollInterval = setInterval(async () => {
     try {
-      const res = await fetch(`${apiBase}/api/pairing/status/${code}`);
+      const res = await fetch(`${apiBase}/api/pairing/status/${code}?secret=${claimSecret}`);
       const data = await res.json();
       if (data.claimed && data.kioskToken) {
         clearInterval(pollInterval);

@@ -61,10 +61,11 @@ app.use(messagesRouter);
 app.use(bulletinRouter);
 
 // Serve static game files at /customgames/:id/
+// Requires auth — games are account-scoped, not public
 // When ?kiosk=1 is present, inject an overlay Back button into HTML files
 const gamesDir = join(__dirname, '..', 'data', 'games');
 const gamesStatic = express.static(gamesDir);
-app.use('/customgames', (req, res, next) => {
+app.use('/customgames', requireAnyAuth, (req, res, next) => {
   if (!req.query.kiosk || !/\.html?$/i.test(req.path)) {
     return gamesStatic(req, res, next);
   }

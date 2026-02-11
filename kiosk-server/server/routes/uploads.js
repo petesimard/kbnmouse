@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import db from '../db.js';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join, resolve, extname } from 'node:path';
@@ -12,6 +13,15 @@ const UPLOADS_DIR = resolve('data/uploads');
 if (!existsSync(UPLOADS_DIR)) {
   mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+
+// Migration: create uploads tracking table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS uploads (
+    filename TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
 // POST /api/admin/uploads - Upload an image (base64 in JSON body)
 router.post('/api/admin/uploads', requireAuth, (req, res) => {
@@ -43,17 +53,24 @@ router.post('/api/admin/uploads', requireAuth, (req, res) => {
   const filePath = join(UPLOADS_DIR, uniqueName);
 
   writeFileSync(filePath, buffer);
+  db.prepare('INSERT INTO uploads (filename, account_id) VALUES (?, ?)').run(uniqueName, req.accountId);
 
   res.json({ path: `/api/uploads/${uniqueName}` });
 });
 
-// GET /api/uploads/:filename - Serve uploaded files (public)
+// GET /api/uploads/:filename - Serve uploaded files (account-scoped)
 router.get('/api/uploads/:filename', (req, res) => {
   const filename = req.params.filename;
 
   // Prevent directory traversal
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return res.status(400).json({ error: 'Invalid filename' });
+  }
+
+  // Verify the file belongs to this account (or is a legacy upload with no tracking)
+  const upload = db.prepare('SELECT account_id FROM uploads WHERE filename = ?').get(filename);
+  if (upload && upload.account_id !== req.accountId) {
+    return res.status(404).json({ error: 'File not found' });
   }
 
   const filePath = join(UPLOADS_DIR, filename);
