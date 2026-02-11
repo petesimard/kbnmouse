@@ -21,6 +21,7 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+
 // Kiosk registration (pairing) persistence
 const registrationPath = path.join(__dirname, 'data', 'kiosk-registration.json');
 let kioskToken = null;
