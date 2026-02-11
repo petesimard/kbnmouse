@@ -29,6 +29,8 @@ On boot, LightDM auto-logs in as a non-admin user, starts an Openbox session, an
 - **OS:** Linux with X11 — Debian/Ubuntu, Fedora/RHEL, Arch, openSUSE (and derivatives)
 - **Node.js:** 18+ (auto-installed from distro repos if missing)
 
+Don't have Linux installed? [Linux Mint](https://linuxmint.com/edition.php?id=326) is a great choice — it's beginner-friendly, runs well on older hardware, and is fully compatible with kbnmouse.
+
 The script requires root — it installs system packages, configures LightDM autologin, and sets up the kiosk X session. It will:
 
 1. Check prerequisites (git, Node.js 18+, npm)

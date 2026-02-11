@@ -1,5 +1,5 @@
 {
-  "url": "http://peteZenbook:3000",
+  "url": "http://dashboard.kbnmouse.com:3000",
   "useBuiltInServer": false,
   "builtInServerPort": 3000,
   "hotReloadWatch": "./public"

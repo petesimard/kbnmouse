@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { app, BrowserWindow, BrowserView, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -400,6 +401,7 @@ function createWindow() {
     width: isDev ? 1280 : undefined,
     height: isDev ? 800 : undefined,
     autoHideMenuBar: true,
+    backgroundColor: '#0f172a',
     frame: isDev, // Show frame in dev for easier debugging
     webPreferences: {
       nodeIntegration: false,
@@ -441,14 +443,11 @@ function createWindow() {
   mainWindow.addBrowserView(menuView);
   menuView.setBounds({ x: 0, y: contentHeight, width: winWidth, height: menuHeight });
   menuView.setAutoResize({ width: true, height: false });
+  menuView.webContents.loadURL('data:text/html,<html><body style="margin:0;background:#0f172a"></body></html>');
 
   // Load URLs (skip if pairing mode — startPairingFlow will handle content)
   if (loadRegistration()) {
-    console.log(`Loading content: ${baseURL}/kiosk/test-content`);
-    console.log(`Loading menu: ${baseURL}/kiosk/menu`);
-    contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
-    menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
-    pushInstalledApps();
+    startupConnect();
   } else {
     console.log('Not registered — waiting for pairing flow');
   }
@@ -535,6 +534,67 @@ function showPairingScreen(message) {
   if (contentView) {
     contentView.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
   }
+}
+
+function showStartupScreen(html) {
+  const page = `
+    <html>
+    <head><style>
+      body { font-family: -apple-system, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0f172a; color: #e2e8f0; }
+      .container { text-align: center; }
+      h1 { font-size: 28px; margin-bottom: 8px; color: #e2e8f0; font-weight: 600; }
+      p { color: #94a3b8; font-size: 16px; max-width: 400px; margin: 0 auto; line-height: 1.6; }
+      .spinner { width: 48px; height: 48px; border: 4px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .error-msg { background: #1e293b; border: 1px solid #475569; border-radius: 8px; padding: 12px 20px; margin: 16px auto; max-width: 480px; font-family: monospace; font-size: 13px; color: #f87171; word-break: break-word; }
+      button { margin-top: 24px; padding: 12px 32px; border: none; border-radius: 8px; background: #38bdf8; color: #0f172a; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+      button:hover { background: #7dd3fc; }
+    </style></head>
+    <body><div class="container">${html}</div></body>
+    </html>`;
+  if (contentView) {
+    contentView.webContents.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page));
+  }
+}
+
+async function startupConnect() {
+  const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
+  const apiBase = getApiBaseUrl();
+
+  showStartupScreen(`
+    <div class="spinner"></div>
+    <h1>Connecting</h1>
+    <p>Reaching server...</p>
+  `);
+
+  try {
+    const res = await fetch(`${apiBase}/api/auth/status`, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    await res.json();
+  } catch (err) {
+    console.error(`Startup connection failed (${apiBase}/api/auth/status):`, err.message);
+    showStartupScreen(`
+      <h1>Connection Failed</h1>
+      <div class="error-msg">${err.message}</div>
+      <p>Could not reach the kiosk server.</p>
+      <button onclick="console.log('__KIOSK_RETRY__')">Retry</button>
+    `);
+    // Listen for retry click
+    const handler = (_event, _level, message) => {
+      if (message === '__KIOSK_RETRY__') {
+        contentView.webContents.removeListener('console-message', handler);
+        startupConnect();
+      }
+    };
+    if (contentView) contentView.webContents.on('console-message', handler);
+    return;
+  }
+
+  console.log(`Loading content: ${baseURL}/kiosk/test-content`);
+  console.log(`Loading menu: ${baseURL}/kiosk/menu`);
+  contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
+  menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
+  pushInstalledApps();
 }
 
 // Show pairing code on the content view and poll for claim
@@ -877,6 +937,6 @@ ipcMain.handle('content:reload', async () => {
 ipcMain.handle('whitelist:set', async (event, domains) => {
   if (!Array.isArray(domains)) return { success: false, error: 'domains must be an array' };
   allowedDomains = domains.map((d) => stripWww(String(d).toLowerCase()));
-  console.log('Whitelist updated:', allowedDomains);
+  //console.log('Whitelist updated:', allowedDomains);
   return { success: true };
 });

@@ -9,6 +9,7 @@
     "start:external": "KIOSK_USE_BUILT_IN_SERVER=false electron ."
   },
   "dependencies": {
+    "dotenv": "^17.2.4",
     "electron-reload": "^2.0.0-alpha.1",
     "express": "^4.18.2"
   },
