@@ -76,6 +76,7 @@ router.post('/api/auth/magic-link', async (req, res) => {
       to: account.email,
       subject: 'Your login link',
       html: `<p>Click <a href="${link}">here</a> to log in to your Kiosk dashboard.</p><p>This link expires in 15 minutes.</p>`,
+      accountId: account.id,
     });
   } catch (err) {
     console.error('Failed to send magic link email:', err);
@@ -127,6 +128,7 @@ router.post('/api/auth/forgot-password', async (req, res) => {
       to: account.email,
       subject: 'Reset your password',
       html: `<p>Click <a href="${link}">here</a> to reset your Kiosk dashboard password.</p><p>This link expires in 15 minutes.</p>`,
+      accountId: account.id,
     });
   } catch (err) {
     console.error('Failed to send password reset email:', err);

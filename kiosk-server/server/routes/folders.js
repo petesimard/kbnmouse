@@ -55,12 +55,15 @@ router.get('/api/admin/folders', requireAuth, (req, res) => {
 
 // POST /api/admin/folders - Create folder
 router.post('/api/admin/folders', requireAuth, (req, res) => {
-  const { name, icon = '📁', color = '#6366f1', sort_order, profile_id = null } = req.body;
+  const { name, icon = '📁', color = '#6366f1', sort_order, profile_id } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
-  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
@@ -116,7 +119,7 @@ router.put('/api/admin/folders/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'Folder not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Folder not found' });
   }
 
@@ -142,7 +145,7 @@ router.delete('/api/admin/folders/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'Folder not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Folder not found' });
   }
 

@@ -1,9 +1,17 @@
 import { Router } from 'express';
-import db from '../db.js';
+import db, { getSetting, setSetting } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
+
+const ALLOWED_SETTINGS_KEYS = new Set([
+  'openai_api_key',
+  'openai_endpoint_url',
+  'resend_api_key',
+  'resend_from_email',
+  'google_api_key',
+]);
 
 // POST /api/admin/bonus-time - Manually add bonus time
 router.post('/api/admin/bonus-time', requireAuth, (req, res) => {
@@ -11,39 +19,32 @@ router.post('/api/admin/bonus-time', requireAuth, (req, res) => {
   if (!minutes || minutes < 1) {
     return res.status(400).json({ error: 'minutes is required and must be at least 1' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
-  // Verify profile belongs to this account
-  if (profile_id) {
-    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
-    }
+  const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+  if (!profile) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   db.prepare(
     'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at, profile_id) VALUES (?, ?, ?, ?)'
-  ).run('parent_bonus', minutes, new Date().toISOString(), profile_id || null);
+  ).run('parent_bonus', minutes, new Date().toISOString(), profile_id);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  let result;
-  if (profile_id) {
-    result = db.prepare(
-      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
-    ).get(todayStart, profile_id);
-  } else {
-    result = db.prepare(
-      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-    ).get(todayStart);
-  }
+  const result = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+  ).get(todayStart, profile_id);
 
   broadcastRefresh();
   res.json({ success: true, today_bonus_minutes: result.total });
 });
 
-// GET /api/admin/settings - Get all settings
+// GET /api/admin/settings - Get all settings for this account
 router.get('/api/admin/settings', requireAuth, (req, res) => {
-  const rows = db.prepare("SELECT key, value FROM settings").all();
+  const rows = db.prepare("SELECT key, value FROM settings WHERE account_id = ?").all(req.accountId);
   const settings = {};
   for (const row of rows) {
     settings[row.key] = row.value;
@@ -51,19 +52,18 @@ router.get('/api/admin/settings', requireAuth, (req, res) => {
   res.json(settings);
 });
 
-// PUT /api/admin/settings - Upsert settings key/value pairs
+// PUT /api/admin/settings - Upsert settings key/value pairs (allowlisted keys only)
 router.put('/api/admin/settings', requireAuth, (req, res) => {
   const settings = req.body;
 
-  const upsert = db.prepare(
-    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
-  );
-  const transaction = db.transaction((entries) => {
-    for (const [key, value] of entries) {
-      upsert.run(key, String(value));
-    }
-  });
-  transaction(Object.entries(settings));
+  const invalidKeys = Object.keys(settings).filter(k => !ALLOWED_SETTINGS_KEYS.has(k));
+  if (invalidKeys.length > 0) {
+    return res.status(400).json({ error: `Invalid settings keys: ${invalidKeys.join(', ')}` });
+  }
+
+  for (const [key, value] of Object.entries(settings)) {
+    setSetting(key, value, req.accountId);
+  }
 
   res.json({ success: true });
 });

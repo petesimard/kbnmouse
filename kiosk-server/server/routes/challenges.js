@@ -48,52 +48,43 @@ router.get('/api/challenges', (req, res) => {
 
 // POST /api/challenges/complete - Record challenge completion
 router.post('/api/challenges/complete', (req, res) => {
-  const { challenge_type, minutes_awarded, challenge_id, profile_id } = req.body;
-  if (!challenge_type || minutes_awarded == null) {
-    return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
+  const { challenge_id, profile_id } = req.body;
+  if (!challenge_id || !profile_id) {
+    return res.status(400).json({ error: 'challenge_id and profile_id are required' });
   }
 
   // Verify profile belongs to this account
-  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
+  // Look up challenge — must exist and belong to this profile
+  const challenge = db.prepare('SELECT * FROM challenges WHERE id = ? AND profile_id = ?').get(challenge_id, profile_id);
+  if (!challenge) {
+    return res.status(404).json({ error: 'Challenge not found' });
+  }
+
   // Check max_completions_per_day limit
-  if (challenge_id) {
-    const challenge = db.prepare('SELECT max_completions_per_day, profile_id FROM challenges WHERE id = ?').get(challenge_id);
-    if (challenge) {
-      // Verify challenge's profile belongs to this account
-      if (challenge.profile_id && !verifyProfileOwnership(challenge.profile_id, req.accountId)) {
-        return res.status(404).json({ error: 'Challenge not found' });
-      }
-      if (challenge.max_completions_per_day > 0) {
-        const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
-        const todayCount = db.prepare(
-          'SELECT COUNT(*) as count FROM challenge_completions WHERE challenge_type = ? AND profile_id = ? AND completed_at >= ?'
-        ).get(challenge_type, challenge.profile_id, todayStart);
-        if (todayCount.count >= challenge.max_completions_per_day) {
-          return res.status(400).json({ error: 'Daily completion limit reached for this challenge' });
-        }
-      }
+  if (challenge.max_completions_per_day > 0) {
+    const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
+    const todayCount = db.prepare(
+      'SELECT COUNT(*) as count FROM challenge_completions WHERE challenge_type = ? AND profile_id = ? AND completed_at >= ?'
+    ).get(challenge.challenge_type, profile_id, todayStart);
+    if (todayCount.count >= challenge.max_completions_per_day) {
+      return res.status(400).json({ error: 'Daily completion limit reached for this challenge' });
     }
   }
 
+  // Use server-side reward_minutes — never trust client-provided value
   db.prepare(
     'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at, profile_id) VALUES (?, ?, ?, ?)'
-  ).run(challenge_type, minutes_awarded, new Date().toISOString(), profile_id || null);
+  ).run(challenge.challenge_type, challenge.reward_minutes, new Date().toISOString(), profile_id);
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  let result;
-  if (profile_id) {
-    result = db.prepare(
-      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
-    ).get(todayStart, profile_id);
-  } else {
-    result = db.prepare(
-      'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ?'
-    ).get(todayStart);
-  }
+  const result = db.prepare(
+    'SELECT COALESCE(SUM(minutes_awarded), 0) as total FROM challenge_completions WHERE completed_at >= ? AND profile_id = ?'
+  ).get(todayStart, profile_id);
 
   broadcastRefresh();
   res.json({ success: true, today_bonus_minutes: result.total });
@@ -153,12 +144,15 @@ router.get('/api/admin/challenges', requireAuth, (req, res) => {
 
 // POST /api/admin/challenges - Create new challenge
 router.post('/api/admin/challenges', requireAuth, (req, res) => {
-  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null, max_completions_per_day = 0 } = req.body;
+  const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id, max_completions_per_day = 0 } = req.body;
   if (!name || !icon || !challenge_type) {
     return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
-  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
@@ -222,7 +216,7 @@ router.put('/api/admin/challenges/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
 
@@ -254,7 +248,7 @@ router.delete('/api/admin/challenges/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
 

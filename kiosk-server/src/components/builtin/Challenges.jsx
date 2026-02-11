@@ -85,16 +85,14 @@ function Challenges() {
     fetchData();
   }, [fetchData]);
 
-  const handleComplete = useCallback(async (challengeType, minutesAwarded) => {
+  const handleComplete = useCallback(async () => {
     try {
       const res = await fetch('/api/challenges/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          challenge_type: challengeType,
-          minutes_awarded: minutesAwarded,
           challenge_id: activeChallenge?.id,
-          profile_id: profileId || null,
+          profile_id: profileId,
         }),
       });
       const data = await res.json();

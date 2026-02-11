@@ -8,6 +8,29 @@ import { requireAuth, requireKiosk } from '../middleware/auth.js';
 
 const router = Router();
 
+// Rate limiting for pairing status polling
+const statusAttempts = new Map();
+const RATE_WINDOW_MS = 60_000;
+const MAX_STATUS_CHECKS = 30;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, attempts] of statusAttempts) {
+    const recent = attempts.filter(t => now - t < RATE_WINDOW_MS);
+    if (recent.length === 0) statusAttempts.delete(ip);
+    else statusAttempts.set(ip, recent);
+  }
+}, 5 * 60_000);
+
+function checkStatusRateLimit(ip) {
+  const now = Date.now();
+  const attempts = (statusAttempts.get(ip) || []).filter(t => now - t < RATE_WINDOW_MS);
+  if (attempts.length >= MAX_STATUS_CHECKS) return false;
+  attempts.push(now);
+  statusAttempts.set(ip, attempts);
+  return true;
+}
+
 // Migration: add kiosk columns to pairing_codes if not present
 const pairingCols = db.prepare("PRAGMA table_info(pairing_codes)").all();
 if (!pairingCols.find(col => col.name === 'kiosk_id')) {
@@ -57,6 +80,10 @@ router.post('/api/pairing/claim', requireAuth, (req, res) => {
 
 // GET /api/pairing/status/:code — Kiosk polls for claim result
 router.get('/api/pairing/status/:code', (req, res) => {
+  if (!checkStatusRateLimit(req.ip)) {
+    return res.status(429).json({ error: 'Too many requests' });
+  }
+
   const row = db.prepare('SELECT * FROM pairing_codes WHERE code = ?').get(req.params.code);
 
   if (!row) {

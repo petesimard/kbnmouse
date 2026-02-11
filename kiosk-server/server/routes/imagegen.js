@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import db from '../db.js';
+import { getSetting } from '../db.js';
 
 const router = Router();
 
@@ -15,18 +16,19 @@ router.post('/generate', async (req, res) => {
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (appRecord.profile_id) {
-    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(appRecord.profile_id, req.accountId);
-    if (!profile) {
-      return res.status(404).json({ error: 'App not found' });
-    }
+  if (!appRecord.profile_id) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+  const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(appRecord.profile_id, req.accountId);
+  if (!profile) {
+    return res.status(404).json({ error: 'App not found' });
   }
 
   const config = JSON.parse(appRecord.config || '{}');
 
   // Resolve API key and endpoint: per-app config overrides global settings
-  const globalApiKey = db.prepare("SELECT value FROM settings WHERE key = 'openai_api_key'").get()?.value;
-  const globalEndpoint = db.prepare("SELECT value FROM settings WHERE key = 'openai_endpoint_url'").get()?.value;
+  const globalApiKey = getSetting('openai_api_key', req.accountId);
+  const globalEndpoint = getSetting('openai_endpoint_url', req.accountId);
 
   const apiKey = config.openai_api_key || globalApiKey;
   const endpointUrl = config.openai_endpoint_url || globalEndpoint;

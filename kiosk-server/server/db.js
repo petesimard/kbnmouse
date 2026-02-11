@@ -100,11 +100,13 @@ db.exec(`
   )
 `);
 
-// Create settings table
+// Create settings table (account-scoped)
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    account_id INTEGER NOT NULL,
+    UNIQUE(key, account_id)
   )
 `);
 
@@ -348,6 +350,54 @@ if (pinCount.count === 0) {
     'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color) VALUES (?, ?, ?, ?, ?, ?)'
   ).run('message', 'Click the icons below to explore, or post your own note on this board for everyone to see!', 50, 45, -2, '#fef08a');
   console.log('Seeded default bulletin board pin');
+}
+
+// --- Migration: make settings account-scoped ---
+const settingsCols = db.prepare("PRAGMA table_info(settings)").all();
+if (!settingsCols.find(col => col.name === 'account_id')) {
+  // Save existing settings (skip active_profile — it's transient)
+  const oldSettings = db.prepare("SELECT key, value FROM settings WHERE key != 'active_profile'").all();
+
+  // Recreate table with account_id
+  db.exec('DROP TABLE settings');
+  db.exec(`
+    CREATE TABLE settings (
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      account_id INTEGER NOT NULL,
+      UNIQUE(key, account_id)
+    )
+  `);
+
+  // Copy settings to all existing accounts
+  const allAccounts = db.prepare('SELECT id FROM accounts').all();
+  if (allAccounts.length > 0 && oldSettings.length > 0) {
+    const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value, account_id) VALUES (?, ?, ?)');
+    for (const account of allAccounts) {
+      for (const setting of oldSettings) {
+        insertSetting.run(setting.key, setting.value, account.id);
+      }
+    }
+  }
+
+  console.log('Migrated settings table to account-scoped');
+}
+
+// --- Settings helpers ---
+
+export function getSetting(key, accountId) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ? AND account_id = ?').get(key, accountId);
+  return row?.value ?? null;
+}
+
+export function setSetting(key, value, accountId) {
+  db.prepare(
+    'INSERT INTO settings (key, value, account_id) VALUES (?, ?, ?) ON CONFLICT(key, account_id) DO UPDATE SET value = excluded.value'
+  ).run(key, String(value), accountId);
+}
+
+export function deleteSetting(key, accountId) {
+  db.prepare('DELETE FROM settings WHERE key = ? AND account_id = ?').run(key, accountId);
 }
 
 export default db;

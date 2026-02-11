@@ -44,7 +44,7 @@ router.get('/api/apps/:id/usage', (req, res) => {
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (appRecord.profile_id && !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
+  if (!appRecord.profile_id || !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 
@@ -91,7 +91,7 @@ router.post('/api/apps/:id/usage', (req, res) => {
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (appRecord.profile_id && !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
+  if (!appRecord.profile_id || !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 

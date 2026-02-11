@@ -50,18 +50,19 @@ router.post('/api/bulletin', (req, res) => {
   if (!pin_type || !content || x == null || y == null) {
     return res.status(400).json({ error: 'pin_type, content, x, y are required' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
   // Verify profile belongs to this account
-  if (profile_id) {
-    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
-    }
+  const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+  if (!profile) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   const result = db.prepare(
     'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color, profile_id, is_parent) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
-  ).run(pin_type, content, x, y, rotation || 0, color || '#fef08a', profile_id || null);
+  ).run(pin_type, content, x, y, rotation || 0, color || '#fef08a', profile_id);
 
   const pin = getEnrichedPin(result.lastInsertRowid);
   broadcastBulletinPin('add', pin);
@@ -131,7 +132,10 @@ router.delete('/api/admin/bulletin/:id', requireAuth, (req, res) => {
   if (pin.profile_id) {
     const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(pin.profile_id, req.accountId);
     if (!profile) return res.status(404).json({ error: 'Pin not found' });
-  } else if (pin.account_id && pin.account_id !== req.accountId) {
+  } else if (pin.account_id) {
+    if (pin.account_id !== req.accountId) return res.status(404).json({ error: 'Pin not found' });
+  } else {
+    // Orphaned pin (no profile_id, no account_id) — reject
     return res.status(404).json({ error: 'Pin not found' });
   }
 

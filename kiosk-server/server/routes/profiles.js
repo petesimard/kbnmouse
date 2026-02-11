@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db, { seedProfileDefaults } from '../db.js';
+import db, { seedProfileDefaults, getSetting, setSetting, deleteSetting } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
 
@@ -15,10 +15,10 @@ router.get('/api/profiles', (req, res) => {
 
 // GET /api/active-profile - Get active profile (validated against account)
 router.get('/api/active-profile', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
-  if (row) {
+  const value = getSetting('active_profile', req.accountId);
+  if (value) {
     // Only return if the profile belongs to this account
-    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(Number(row.value), req.accountId);
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(Number(value), req.accountId);
     return res.json({ profile_id: profile ? profile.id : null });
   }
   res.json({ profile_id: null });
@@ -28,16 +28,14 @@ router.get('/api/active-profile', (req, res) => {
 router.post('/api/active-profile', (req, res) => {
   const { profile_id } = req.body;
   if (profile_id == null) {
-    db.prepare("DELETE FROM settings WHERE key = 'active_profile'").run();
+    deleteSetting('active_profile', req.accountId);
   } else {
     // Verify the profile belongs to this account
     const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
-    db.prepare(
-      "INSERT INTO settings (key, value) VALUES ('active_profile', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-    ).run(String(profile_id));
+    setSetting('active_profile', String(profile_id), req.accountId);
   }
   broadcastRefresh();
   res.json({ success: true });
@@ -129,9 +127,9 @@ router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM apps WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM profiles WHERE id = ? AND account_id = ?').run(profileId, req.accountId);
 
-  const active = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
-  if (active && active.value === String(profileId)) {
-    db.prepare("DELETE FROM settings WHERE key = 'active_profile'").run();
+  const active = getSetting('active_profile', req.accountId);
+  if (active === String(profileId)) {
+    deleteSetting('active_profile', req.accountId);
   }
 
   broadcastRefresh();

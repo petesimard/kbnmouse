@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
-import db from '../db.js';
+import { getSetting } from '../db.js';
 
 const router = Router();
 
-function getOpenAIConfig() {
-  const apiKey = db.prepare("SELECT value FROM settings WHERE key = 'openai_api_key'").get()?.value;
-  const endpointUrl = db.prepare("SELECT value FROM settings WHERE key = 'openai_endpoint_url'").get()?.value;
+function getOpenAIConfig(accountId) {
+  const apiKey = getSetting('openai_api_key', accountId);
+  const endpointUrl = getSetting('openai_endpoint_url', accountId);
   return { apiKey, endpointUrl };
 }
 
 // Generate a story prompt
 router.get('/prompt', async (req, res) => {
-  const { apiKey, endpointUrl } = getOpenAIConfig();
+  const { apiKey, endpointUrl } = getOpenAIConfig(req.accountId);
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
@@ -56,7 +56,7 @@ router.post('/evaluate', async (req, res) => {
     return res.status(400).json({ error: 'prompt and story are required' });
   }
 
-  const { apiKey, endpointUrl } = getOpenAIConfig();
+  const { apiKey, endpointUrl } = getOpenAIConfig(req.accountId);
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });

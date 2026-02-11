@@ -107,11 +107,12 @@ router.get('/api/messages/unread-count', (req, res) => {
 
 // PUT /api/messages/:id/read — Mark message read
 router.put('/api/messages/:id/read', (req, res) => {
-  const msg = db.prepare('SELECT recipient_profile_id FROM messages WHERE id = ?').get(req.params.id);
+  const msg = db.prepare('SELECT recipient_type, recipient_profile_id, sender_profile_id FROM messages WHERE id = ?').get(req.params.id);
   if (!msg) return res.status(404).json({ error: 'Message not found' });
 
-  // Verify the recipient profile belongs to this account
-  if (msg.recipient_profile_id && !verifyProfileOwnership(msg.recipient_profile_id, req.accountId)) {
+  // Verify the message involves a profile belonging to this account
+  const relevantProfileId = msg.recipient_profile_id || msg.sender_profile_id;
+  if (!relevantProfileId || !verifyProfileOwnership(relevantProfileId, req.accountId)) {
     return res.status(404).json({ error: 'Message not found' });
   }
 
@@ -245,7 +246,7 @@ router.put('/api/admin/messages/:id/read', requireAuth, (req, res) => {
   if (!msg) return res.status(404).json({ error: 'Message not found' });
 
   const relevantProfileId = msg.sender_profile_id || msg.recipient_profile_id;
-  if (relevantProfileId && !verifyProfileOwnership(relevantProfileId, req.accountId)) {
+  if (!relevantProfileId || !verifyProfileOwnership(relevantProfileId, req.accountId)) {
     return res.status(404).json({ error: 'Message not found' });
   }
 

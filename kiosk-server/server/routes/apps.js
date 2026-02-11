@@ -39,7 +39,7 @@ router.get('/api/apps/:id', (req, res) => {
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (appRecord.profile_id && !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
+  if (!appRecord.profile_id || !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
   res.json(appRecord);
@@ -68,12 +68,15 @@ router.get('/api/admin/apps', requireAuth, (req, res) => {
 
 // POST /api/admin/apps - Create new app
 router.post('/api/admin/apps', requireAuth, (req, res) => {
-  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {}, folder_id = null } = req.body;
+  const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id, config = {}, folder_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
-  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
@@ -134,7 +137,7 @@ router.put('/api/admin/apps/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 
@@ -172,7 +175,7 @@ router.delete('/api/admin/apps/:id', requireAuth, (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 
@@ -188,12 +191,15 @@ router.post('/api/apps', (req, res) => {
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
+  if (!profile_id) {
+    return res.status(400).json({ error: 'profile_id is required' });
+  }
 
-  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)').run(name, url, icon, sort_order, profile_id || null);
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)').run(name, url, icon, sort_order, profile_id);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newApp);
 });
@@ -205,7 +211,7 @@ router.put('/api/apps/:id', (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 
@@ -228,7 +234,7 @@ router.delete('/api/apps/:id', (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
-  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+  if (!existing.profile_id || !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 

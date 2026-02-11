@@ -38,7 +38,7 @@ export async function addBonusTime(minutes, profileId) {
   const res = await fetch('/api/admin/bonus-time', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ minutes, profile_id: profileId || null }),
+    body: JSON.stringify({ minutes, profile_id: profileId }),
   });
   return handleResponse(res);
 }

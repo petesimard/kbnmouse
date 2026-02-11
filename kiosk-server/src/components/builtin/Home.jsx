@@ -105,7 +105,7 @@ function Home() {
       y: mousePos.y,
       rotation: placing.rotation,
       color: placing.color,
-      profile_id: profileId || null
+      profile_id: profileId
     };
     setPlacing(null);
     try {
