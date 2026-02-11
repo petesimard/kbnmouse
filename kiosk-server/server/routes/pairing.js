@@ -87,6 +87,11 @@ router.delete('/api/admin/kiosks/:id', requireAuth, (req, res) => {
   res.status(204).end();
 });
 
+// GET /api/kiosk/verify — Kiosk verifies its token is still valid
+router.get('/api/kiosk/verify', requireKiosk, (req, res) => {
+  res.json({ ok: true, kioskId: req.kioskId });
+});
+
 // POST /api/kiosk/installed-apps — Kiosk pushes its list of installed desktop apps
 router.post('/api/kiosk/installed-apps', requireKiosk, (req, res) => {
   const { apps } = req.body;

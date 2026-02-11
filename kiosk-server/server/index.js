@@ -21,6 +21,7 @@ import authRouter from './routes/auth.js';
 import pairingRouter from './routes/pairing.js';
 import messagesRouter from './routes/messages.js';
 import bulletinRouter from './routes/bulletin.js';
+import { requireAnyAuth } from './middleware/auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +33,15 @@ const server = createServer(app);
 setupWebSocket(server);
 
 app.use(express.json({ limit: '2mb' }));
+
+// Protect all API routes — require either a kiosk token or admin session
+// Exempt: auth endpoints (login/register) and pairing endpoints (pre-token)
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/pairing/')) {
+    return next();
+  }
+  requireAnyAuth(req, res, next);
+});
 
 // Mount all routes (each router defines its full paths)
 app.use(authRouter);

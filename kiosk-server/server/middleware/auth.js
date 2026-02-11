@@ -36,6 +36,32 @@ export function requireAuth(req, res, next) {
   next();
 }
 
+// Middleware: require either a valid admin session OR a valid kiosk token
+export function requireAnyAuth(req, res, next) {
+  // Check admin session token
+  const adminToken = req.headers['x-admin-token'];
+  if (adminToken) {
+    const session = db.prepare('SELECT account_id FROM sessions WHERE token = ? AND expires_at > ?').get(adminToken, new Date().toISOString());
+    if (session) {
+      req.accountId = session.account_id;
+      return next();
+    }
+  }
+
+  // Check kiosk token
+  const kioskToken = req.headers['x-kiosk-token'];
+  if (kioskToken) {
+    const kiosk = db.prepare('SELECT id, account_id FROM kiosks WHERE token = ?').get(kioskToken);
+    if (kiosk) {
+      req.kioskId = kiosk.id;
+      req.accountId = kiosk.account_id;
+      return next();
+    }
+  }
+
+  return res.status(401).json({ error: 'Unauthorized' });
+}
+
 // Middleware: require a valid kiosk token via X-Kiosk-Token header
 export function requireKiosk(req, res, next) {
   const token = req.headers['x-kiosk-token'];

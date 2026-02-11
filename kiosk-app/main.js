@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { app, BrowserWindow, BrowserView, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -45,6 +45,13 @@ function saveRegistration(token, kioskId) {
     registeredAt: new Date().toISOString(),
   }, null, 2));
   kioskToken = token;
+}
+
+function clearRegistration() {
+  try {
+    if (fs.existsSync(registrationPath)) fs.unlinkSync(registrationPath);
+  } catch {}
+  kioskToken = null;
 }
 
 function kioskHeaders() {
@@ -445,6 +452,18 @@ function createWindow() {
   menuView.setAutoResize({ width: true, height: false });
   menuView.webContents.loadURL('data:text/html,<html><body style="margin:0;background:#0f172a"></body></html>');
 
+  // Inject X-Kiosk-Token header into all BrowserView requests to the kiosk server
+  const serverOrigin = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : new URL(KIOSK_URL).origin;
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: [`${serverOrigin}/*`] },
+    (details, callback) => {
+      if (kioskToken) {
+        details.requestHeaders['X-Kiosk-Token'] = kioskToken;
+      }
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+
   // Load URLs (skip if pairing mode — startPairingFlow will handle content)
   if (loadRegistration()) {
     startupConnect();
@@ -567,19 +586,28 @@ async function startupConnect() {
     <p>Reaching server...</p>
   `);
 
+  // Verify kiosk token with the server
   try {
-    const res = await fetch(`${apiBase}/api/auth/status`, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(`${apiBase}/api/kiosk/verify`, {
+      headers: kioskHeaders(),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 401) {
+      console.warn('Kiosk token rejected by server — clearing registration');
+      clearRegistration();
+      startPairingFlow();
+      return;
+    }
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     await res.json();
   } catch (err) {
-    console.error(`Startup connection failed (${apiBase}/api/auth/status):`, err.message);
+    console.error(`Startup connection failed (${apiBase}/api/kiosk/verify):`, err.message);
     showStartupScreen(`
       <h1>Connection Failed</h1>
       <div class="error-msg">${err.message}</div>
       <p>Could not reach the kiosk server.</p>
       <button onclick="console.log('__KIOSK_RETRY__')">Retry</button>
     `);
-    // Listen for retry click
     const handler = (_event, _level, message) => {
       if (message === '__KIOSK_RETRY__') {
         contentView.webContents.removeListener('console-message', handler);
@@ -728,7 +756,7 @@ ipcMain.handle('native:launch', async (event, command, appId) => {
   if (appId) {
     try {
       const apiBase = getApiBaseUrl();
-      const resp = await fetch(`${apiBase}/api/apps/${appId}/usage`);
+      const resp = await fetch(`${apiBase}/api/apps/${appId}/usage`, { headers: kioskHeaders() });
       if (resp.ok) {
         const usage = await resp.json();
         remainingSeconds = calculateRemainingSeconds(usage);
