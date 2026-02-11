@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useProfile } from '../../contexts/ProfileContext';
+import { useParentName } from '../../hooks/useParentName';
 
 export const meta = { key: 'home', name: 'Home', icon: '🏠', description: 'Community bulletin board', skipTracking: true };
 
@@ -13,6 +14,7 @@ function getWsUrl() {
 
 function Home() {
   const { profileId, profiles } = useProfile();
+  const parentName = useParentName();
   const [pins, setPins] = useState([]);
   const [placing, setPlacing] = useState(null);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
@@ -199,7 +201,7 @@ function Home() {
             }}
           >
             {pin.pin_type === 'message' ? (
-              <PostItNote content={pin.content} color={pin.color} profileName={pin.profile_name} profileIcon={pin.profile_icon} isParent={!!pin.is_parent} />
+              <PostItNote content={pin.content} color={pin.color} profileName={pin.profile_name} profileIcon={pin.profile_icon} isParent={!!pin.is_parent} parentName={parentName} />
             ) : (
               <EmojiPin content={pin.content} />
             )}
@@ -306,7 +308,7 @@ function Home() {
   );
 }
 
-function PostItNote({ content, color = '#fef08a', profileName, profileIcon, isParent }) {
+function PostItNote({ content, color = '#fef08a', profileName, profileIcon, isParent, parentName = 'Mom & Dad' }) {
   const pinColor = isParent
     ? 'radial-gradient(circle at 35% 35%, #facc15, #a16207)'
     : 'radial-gradient(circle at 35% 35%, #ef4444, #991b1b)';
@@ -325,7 +327,7 @@ function PostItNote({ content, color = '#fef08a', profileName, profileIcon, isPa
       <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full shadow-md z-10"
         style={{ background: pinColor, border: pinBorder }} />
       {isParent && (
-        <div className="text-sky-600 font-bold mb-1" style={{ fontSize: '10px' }}>From Mom & Dad</div>
+        <div className="text-sky-600 font-bold mb-1" style={{ fontSize: '10px' }}>From {parentName}</div>
       )}
       <p className={`text-xs leading-snug break-words whitespace-pre-wrap ${isParent ? 'text-sky-900' : 'text-amber-900'}`}>{content}</p>
       {profileName && !isParent && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useProfile } from '../contexts/ProfileContext';
+import { useParentName } from '../hooks/useParentName';
 import { calculateRemainingSeconds } from '../utils/timeLimit';
 import { getBuiltinApps } from '../components/builtin';
 import { fetchKidUnreadCount } from '../api/messages';
@@ -16,6 +17,7 @@ function formatRemaining(seconds) {
 
 function Menu() {
   const { profileId, profiles, loading: profilesLoading, clearProfile, refreshProfiles } = useProfile();
+  const parentName = useParentName();
 
   const [hasKiosk, setHasKiosk] = useState(false);
   const [apps, setApps] = useState([]);
@@ -176,6 +178,8 @@ function Menu() {
   refreshProfilesRef.current = refreshProfiles;
   const profileIdRef = useRef(profileId);
   profileIdRef.current = profileId;
+  const parentNameRef = useRef(parentName);
+  parentNameRef.current = parentName;
 
   // WebSocket connection for live updates (no deps — uses refs for stable connection)
   useEffect(() => {
@@ -211,7 +215,7 @@ function Menu() {
               setUnreadMessageCount((prev) => prev + 1);
               if ('Notification' in window && Notification.permission === 'granted') {
                 const senderName = msg.sender_type === 'parent'
-                  ? 'Parents'
+                  ? parentNameRef.current
                   : msg.sender_profile_name || 'Someone';
                 new Notification(`Message from ${senderName}`, {
                   body: msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content,

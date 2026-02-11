@@ -11,7 +11,16 @@ const ALLOWED_SETTINGS_KEYS = new Set([
   'resend_api_key',
   'resend_from_email',
   'google_api_key',
+  'parent_name',
 ]);
+
+const DEFAULT_PARENT_NAME = 'Mom & Dad';
+
+// GET /api/parent-name - Get the parent display name (works with any auth)
+router.get('/api/parent-name', (req, res) => {
+  const value = getSetting('parent_name', req.accountId);
+  res.json({ name: value || DEFAULT_PARENT_NAME });
+});
 
 // POST /api/admin/bonus-time - Manually add bonus time
 router.post('/api/admin/bonus-time', requireAuth, (req, res) => {

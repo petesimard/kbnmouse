@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useImageStorage } from '../../hooks/useImageStorage';
+import { useParentName } from '../../hooks/useParentName';
 
 export const meta = {
   key: 'imagegen',
@@ -9,6 +10,7 @@ export const meta = {
 };
 
 function ImageGenerator() {
+  const parentName = useParentName();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [configError, setConfigError] = useState(null);
@@ -149,7 +151,7 @@ function ImageGenerator() {
           </p>
           <div className="bg-slate-800/50 rounded-xl p-6 text-left">
             <p className="text-slate-400 text-sm">
-              Ask a parent to:
+              Ask {parentName} to:
             </p>
             <ol className="text-slate-300 text-sm mt-2 space-y-2 list-decimal list-inside">
               <li>Go to the Dashboard</li>

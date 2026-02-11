@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useProfile } from '../../contexts/ProfileContext';
 import { useMessages } from '../../hooks/useMessages';
+import { useParentName } from '../../hooks/useParentName';
 
 export const meta = {
   key: 'messages',
@@ -12,6 +13,7 @@ export const meta = {
 
 function Messages() {
   const { profileId, profiles } = useProfile();
+  const parentName = useParentName();
   const { messages, loading, send, markRead, refresh } = useMessages(profileId);
   const [selectedConvo, setSelectedConvo] = useState(null);
   const [text, setText] = useState('');
@@ -20,14 +22,14 @@ function Messages() {
 
   // Conversations: Parents + other profiles
   const conversations = useMemo(() => {
-    const convos = [{ type: 'parent', id: null, name: 'Parents', icon: '👨‍👩‍👧‍👦' }];
+    const convos = [{ type: 'parent', id: null, name: parentName, icon: '👨‍👩‍👧‍👦' }];
     for (const p of profiles) {
       if (p.id !== profileId) {
         convos.push({ type: 'profile', id: p.id, name: p.name, icon: p.icon });
       }
     }
     return convos;
-  }, [profiles, profileId]);
+  }, [profiles, profileId, parentName]);
 
   // Messages for current conversation
   const convoMessages = useMemo(() => {

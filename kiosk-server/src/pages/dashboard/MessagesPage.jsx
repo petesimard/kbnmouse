@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { fetchProfileAllMessages, sendAdminMessage, markAdminMessageRead, fetchUnreadCount } from '../../api/messages';
 import { UnauthorizedError } from '../../api/client';
+import { useParentName } from '../../hooks/useParentName';
 
 export default function MessagesPage() {
   const { logout, dashboardProfileId, profiles, refreshUnreadCount } = useOutletContext();
+  const parentName = useParentName();
   const [allMessages, setAllMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
@@ -197,7 +199,7 @@ export default function MessagesPage() {
                 : 'text-slate-400 hover:text-white hover:bg-slate-700'
             }`}
           >
-            Parent Chat
+            {parentName} Chat
           </button>
           <button
             onClick={() => setActiveTab('siblings')}

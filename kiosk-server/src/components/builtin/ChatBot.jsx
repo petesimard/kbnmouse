@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParentName } from '../../hooks/useParentName';
 
 export const meta = {
   key: 'chatbot',
@@ -8,6 +9,7 @@ export const meta = {
 };
 
 function ChatBot() {
+  const parentName = useParentName();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -104,7 +106,7 @@ function ChatBot() {
           </p>
           <div className="bg-slate-800/50 rounded-xl p-6 text-left">
             <p className="text-slate-400 text-sm">
-              Ask a parent to:
+              Ask {parentName} to:
             </p>
             <ol className="text-slate-300 text-sm mt-2 space-y-2 list-decimal list-inside">
               <li>Go to the Dashboard</li>

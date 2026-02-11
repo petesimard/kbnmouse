@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { authHeaders, handleResponse } from '../../api/client.js';
+import { useParentName } from '../../hooks/useParentName';
 
 function BulletinPage() {
   const { logout } = useOutletContext();
+  const parentName = useParentName();
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [messageText, setMessageText] = useState('');
@@ -11,15 +13,16 @@ function BulletinPage() {
 
   const fetchPins = useCallback(async () => {
     try {
-      const res = await fetch('/api/bulletin');
-      const data = await res.json();
-      setPins(data);
+      const res = await fetch('/api/bulletin', { headers: authHeaders() });
+      const data = await handleResponse(res);
+      setPins(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Failed to fetch pins:', err);
+      if (err.name === 'UnauthorizedError') logout();
+      else console.error('Failed to fetch pins:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [logout]);
 
   useEffect(() => { fetchPins(); }, [fetchPins]);
 
@@ -27,7 +30,9 @@ function BulletinPage() {
   useEffect(() => {
     let ws;
     let reconnectTimeout;
+    let cancelled = false;
     const connect = () => {
+      if (cancelled) return;
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
@@ -43,12 +48,12 @@ function BulletinPage() {
             }
           } catch {}
         };
-        ws.onclose = () => { reconnectTimeout = setTimeout(connect, 3000); };
+        ws.onclose = () => { if (!cancelled) reconnectTimeout = setTimeout(connect, 3000); };
         ws.onerror = () => ws.close();
       } catch {}
     };
     connect();
-    return () => { ws?.close(); clearTimeout(reconnectTimeout); };
+    return () => { cancelled = true; ws?.close(); clearTimeout(reconnectTimeout); };
   }, []);
 
   const handlePost = async () => {
@@ -93,8 +98,8 @@ function BulletinPage() {
 
       {/* Post a parent note */}
       <div className="bg-slate-800 rounded-xl p-4 mb-6 border border-slate-700">
-        <h3 className="text-sm font-semibold text-slate-300 mb-2">Post a Parent Note</h3>
-        <p className="text-xs text-slate-500 mb-3">Parent notes appear with a blue background so kids can tell them apart.</p>
+        <h3 className="text-sm font-semibold text-slate-300 mb-2">Post a Note from {parentName}</h3>
+        <p className="text-xs text-slate-500 mb-3">Notes from {parentName} appear with a blue background so kids can tell them apart.</p>
         <textarea
           value={messageText}
           onChange={e => setMessageText(e.target.value)}
@@ -150,7 +155,7 @@ function BulletinPage() {
                   )}
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     {pin.is_parent ? (
-                      <span className="text-sky-400 font-medium">Parent</span>
+                      <span className="text-sky-400 font-medium">{parentName}</span>
                     ) : pin.profile_name ? (
                       <span>{pin.profile_icon} {pin.profile_name}</span>
                     ) : (

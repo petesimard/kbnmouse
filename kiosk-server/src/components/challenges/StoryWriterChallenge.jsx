@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { z } from 'zod';
 import { field, registerConfigSchema, computeDefaults } from './schemas.js';
+import { useParentName } from '../../hooks/useParentName';
 
 export const configSchema = {
   min_characters: field(z.number().int().min(20).max(2000).default(100), {
@@ -17,6 +18,7 @@ registerConfigSchema('story_writer', configSchema);
 const DEFAULTS = computeDefaults(configSchema);
 
 export default function StoryWriterChallenge({ config = {}, reward, onComplete, onBack }) {
+  const parentName = useParentName();
   const minChars = config.min_characters || DEFAULTS.min_characters;
 
   const [state, setState] = useState('LOADING'); // LOADING | WRITING | SUBMITTING | REJECTED | DONE
@@ -82,9 +84,9 @@ export default function StoryWriterChallenge({ config = {}, reward, onComplete, 
         <h2 className="text-3xl font-bold text-white mb-4">Story Writer</h2>
         <p className="text-xl text-red-400 mb-8 text-center max-w-md">
           {error === 'api_key_missing'
-            ? 'No AI API key is configured. Ask a parent to add one in Settings.'
+            ? `No AI API key is configured. Ask ${parentName} to add one in Settings.`
             : error === 'api_key_invalid'
-              ? 'The AI API key is invalid. Ask a parent to check Settings.'
+              ? `The AI API key is invalid. Ask ${parentName} to check Settings.`
               : 'Could not connect to the AI service. Please try again later.'}
         </p>
         <button
