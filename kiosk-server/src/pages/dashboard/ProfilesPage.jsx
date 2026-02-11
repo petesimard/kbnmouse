@@ -4,7 +4,7 @@ import { useProfiles } from '../../hooks/useProfiles';
 import ProfileFormModal from './ProfileFormModal';
 
 export default function ProfilesPage() {
-  const { logout } = useOutletContext();
+  const { logout, refreshDashboardProfiles } = useOutletContext();
   const { profiles, loading, createProfile, updateProfile, deleteProfile } = useProfiles(true, logout);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -27,6 +27,7 @@ export default function ProfilesPage() {
     } else {
       await createProfile(formData);
     }
+    refreshDashboardProfiles();
   };
 
   const handleDelete = (profile) => {
@@ -37,6 +38,7 @@ export default function ProfilesPage() {
     if (deleteConfirm) {
       await deleteProfile(deleteConfirm.id);
       setDeleteConfirm(null);
+      refreshDashboardProfiles();
     }
   };
 

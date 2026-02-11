@@ -142,6 +142,23 @@ Kiosks register with the server via a 5-digit pairing code flow.
 
 `src/api/client.js` — Shared token management and response handling. `src/api/apps.js`, `src/api/challenges.js`, `src/api/profiles.js`, `src/api/folders.js`, `src/api/auth.js` — Centralized fetch functions importing from `client.js`. Custom hooks (`useApps`, `useChallenges`, `useProfiles`, `useAuth`, `useSettings`, `useBuiltinApps`) wrap these. Apps and challenges API functions accept optional `profileId` param for scoping.
 
+**Dashboard fetch convention (IMPORTANT):** Every `fetch()` call in dashboard pages and hooks used by the dashboard **must** use `authHeaders()` and `handleResponse()` from `src/api/client.js`. The blanket `requireAnyAuth` middleware rejects requests without a valid token, so bare `fetch()` calls will 401. Required pattern:
+```js
+import { authHeaders, handleResponse } from '../../api/client.js';
+const res = await fetch('/api/example', { headers: authHeaders() });
+const data = await handleResponse(res);
+```
+For POST/PUT/DELETE, `authHeaders()` already includes `Content-Type: application/json`:
+```js
+const res = await fetch('/api/example', {
+  method: 'POST',
+  headers: authHeaders(),
+  body: JSON.stringify({ key: 'value' })
+});
+await handleResponse(res);
+```
+`handleResponse()` auto-clears the token and throws `UnauthorizedError` on 401. Dashboard pages should catch this and call `logout()`. Kiosk-facing pages (menu, builtins) can use bare `fetch()` because Electron injects the `X-Kiosk-Token` header automatically via `onBeforeSendHeaders`.
+
 ### App Types
 
 Three types stored in `apps.app_type`: `url` (web pages), `builtin` (React components at `/builtin/:key`), `native` (Linux desktop apps launched as child processes).
