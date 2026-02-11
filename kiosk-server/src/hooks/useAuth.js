@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getToken, setToken, clearToken } from '../api/client.js';
 import {
-  getAuthStatus,
   login as apiLogin,
   register as apiRegister,
   logout as apiLogout,
@@ -14,32 +13,23 @@ import {
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [needsRegistration, setNeedsRegistration] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
       try {
-        const { hasAccount } = await getAuthStatus();
-        if (!hasAccount) {
-          setNeedsRegistration(true);
-          setIsAuthenticated(false);
-        } else {
-          // Check if existing token is valid
-          const token = getToken();
-          if (token) {
-            // Try a lightweight authenticated request to validate the session
-            const res = await fetch('/api/admin/settings', {
-              headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
-            });
-            if (res.ok) {
-              setIsAuthenticated(true);
-            } else {
-              clearToken();
-              setIsAuthenticated(false);
-            }
+        // Check if existing token is valid
+        const token = getToken();
+        if (token) {
+          const res = await fetch('/api/admin/settings', {
+            headers: { 'X-Admin-Token': token, 'Content-Type': 'application/json' },
+          });
+          if (res.ok) {
+            setIsAuthenticated(true);
+          } else {
+            clearToken();
+            setIsAuthenticated(false);
           }
-          setNeedsRegistration(false);
         }
       } catch {
         // Network error — assume not authenticated
@@ -55,14 +45,12 @@ export function useAuth() {
     const { token } = await apiLogin(email, password);
     setToken(token);
     setIsAuthenticated(true);
-    setNeedsRegistration(false);
   }, []);
 
   const register = useCallback(async (email, password) => {
     const { token } = await apiRegister(email, password);
     setToken(token);
     setIsAuthenticated(true);
-    setNeedsRegistration(false);
   }, []);
 
   const logout = useCallback(async () => {
@@ -79,19 +67,16 @@ export function useAuth() {
     const { token } = await apiVerifyMagicLink(magicToken);
     setToken(token);
     setIsAuthenticated(true);
-    setNeedsRegistration(false);
   }, []);
 
   const handleResetPassword = useCallback(async (resetToken, password) => {
     const { token } = await apiResetPassword(resetToken, password);
     setToken(token);
     setIsAuthenticated(true);
-    setNeedsRegistration(false);
   }, []);
 
   return {
     isAuthenticated,
-    needsRegistration,
     loading,
     login,
     register,

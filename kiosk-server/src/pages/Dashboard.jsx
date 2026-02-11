@@ -1,40 +1,28 @@
 import { useState, useEffect } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { fetchProfiles } from '../api/profiles';
+import { fetchAllProfiles } from '../api/profiles';
 import { fetchUnreadCount } from '../api/messages';
-import { fetchKiosks } from '../api/auth';
 import AuthGate from './dashboard/AuthGate';
+import SetupProfile from './dashboard/SetupProfile';
 import Sidebar from './dashboard/Sidebar';
 
 function Dashboard() {
   const auth = useAuth();
   const { isAuthenticated, loading: authLoading, logout } = auth;
-  const navigate = useNavigate();
-  const location = useLocation();
   const [profiles, setProfiles] = useState([]);
+  const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [dashboardProfileId, setDashboardProfileId] = useState(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-  const [kiosksChecked, setKiosksChecked] = useState(false);
-
-  // On login, redirect to kiosks page if none are paired
-  useEffect(() => {
-    if (!isAuthenticated || kiosksChecked) return;
-    setKiosksChecked(true);
-    fetchKiosks().then((kiosks) => {
-      if (kiosks.length === 0 && location.pathname === '/dashboard') {
-        navigate('/dashboard/kiosks', { replace: true });
-      }
-    }).catch(() => {});
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchProfiles().then((data) => {
+    fetchAllProfiles().then((data) => {
       setProfiles(data);
       if (data.length > 0 && !dashboardProfileId) {
         setDashboardProfileId(data[0].id);
       }
+      setProfilesLoaded(true);
     }).catch(console.error);
   }, [isAuthenticated]);
 
@@ -79,7 +67,7 @@ function Dashboard() {
 
   // Refresh profiles when navigating (e.g. after creating/deleting)
   const refreshDashboardProfiles = () => {
-    fetchProfiles().then((data) => {
+    fetchAllProfiles().then((data) => {
       setProfiles(data);
       // If current profile was deleted, select first available
       if (!data.some(p => p.id === dashboardProfileId) && data.length > 0) {
@@ -98,6 +86,18 @@ function Dashboard() {
 
   if (!isAuthenticated) {
     return <AuthGate auth={auth} />;
+  }
+
+  if (!profilesLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
+  if (profiles.length === 0) {
+    return <SetupProfile onProfileCreated={refreshDashboardProfiles} />;
   }
 
   return (

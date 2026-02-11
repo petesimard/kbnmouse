@@ -5,6 +5,14 @@ import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
 
+function verifyProfileOwnership(profileId, accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
+}
+
+function accountProfileIds(accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(accountId).map(r => r.id);
+}
+
 // --- Public endpoints ---
 
 // GET /api/challenges - Get all enabled challenges
@@ -12,20 +20,28 @@ router.get('/api/challenges', (req, res) => {
   const profileId = req.query.profile;
   const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
 
-  let challenges;
   if (profileId) {
-    challenges = db.prepare(`
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    const challenges = db.prepare(`
       SELECT c.id, c.name, c.icon, c.description, c.challenge_type, c.reward_minutes, c.config, c.sort_order, c.max_completions_per_day,
         (SELECT COUNT(*) FROM challenge_completions cc WHERE cc.challenge_type = c.challenge_type AND cc.profile_id = c.profile_id AND cc.completed_at >= ?) as today_completions
       FROM challenges c WHERE c.enabled = 1 AND c.profile_id = ? ORDER BY c.sort_order
     `).all(todayStart, profileId);
-  } else {
-    challenges = db.prepare(`
-      SELECT c.id, c.name, c.icon, c.description, c.challenge_type, c.reward_minutes, c.config, c.sort_order, c.max_completions_per_day,
-        (SELECT COUNT(*) FROM challenge_completions cc WHERE cc.challenge_type = c.challenge_type AND cc.profile_id = c.profile_id AND cc.completed_at >= ?) as today_completions
-      FROM challenges c WHERE c.enabled = 1 ORDER BY c.sort_order
-    `).all(todayStart);
+    const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
+    return res.json(parsed);
   }
+
+  // No profile param — scope to account's profiles
+  const profileIds = accountProfileIds(req.accountId);
+  if (profileIds.length === 0) return res.json([]);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const challenges = db.prepare(`
+    SELECT c.id, c.name, c.icon, c.description, c.challenge_type, c.reward_minutes, c.config, c.sort_order, c.max_completions_per_day,
+      (SELECT COUNT(*) FROM challenge_completions cc WHERE cc.challenge_type = c.challenge_type AND cc.profile_id = c.profile_id AND cc.completed_at >= ?) as today_completions
+    FROM challenges c WHERE c.enabled = 1 AND c.profile_id IN (${placeholders}) ORDER BY c.sort_order
+  `).all(todayStart, ...profileIds);
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   res.json(parsed);
 });
@@ -37,16 +53,27 @@ router.post('/api/challenges/complete', (req, res) => {
     return res.status(400).json({ error: 'challenge_type and minutes_awarded are required' });
   }
 
+  // Verify profile belongs to this account
+  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
+  }
+
   // Check max_completions_per_day limit
   if (challenge_id) {
     const challenge = db.prepare('SELECT max_completions_per_day, profile_id FROM challenges WHERE id = ?').get(challenge_id);
-    if (challenge && challenge.max_completions_per_day > 0) {
-      const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
-      const todayCount = db.prepare(
-        'SELECT COUNT(*) as count FROM challenge_completions WHERE challenge_type = ? AND profile_id = ? AND completed_at >= ?'
-      ).get(challenge_type, challenge.profile_id, todayStart);
-      if (todayCount.count >= challenge.max_completions_per_day) {
-        return res.status(400).json({ error: 'Daily completion limit reached for this challenge' });
+    if (challenge) {
+      // Verify challenge's profile belongs to this account
+      if (challenge.profile_id && !verifyProfileOwnership(challenge.profile_id, req.accountId)) {
+        return res.status(404).json({ error: 'Challenge not found' });
+      }
+      if (challenge.max_completions_per_day > 0) {
+        const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString();
+        const todayCount = db.prepare(
+          'SELECT COUNT(*) as count FROM challenge_completions WHERE challenge_type = ? AND profile_id = ? AND completed_at >= ?'
+        ).get(challenge_type, challenge.profile_id, todayStart);
+        if (todayCount.count >= challenge.max_completions_per_day) {
+          return res.status(400).json({ error: 'Daily completion limit reached for this challenge' });
+        }
       }
     }
   }
@@ -77,23 +104,31 @@ router.post('/api/challenges/complete', (req, res) => {
 // GET /api/admin/challenge-completions - Get completion history
 router.get('/api/admin/challenge-completions', requireAuth, (req, res) => {
   const profileId = req.query.profile;
-  let completions;
   if (profileId) {
-    completions = db.prepare(`
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    const completions = db.prepare(`
       SELECT cc.id, cc.challenge_type, cc.minutes_awarded, cc.completed_at, cc.profile_id,
              (SELECT c.name FROM challenges c WHERE c.challenge_type = cc.challenge_type AND c.profile_id = cc.profile_id LIMIT 1) as challenge_name
       FROM challenge_completions cc
       WHERE cc.profile_id = ?
       ORDER BY cc.completed_at DESC
     `).all(profileId);
-  } else {
-    completions = db.prepare(`
-      SELECT cc.id, cc.challenge_type, cc.minutes_awarded, cc.completed_at, cc.profile_id,
-             (SELECT c.name FROM challenges c WHERE c.challenge_type = cc.challenge_type AND c.profile_id = cc.profile_id LIMIT 1) as challenge_name
-      FROM challenge_completions cc
-      ORDER BY cc.completed_at DESC
-    `).all();
+    return res.json(completions);
   }
+
+  // No profile param — scope to account's profiles
+  const profileIds = accountProfileIds(req.accountId);
+  if (profileIds.length === 0) return res.json([]);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const completions = db.prepare(`
+    SELECT cc.id, cc.challenge_type, cc.minutes_awarded, cc.completed_at, cc.profile_id,
+           (SELECT c.name FROM challenges c WHERE c.challenge_type = cc.challenge_type AND c.profile_id = cc.profile_id LIMIT 1) as challenge_name
+    FROM challenge_completions cc
+    WHERE cc.profile_id IN (${placeholders})
+    ORDER BY cc.completed_at DESC
+  `).all(...profileIds);
   res.json(completions);
 });
 
@@ -102,9 +137,15 @@ router.get('/api/admin/challenges', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let challenges;
   if (profileId) {
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     challenges = db.prepare('SELECT * FROM challenges WHERE profile_id = ? ORDER BY sort_order').all(profileId);
   } else {
-    challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+    const profileIds = accountProfileIds(req.accountId);
+    if (profileIds.length === 0) return res.json([]);
+    const placeholders = profileIds.map(() => '?').join(',');
+    challenges = db.prepare(`SELECT * FROM challenges WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds);
   }
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   res.json(parsed);
@@ -115,6 +156,10 @@ router.post('/api/admin/challenges', requireAuth, (req, res) => {
   const { name, icon, description = '', challenge_type, reward_minutes = 10, config = {}, sort_order, enabled = 1, profile_id = null, max_completions_per_day = 0 } = req.body;
   if (!name || !icon || !challenge_type) {
     return res.status(400).json({ error: 'name, icon, and challenge_type are required' });
+  }
+
+  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   let finalSortOrder = sort_order;
@@ -146,16 +191,24 @@ router.put('/api/admin/challenges/reorder', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'order must be an array' });
   }
 
-  const updateStmt = db.prepare('UPDATE challenges SET sort_order = ? WHERE id = ?');
-  const transaction = db.transaction((items) => {
-    for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
-    }
-  });
+  const profileIds = accountProfileIds(req.accountId);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const updateStmt = profileIds.length > 0
+    ? db.prepare(`UPDATE challenges SET sort_order = ? WHERE id = ? AND profile_id IN (${placeholders})`)
+    : null;
 
-  transaction(order);
+  if (updateStmt) {
+    const transaction = db.transaction((items) => {
+      for (const item of items) {
+        updateStmt.run(item.sort_order, item.id, ...profileIds);
+      }
+    });
+    transaction(order);
+  }
 
-  const challenges = db.prepare('SELECT * FROM challenges ORDER BY sort_order').all();
+  const challenges = profileIds.length > 0
+    ? db.prepare(`SELECT * FROM challenges WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds)
+    : [];
   const parsed = challenges.map(c => ({ ...c, config: JSON.parse(c.config || '{}') }));
   broadcastRefresh();
   res.json(parsed);
@@ -167,6 +220,9 @@ router.put('/api/admin/challenges/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(req.params.id);
 
   if (!existing) {
+    return res.status(404).json({ error: 'Challenge not found' });
+  }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
 
@@ -194,10 +250,15 @@ router.put('/api/admin/challenges/:id', requireAuth, (req, res) => {
 
 // DELETE /api/admin/challenges/:id - Delete challenge
 router.delete('/api/admin/challenges/:id', requireAuth, (req, res) => {
-  const result = db.prepare('DELETE FROM challenges WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) {
+  const existing = db.prepare('SELECT profile_id FROM challenges WHERE id = ?').get(req.params.id);
+  if (!existing) {
     return res.status(404).json({ error: 'Challenge not found' });
   }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Challenge not found' });
+  }
+
+  db.prepare('DELETE FROM challenges WHERE id = ?').run(req.params.id);
   broadcastRefresh();
   res.status(204).send();
 });

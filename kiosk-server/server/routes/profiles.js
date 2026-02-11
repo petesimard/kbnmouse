@@ -5,26 +5,36 @@ import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
 
-// --- Public endpoints ---
+// --- Kiosk endpoints (blanket requireAnyAuth in index.js sets req.accountId) ---
 
-// GET /api/profiles - Get all profiles
+// GET /api/profiles - Get profiles for current account
 router.get('/api/profiles', (req, res) => {
-  const profiles = db.prepare('SELECT id, name, icon, sort_order FROM profiles ORDER BY sort_order').all();
+  const profiles = db.prepare('SELECT id, name, icon, sort_order FROM profiles WHERE account_id = ? ORDER BY sort_order').all(req.accountId);
   res.json(profiles);
 });
 
-// GET /api/active-profile - Get active profile from settings
+// GET /api/active-profile - Get active profile (validated against account)
 router.get('/api/active-profile', (req, res) => {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
-  res.json({ profile_id: row ? Number(row.value) : null });
+  if (row) {
+    // Only return if the profile belongs to this account
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(Number(row.value), req.accountId);
+    return res.json({ profile_id: profile ? profile.id : null });
+  }
+  res.json({ profile_id: null });
 });
 
-// POST /api/active-profile - Set active profile
+// POST /api/active-profile - Set active profile (must belong to account)
 router.post('/api/active-profile', (req, res) => {
   const { profile_id } = req.body;
   if (profile_id == null) {
     db.prepare("DELETE FROM settings WHERE key = 'active_profile'").run();
   } else {
+    // Verify the profile belongs to this account
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     db.prepare(
       "INSERT INTO settings (key, value) VALUES ('active_profile', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     ).run(String(profile_id));
@@ -35,9 +45,9 @@ router.post('/api/active-profile', (req, res) => {
 
 // --- Admin endpoints ---
 
-// GET /api/admin/profiles - Get all profiles (admin)
+// GET /api/admin/profiles - Get profiles for this account
 router.get('/api/admin/profiles', requireAuth, (req, res) => {
-  const profiles = db.prepare('SELECT * FROM profiles ORDER BY sort_order').all();
+  const profiles = db.prepare('SELECT * FROM profiles WHERE account_id = ? ORDER BY sort_order').all(req.accountId);
   res.json(profiles);
 });
 
@@ -48,15 +58,15 @@ router.post('/api/admin/profiles', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'name is required' });
   }
 
-  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM profiles').get();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM profiles WHERE account_id = ?').get(req.accountId);
   const sortOrder = (maxOrder.max || 0) + 1;
 
-  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order) VALUES (?, ?, ?)').run(name, icon, sortOrder);
+  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order, account_id) VALUES (?, ?, ?, ?)').run(name, icon, sortOrder, req.accountId);
   const profileId = result.lastInsertRowid;
 
   seedProfileDefaults(profileId);
 
-  const newProfile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profileId);
+  const newProfile = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(profileId, req.accountId);
   broadcastRefresh();
   res.status(201).json(newProfile);
 });
@@ -68,15 +78,15 @@ router.put('/api/admin/profiles/reorder', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'order must be an array' });
   }
 
-  const updateStmt = db.prepare('UPDATE profiles SET sort_order = ? WHERE id = ?');
+  const updateStmt = db.prepare('UPDATE profiles SET sort_order = ? WHERE id = ? AND account_id = ?');
   const transaction = db.transaction((items) => {
     for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
+      updateStmt.run(item.sort_order, item.id, req.accountId);
     }
   });
   transaction(order);
 
-  const profiles = db.prepare('SELECT * FROM profiles ORDER BY sort_order').all();
+  const profiles = db.prepare('SELECT * FROM profiles WHERE account_id = ? ORDER BY sort_order').all(req.accountId);
   broadcastRefresh();
   res.json(profiles);
 });
@@ -84,7 +94,7 @@ router.put('/api/admin/profiles/reorder', requireAuth, (req, res) => {
 // PUT /api/admin/profiles/:id - Update profile
 router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
   const { name, icon } = req.body;
-  const existing = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
+  const existing = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   if (!existing) {
     return res.status(404).json({ error: 'Profile not found' });
   }
@@ -93,10 +103,10 @@ router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
     UPDATE profiles
     SET name = COALESCE(?, name),
         icon = COALESCE(?, icon)
-    WHERE id = ?
-  `).run(name, icon, req.params.id);
+    WHERE id = ? AND account_id = ?
+  `).run(name, icon, req.params.id, req.accountId);
 
-  const updated = db.prepare('SELECT * FROM profiles WHERE id = ?').get(req.params.id);
+  const updated = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   broadcastRefresh();
   res.json(updated);
 });
@@ -105,9 +115,10 @@ router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
 router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
   const profileId = req.params.id;
 
-  const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();
-  if (profileCount.count <= 1) {
-    return res.status(400).json({ error: 'Cannot delete the last profile' });
+  // Verify ownership before deleting
+  const existing = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, req.accountId);
+  if (!existing) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   db.prepare('DELETE FROM messages WHERE sender_profile_id = ? OR recipient_profile_id = ?').run(profileId, profileId);
@@ -116,11 +127,7 @@ router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM challenges WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM folders WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM apps WHERE profile_id = ?').run(profileId);
-  const result = db.prepare('DELETE FROM profiles WHERE id = ?').run(profileId);
-
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Profile not found' });
-  }
+  db.prepare('DELETE FROM profiles WHERE id = ? AND account_id = ?').run(profileId, req.accountId);
 
   const active = db.prepare("SELECT value FROM settings WHERE key = 'active_profile'").get();
   if (active && active.value === String(profileId)) {

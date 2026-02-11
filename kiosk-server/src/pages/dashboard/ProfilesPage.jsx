@@ -84,14 +84,12 @@ export default function ProfilesPage() {
                 >
                   Edit
                 </button>
-                {profiles.length > 1 && (
-                  <button
-                    onClick={() => handleDelete(profile)}
-                    className="px-3 py-1.5 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white text-sm rounded-lg transition-colors"
-                  >
-                    Delete
-                  </button>
-                )}
+                <button
+                  onClick={() => handleDelete(profile)}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-red-600 text-slate-300 hover:text-white text-sm rounded-lg transition-colors"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}

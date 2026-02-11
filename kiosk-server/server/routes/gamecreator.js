@@ -10,11 +10,18 @@ const dataDir = join(__dirname, '..', '..', 'data', 'games');
 
 const router = Router();
 
+function verifyProfileOwnership(profileId, accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
+}
+
 // GET /api/games?profile=<id> — list games for profile
 router.get('/', (req, res) => {
   const profileId = req.query.profile;
   if (!profileId) {
     return res.status(400).json({ error: 'profile query param is required' });
+  }
+  if (!verifyProfileOwnership(profileId, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
   const games = db.prepare(
     'SELECT id, name, description, prompt, status, error_message, created_at, updated_at FROM custom_games WHERE profile_id = ? ORDER BY created_at DESC'
@@ -28,6 +35,9 @@ router.get('/:id', (req, res) => {
   if (!game) {
     return res.status(404).json({ error: 'Game not found' });
   }
+  if (!verifyProfileOwnership(game.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
   res.json(game);
 });
 
@@ -36,6 +46,9 @@ router.post('/', async (req, res) => {
   const { name, prompt, profile_id } = req.body;
   if (!name || !prompt || !profile_id) {
     return res.status(400).json({ error: 'name, prompt, and profile_id are required' });
+  }
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   const result = db.prepare(
@@ -61,6 +74,9 @@ router.post('/:id/update', async (req, res) => {
   if (!game) {
     return res.status(404).json({ error: 'Game not found' });
   }
+  if (!verifyProfileOwnership(game.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
 
   db.prepare(
     "UPDATE custom_games SET status = 'generating', prompt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
@@ -78,6 +94,9 @@ router.post('/:id/update', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(req.params.id);
   if (!game) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  if (!verifyProfileOwnership(game.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Game not found' });
   }
 

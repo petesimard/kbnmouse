@@ -69,13 +69,15 @@ Each child has their own profile with isolated apps, challenges, usage tracking,
 
 ### Authentication & Accounts
 
-**Account system** — Single email+password account per server (enforced at app level). Password hashed with `crypto.scryptSync` (`server/utils/password.js`). Fresh databases show a registration form; subsequent visits show login.
+**Account system** — Multiple email+password accounts supported. Password hashed with `crypto.scryptSync` (`server/utils/password.js`). Fresh databases show a registration form; subsequent visits show login.
 
-**Session management** — `server/middleware/auth.js` manages DB-backed sessions (24h expiry) in the `sessions` table. Exports: `createSession(accountId)`, `cleanupSessions()`, `requireAuth` middleware (checks `X-Admin-Token` header), `requireKiosk` middleware (checks `X-Kiosk-Token` header), `hasAccount()`.
+**Session management** — `server/middleware/auth.js` manages DB-backed sessions (24h expiry) in the `sessions` table. Exports: `createSession(accountId)`, `cleanupSessions()`, `requireAuth` middleware (checks `X-Admin-Token` header), `requireAnyAuth` middleware (checks admin or kiosk token), `requireKiosk` middleware (checks `X-Kiosk-Token` header), `hasAccount()`. All auth middleware sets `req.accountId`.
+
+**Blanket auth** — `server/index.js` applies `requireAnyAuth` to all `/api` routes except `/api/auth/*` and `/api/pairing/*`. This means `req.accountId` is always available in route handlers.
 
 **Auth routes** (`server/routes/auth.js`):
 - `GET /api/auth/status` — returns `{ hasAccount }` (public)
-- `POST /api/auth/register` — create account + session (only if no account exists)
+- `POST /api/auth/register` — create account + session
 - `POST /api/auth/login` — email + password → session token
 - `POST /api/auth/magic-link` — send magic login link via Resend email API
 - `POST /api/auth/verify-magic-link` — verify token → session
@@ -87,6 +89,39 @@ Each child has their own profile with isolated apps, challenges, usage tracking,
 **Email** — `server/services/email.js` sends via Resend API. Reads `resend_api_key` and `resend_from_email` from `settings` table. Configured in Dashboard > Settings.
 
 **Frontend auth** — `src/hooks/useAuth.js` replaces old `usePinAuth`. `src/api/client.js` provides shared `getToken`/`setToken`/`clearToken`/`authHeaders`/`handleResponse` used by all API modules. `src/pages/dashboard/AuthGate.jsx` handles register/login/magic-link/password-reset flows.
+
+### Account-Scoped Data (SECURITY-CRITICAL)
+
+**All data is scoped to the authenticated account.** Profiles have an `account_id` column, and all profile-dependent data (apps, challenges, folders, usage, games, messages, bulletin pins) is accessed through profile ownership. No endpoint should ever return data belonging to another account.
+
+**Required pattern for every route that touches profile-scoped data:**
+
+1. **If the endpoint accepts a `profile` query param or `profile_id` in the body**, verify ownership before using it:
+   ```js
+   const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, req.accountId);
+   if (!profile) return res.status(404).json({ error: 'Profile not found' });
+   ```
+
+2. **If the endpoint accesses a resource by its own ID** (app, challenge, folder, game, message), look up the resource, then verify its `profile_id` belongs to the account:
+   ```js
+   const app = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
+   if (!app) return res.status(404).json({ error: 'App not found' });
+   if (app.profile_id && !verifyProfileOwnership(app.profile_id, req.accountId)) {
+     return res.status(404).json({ error: 'App not found' });
+   }
+   ```
+
+3. **If the endpoint lists all resources without a profile filter**, scope to the account's profiles:
+   ```js
+   const profileIds = db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(req.accountId).map(r => r.id);
+   if (profileIds.length === 0) return res.json([]);
+   const placeholders = profileIds.map(() => '?').join(',');
+   const items = db.prepare(`SELECT * FROM table WHERE profile_id IN (${placeholders})`).all(...profileIds);
+   ```
+
+**When adding new tables or endpoints:** If the data is per-profile, it inherits account scoping through `profile_id`. Always add the ownership check. Never return unscoped query results. Use 404 (not 403) when ownership fails — don't leak that the resource exists.
+
+**Dashboard frontend** uses `fetchAllProfiles()` (hits `/api/admin/profiles` with auth headers), not the public `fetchProfiles()`. The public `GET /api/profiles` also requires auth (via blanket middleware) and scopes by `account_id`.
 
 ### Kiosk Pairing
 

@@ -34,12 +34,6 @@ export default function AuthGate({ auth }) {
     }
   }, []);
 
-  // Set initial view based on needsRegistration
-  useEffect(() => {
-    if (auth.needsRegistration) {
-      setView('register');
-    }
-  }, [auth.needsRegistration]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -312,6 +306,12 @@ export default function AuthGate({ auth }) {
             Magic link
           </button>
         </div>
+        <p className="mt-4 text-slate-400 text-sm text-center">
+          Don't have an account?{' '}
+          <button onClick={() => { setView('register'); setError(''); }} className="text-blue-400 hover:text-blue-300">
+            Register
+          </button>
+        </p>
       </div>
     </div>
   );

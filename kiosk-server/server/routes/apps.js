@@ -5,17 +5,31 @@ import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
 
+function verifyProfileOwnership(profileId, accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
+}
+
+function accountProfileIds(accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(accountId).map(r => r.id);
+}
+
 // --- Public endpoints ---
 
 // GET /api/apps - Get all enabled apps
 router.get('/api/apps', (req, res) => {
   const profileId = req.query.profile;
-  let apps;
   if (profileId) {
-    apps = db.prepare('SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order').all(profileId);
-  } else {
-    apps = db.prepare('SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 ORDER BY sort_order').all();
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    const apps = db.prepare('SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 AND profile_id = ? ORDER BY sort_order').all(profileId);
+    return res.json(apps);
   }
+  // No profile param — return apps for all account profiles
+  const profileIds = accountProfileIds(req.accountId);
+  if (profileIds.length === 0) return res.json([]);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const apps = db.prepare(`SELECT id, name, url, icon, app_type, folder_id FROM apps WHERE enabled = 1 AND profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds);
   res.json(apps);
 });
 
@@ -23,6 +37,9 @@ router.get('/api/apps', (req, res) => {
 router.get('/api/apps/:id', (req, res) => {
   const appRecord = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
   if (!appRecord) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+  if (appRecord.profile_id && !verifyProfileOwnership(appRecord.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
   res.json(appRecord);
@@ -35,9 +52,15 @@ router.get('/api/admin/apps', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let apps;
   if (profileId) {
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     apps = db.prepare('SELECT * FROM apps WHERE profile_id = ? ORDER BY sort_order').all(profileId);
   } else {
-    apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
+    const profileIds = accountProfileIds(req.accountId);
+    if (profileIds.length === 0) return res.json([]);
+    const placeholders = profileIds.map(() => '?').join(',');
+    apps = db.prepare(`SELECT * FROM apps WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds);
   }
   const parsed = apps.map(a => ({ ...a, config: JSON.parse(a.config || '{}') }));
   res.json(parsed);
@@ -48,6 +71,10 @@ router.post('/api/admin/apps', requireAuth, (req, res) => {
   const { name, url, icon, sort_order, app_type = 'url', enabled = 1, daily_limit_minutes = null, weekly_limit_minutes = null, max_daily_minutes = 0, profile_id = null, config = {}, folder_id = null } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
+  }
+
+  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   let finalSortOrder = sort_order;
@@ -76,16 +103,25 @@ router.put('/api/admin/apps/reorder', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'order must be an array' });
   }
 
-  const updateStmt = db.prepare('UPDATE apps SET sort_order = ? WHERE id = ?');
-  const transaction = db.transaction((items) => {
-    for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
-    }
-  });
+  // Only update apps belonging to account's profiles
+  const profileIds = accountProfileIds(req.accountId);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const updateStmt = profileIds.length > 0
+    ? db.prepare(`UPDATE apps SET sort_order = ? WHERE id = ? AND profile_id IN (${placeholders})`)
+    : null;
 
-  transaction(order);
+  if (updateStmt) {
+    const transaction = db.transaction((items) => {
+      for (const item of items) {
+        updateStmt.run(item.sort_order, item.id, ...profileIds);
+      }
+    });
+    transaction(order);
+  }
 
-  const apps = db.prepare('SELECT * FROM apps ORDER BY sort_order').all();
+  const apps = profileIds.length > 0
+    ? db.prepare(`SELECT * FROM apps WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds)
+    : [];
   broadcastRefresh();
   res.json(apps);
 });
@@ -96,6 +132,9 @@ router.put('/api/admin/apps/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM apps WHERE id = ?').get(req.params.id);
 
   if (!existing) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'App not found' });
   }
 
@@ -129,10 +168,15 @@ router.put('/api/admin/apps/:id', requireAuth, (req, res) => {
 
 // DELETE /api/admin/apps/:id - Delete app
 router.delete('/api/admin/apps/:id', requireAuth, (req, res) => {
-  const result = db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) {
+  const existing = db.prepare('SELECT profile_id FROM apps WHERE id = ?').get(req.params.id);
+  if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
   broadcastRefresh();
   res.status(204).send();
 });
@@ -157,6 +201,9 @@ router.put('/api/apps/:id', (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'App not found' });
+  }
 
   db.prepare(`
     UPDATE apps
@@ -173,10 +220,15 @@ router.put('/api/apps/:id', (req, res) => {
 });
 
 router.delete('/api/apps/:id', (req, res) => {
-  const result = db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
-  if (result.changes === 0) {
+  const existing = db.prepare('SELECT profile_id FROM apps WHERE id = ?').get(req.params.id);
+  if (!existing) {
     return res.status(404).json({ error: 'App not found' });
   }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  db.prepare('DELETE FROM apps WHERE id = ?').run(req.params.id);
   res.status(204).send();
 });
 

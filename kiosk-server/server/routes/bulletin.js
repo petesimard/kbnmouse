@@ -14,14 +14,32 @@ function getEnrichedPin(id) {
   `).get(id);
 }
 
-// GET /api/bulletin — All pins
+// Return profile IDs belonging to the current account
+function accountProfileIds(accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(accountId).map(r => r.id);
+}
+
+// GET /api/bulletin — Pins from profiles belonging to this account (+ parentpins with no profile)
 router.get('/api/bulletin', (req, res) => {
+  const profileIds = accountProfileIds(req.accountId);
+  if (profileIds.length === 0) {
+    // Only return pins with no profile (parent pins)
+    const pins = db.prepare(`
+      SELECT bp.*, NULL AS profile_name, NULL AS profile_icon
+      FROM bulletin_pins bp
+      WHERE bp.profile_id IS NULL
+      ORDER BY bp.created_at ASC
+    `).all();
+    return res.json(pins);
+  }
+  const placeholders = profileIds.map(() => '?').join(',');
   const pins = db.prepare(`
     SELECT bp.*, p.name AS profile_name, p.icon AS profile_icon
     FROM bulletin_pins bp
     LEFT JOIN profiles p ON bp.profile_id = p.id
+    WHERE bp.profile_id IN (${placeholders}) OR bp.profile_id IS NULL
     ORDER BY bp.created_at ASC
-  `).all();
+  `).all(...profileIds);
   res.json(pins);
 });
 
@@ -31,6 +49,14 @@ router.post('/api/bulletin', (req, res) => {
 
   if (!pin_type || !content || x == null || y == null) {
     return res.status(400).json({ error: 'pin_type, content, x, y are required' });
+  }
+
+  // Verify profile belongs to this account
+  if (profile_id) {
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
   }
 
   const result = db.prepare(
@@ -89,10 +115,16 @@ router.post('/api/admin/bulletin', requireAuth, (req, res) => {
   res.json(pin);
 });
 
-// DELETE /api/admin/bulletin/:id — Delete any pin (admin)
+// DELETE /api/admin/bulletin/:id — Delete a pin (must belong to account's profiles or be a parent pin)
 router.delete('/api/admin/bulletin/:id', requireAuth, (req, res) => {
   const pin = db.prepare('SELECT * FROM bulletin_pins WHERE id = ?').get(req.params.id);
   if (!pin) return res.status(404).json({ error: 'Pin not found' });
+
+  // If pin has a profile, verify it belongs to this account
+  if (pin.profile_id) {
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(pin.profile_id, req.accountId);
+    if (!profile) return res.status(404).json({ error: 'Pin not found' });
+  }
 
   db.prepare('DELETE FROM bulletin_pins WHERE id = ?').run(req.params.id);
   broadcastBulletinPin('remove', { id: Number(req.params.id) });

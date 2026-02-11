@@ -5,17 +5,31 @@ import { broadcastRefresh } from '../websocket.js';
 
 const router = Router();
 
+function verifyProfileOwnership(profileId, accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
+}
+
+function accountProfileIds(accountId) {
+  return db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(accountId).map(r => r.id);
+}
+
 // --- Public endpoints ---
 
 // GET /api/folders - Get all folders for a profile
 router.get('/api/folders', (req, res) => {
   const profileId = req.query.profile;
-  let folders;
   if (profileId) {
-    folders = db.prepare('SELECT id, name, icon, color, sort_order FROM folders WHERE profile_id = ? ORDER BY sort_order').all(profileId);
-  } else {
-    folders = db.prepare('SELECT id, name, icon, color, sort_order FROM folders ORDER BY sort_order').all();
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    const folders = db.prepare('SELECT id, name, icon, color, sort_order FROM folders WHERE profile_id = ? ORDER BY sort_order').all(profileId);
+    return res.json(folders);
   }
+  // No profile param — scope to account's profiles
+  const profileIds = accountProfileIds(req.accountId);
+  if (profileIds.length === 0) return res.json([]);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const folders = db.prepare(`SELECT id, name, icon, color, sort_order FROM folders WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds);
   res.json(folders);
 });
 
@@ -26,9 +40,15 @@ router.get('/api/admin/folders', requireAuth, (req, res) => {
   const profileId = req.query.profile;
   let folders;
   if (profileId) {
+    if (!verifyProfileOwnership(profileId, req.accountId)) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
     folders = db.prepare('SELECT * FROM folders WHERE profile_id = ? ORDER BY sort_order').all(profileId);
   } else {
-    folders = db.prepare('SELECT * FROM folders ORDER BY sort_order').all();
+    const profileIds = accountProfileIds(req.accountId);
+    if (profileIds.length === 0) return res.json([]);
+    const placeholders = profileIds.map(() => '?').join(',');
+    folders = db.prepare(`SELECT * FROM folders WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds);
   }
   res.json(folders);
 });
@@ -38,6 +58,10 @@ router.post('/api/admin/folders', requireAuth, (req, res) => {
   const { name, icon = '📁', color = '#6366f1', sort_order, profile_id = null } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
+  }
+
+  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
   }
 
   let finalSortOrder = sort_order;
@@ -64,15 +88,24 @@ router.put('/api/admin/folders/reorder', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'order must be an array' });
   }
 
-  const updateStmt = db.prepare('UPDATE folders SET sort_order = ? WHERE id = ?');
-  const transaction = db.transaction((items) => {
-    for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
-    }
-  });
-  transaction(order);
+  const profileIds = accountProfileIds(req.accountId);
+  const placeholders = profileIds.map(() => '?').join(',');
+  const updateStmt = profileIds.length > 0
+    ? db.prepare(`UPDATE folders SET sort_order = ? WHERE id = ? AND profile_id IN (${placeholders})`)
+    : null;
 
-  const folders = db.prepare('SELECT * FROM folders ORDER BY sort_order').all();
+  if (updateStmt) {
+    const transaction = db.transaction((items) => {
+      for (const item of items) {
+        updateStmt.run(item.sort_order, item.id, ...profileIds);
+      }
+    });
+    transaction(order);
+  }
+
+  const folders = profileIds.length > 0
+    ? db.prepare(`SELECT * FROM folders WHERE profile_id IN (${placeholders}) ORDER BY sort_order`).all(...profileIds)
+    : [];
   broadcastRefresh();
   res.json(folders);
 });
@@ -81,6 +114,9 @@ router.put('/api/admin/folders/reorder', requireAuth, (req, res) => {
 router.put('/api/admin/folders/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
   if (!existing) {
+    return res.status(404).json({ error: 'Folder not found' });
+  }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Folder not found' });
   }
 
@@ -104,6 +140,9 @@ router.put('/api/admin/folders/:id', requireAuth, (req, res) => {
 router.delete('/api/admin/folders/:id', requireAuth, (req, res) => {
   const existing = db.prepare('SELECT * FROM folders WHERE id = ?').get(req.params.id);
   if (!existing) {
+    return res.status(404).json({ error: 'Folder not found' });
+  }
+  if (existing.profile_id && !verifyProfileOwnership(existing.profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Folder not found' });
   }
 

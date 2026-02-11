@@ -1,23 +1,14 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { createSession, cleanupSessions, requireAuth, hasAccount } from '../middleware/auth.js';
+import { createSession, cleanupSessions, requireAuth } from '../middleware/auth.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { sendEmail } from '../services/email.js';
 import crypto from 'crypto';
 
 const router = Router();
 
-// GET /api/auth/status — returns whether an account exists
-router.get('/api/auth/status', (req, res) => {
-  res.json({ hasAccount: hasAccount() });
-});
-
-// POST /api/auth/register — create the first account
+// POST /api/auth/register — create a new account
 router.post('/api/auth/register', async (req, res) => {
-  if (hasAccount()) {
-    return res.status(400).json({ error: 'Account already exists' });
-  }
-
   const { email, password } = req.body;
 
   if (!email || !email.includes('@')) {
@@ -25,6 +16,11 @@ router.post('/api/auth/register', async (req, res) => {
   }
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  const existing = db.prepare('SELECT id FROM accounts WHERE email = ?').get(email);
+  if (existing) {
+    return res.status(400).json({ error: 'An account with that email already exists' });
   }
 
   const passwordHash = await hashPassword(password);

@@ -184,6 +184,18 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_challenge_completions_profile ON challen
 db.exec("CREATE INDEX IF NOT EXISTS idx_apps_folder ON apps(folder_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_folders_profile ON folders(profile_id)");
 
+// Migration: add account_id to profiles
+const profileCols = db.prepare("PRAGMA table_info(profiles)").all();
+if (!profileCols.some(c => c.name === 'account_id')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN account_id INTEGER');
+  // Backfill: assign orphaned profiles to the first account (if any)
+  const firstAccount = db.prepare('SELECT id FROM accounts ORDER BY id LIMIT 1').get();
+  if (firstAccount) {
+    db.prepare('UPDATE profiles SET account_id = ? WHERE account_id IS NULL').run(firstAccount.id);
+    console.log(`Backfilled profiles with account_id = ${firstAccount.id}`);
+  }
+}
+
 // --- Account & auth tables ---
 
 db.exec(`
@@ -325,15 +337,6 @@ if (pinCount.count === 0) {
     'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color) VALUES (?, ?, ?, ?, ?, ?)'
   ).run('message', 'Click the icons below to explore, or post your own note on this board for everyone to see!', 50, 45, -2, '#fef08a');
   console.log('Seeded default bulletin board pin');
-}
-
-// Fresh DB seeding: if no apps exist and no profiles exist, create a Default profile and seed
-const appCount = db.prepare('SELECT COUNT(*) as count FROM apps').get();
-const profileCount = db.prepare('SELECT COUNT(*) as count FROM profiles').get();
-if (appCount.count === 0 && profileCount.count === 0) {
-  const result = db.prepare("INSERT INTO profiles (name, icon, sort_order) VALUES (?, ?, ?)").run('Default', '👤', 0);
-  seedProfileDefaults(result.lastInsertRowid);
-  console.log('Fresh database: created Default profile with default apps and challenges');
 }
 
 export default db;

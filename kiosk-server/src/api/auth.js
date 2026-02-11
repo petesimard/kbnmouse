@@ -1,10 +1,5 @@
 import { authHeaders, handleResponse } from './client.js';
 
-export async function getAuthStatus() {
-  const res = await fetch('/api/auth/status');
-  return res.json();
-}
-
 export async function register(email, password) {
   const res = await fetch('/api/auth/register', {
     method: 'POST',
