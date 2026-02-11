@@ -184,12 +184,16 @@ router.delete('/api/admin/apps/:id', requireAuth, (req, res) => {
 // --- Legacy endpoints (backwards compatibility) ---
 
 router.post('/api/apps', (req, res) => {
-  const { name, url, icon, sort_order = 0 } = req.body;
+  const { name, url, icon, sort_order = 0, profile_id } = req.body;
   if (!name || !url || !icon) {
     return res.status(400).json({ error: 'name, url, and icon are required' });
   }
 
-  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order) VALUES (?, ?, ?, ?)').run(name, url, icon, sort_order);
+  if (profile_id && !verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
+  }
+
+  const result = db.prepare('INSERT INTO apps (name, url, icon, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)').run(name, url, icon, sort_order, profile_id || null);
   const newApp = db.prepare('SELECT * FROM apps WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(newApp);
 });

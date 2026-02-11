@@ -15,6 +15,12 @@ router.post('/message', async (req, res) => {
   if (!appRecord) {
     return res.status(404).json({ error: 'App not found' });
   }
+  if (appRecord.profile_id) {
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(appRecord.profile_id, req.accountId);
+    if (!profile) {
+      return res.status(404).json({ error: 'App not found' });
+    }
+  }
 
   const config = JSON.parse(appRecord.config || '{}');
 

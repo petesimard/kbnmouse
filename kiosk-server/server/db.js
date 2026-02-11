@@ -330,6 +330,17 @@ if (!bpCols.find(col => col.name === 'is_parent')) {
   console.log('Added is_parent column to bulletin_pins table');
 }
 
+// Migration: add account_id to bulletin_pins for scoping parent pins
+if (!bpCols.find(col => col.name === 'account_id')) {
+  db.exec("ALTER TABLE bulletin_pins ADD COLUMN account_id INTEGER DEFAULT NULL");
+  // Backfill: assign orphaned parent pins to the first account (if any)
+  const firstAccount = db.prepare('SELECT id FROM accounts ORDER BY id LIMIT 1').get();
+  if (firstAccount) {
+    db.prepare('UPDATE bulletin_pins SET account_id = ? WHERE is_parent = 1 AND account_id IS NULL').run(firstAccount.id);
+  }
+  console.log('Added account_id column to bulletin_pins table');
+}
+
 // Seed default bulletin pin if table is empty
 const pinCount = db.prepare('SELECT COUNT(*) as count FROM bulletin_pins').get();
 if (pinCount.count === 0) {

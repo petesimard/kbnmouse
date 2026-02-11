@@ -12,6 +12,14 @@ router.post('/api/admin/bonus-time', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'minutes is required and must be at least 1' });
   }
 
+  // Verify profile belongs to this account
+  if (profile_id) {
+    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+  }
+
   db.prepare(
     'INSERT INTO challenge_completions (challenge_type, minutes_awarded, completed_at, profile_id) VALUES (?, ?, ?, ?)'
   ).run('parent_bonus', minutes, new Date().toISOString(), profile_id || null);
