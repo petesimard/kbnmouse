@@ -67,9 +67,9 @@ router.get('/api/uploads/:filename', (req, res) => {
     return res.status(400).json({ error: 'Invalid filename' });
   }
 
-  // Verify the file belongs to this account (or is a legacy upload with no tracking)
+  // Verify the file belongs to this account
   const upload = db.prepare('SELECT account_id FROM uploads WHERE filename = ?').get(filename);
-  if (upload && upload.account_id !== req.accountId) {
+  if (!upload || upload.account_id !== req.accountId) {
     return res.status(404).json({ error: 'File not found' });
   }
 

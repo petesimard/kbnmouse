@@ -172,7 +172,7 @@ router.post('/api/kiosk/app-icons', requireKiosk, express.json({ limit: '5mb' })
 });
 
 // GET /api/admin/app-icon/:name — Serve an app icon file (PNG)
-router.get('/api/admin/app-icon/:name', (req, res) => {
+router.get('/api/admin/app-icon/:name', requireAuth, (req, res) => {
   const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const iconsDir = path.join(process.cwd(), 'data', 'app-icons');
   const contentTypes = { '.png': 'image/png', '.svg': 'image/svg+xml', '.xpm': 'image/x-xpixmap' };

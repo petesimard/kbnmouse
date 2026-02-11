@@ -110,10 +110,17 @@ router.put('/api/messages/:id/read', (req, res) => {
   const msg = db.prepare('SELECT recipient_type, recipient_profile_id, sender_profile_id FROM messages WHERE id = ?').get(req.params.id);
   if (!msg) return res.status(404).json({ error: 'Message not found' });
 
-  // Verify the message involves a profile belonging to this account
-  const relevantProfileId = msg.recipient_profile_id || msg.sender_profile_id;
-  if (!relevantProfileId || !verifyProfileOwnership(relevantProfileId, req.accountId)) {
-    return res.status(404).json({ error: 'Message not found' });
+  // Only the recipient can mark a message as read
+  // For messages to a profile: verify the recipient profile belongs to this account
+  // For messages to parent: verify the sender profile belongs to this account (parent is reading)
+  if (msg.recipient_type === 'profile') {
+    if (!msg.recipient_profile_id || !verifyProfileOwnership(msg.recipient_profile_id, req.accountId)) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+  } else {
+    if (!msg.sender_profile_id || !verifyProfileOwnership(msg.sender_profile_id, req.accountId)) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
   }
 
   db.prepare('UPDATE messages SET read = 1 WHERE id = ?').run(req.params.id);
@@ -241,12 +248,11 @@ router.post('/api/admin/messages', requireAuth, (req, res) => {
 
 // PUT /api/admin/messages/:id/read — Mark read (admin)
 router.put('/api/admin/messages/:id/read', requireAuth, (req, res) => {
-  // Verify the message involves a profile from this account
-  const msg = db.prepare('SELECT sender_profile_id, recipient_profile_id FROM messages WHERE id = ?').get(req.params.id);
+  // Admin reads messages sent to parent — verify the sender profile belongs to this account
+  const msg = db.prepare('SELECT sender_profile_id FROM messages WHERE id = ? AND recipient_type = ?').get(req.params.id, 'parent');
   if (!msg) return res.status(404).json({ error: 'Message not found' });
 
-  const relevantProfileId = msg.sender_profile_id || msg.recipient_profile_id;
-  if (!relevantProfileId || !verifyProfileOwnership(relevantProfileId, req.accountId)) {
+  if (!msg.sender_profile_id || !verifyProfileOwnership(msg.sender_profile_id, req.accountId)) {
     return res.status(404).json({ error: 'Message not found' });
   }
 
