@@ -2,24 +2,23 @@ import { authHeaders, handleResponse, UnauthorizedError } from './client.js';
 
 export { UnauthorizedError };
 
-// Public endpoints
 export async function fetchProfiles() {
-  const res = await fetch('/api/profiles');
-  return res.json();
+  const res = await fetch('/api/profiles', { headers: authHeaders() });
+  return handleResponse(res);
 }
 
 export async function fetchActiveProfile() {
-  const res = await fetch('/api/active-profile');
-  return res.json();
+  const res = await fetch('/api/active-profile', { headers: authHeaders() });
+  return handleResponse(res);
 }
 
 export async function setActiveProfile(profileId) {
   const res = await fetch('/api/active-profile', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({ profile_id: profileId }),
   });
-  return res.json();
+  return handleResponse(res);
 }
 
 // Admin endpoints

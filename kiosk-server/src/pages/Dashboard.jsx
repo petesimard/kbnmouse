@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { fetchAllProfiles } from '../api/profiles';
+import { fetchKiosks } from '../api/auth';
 import { fetchUnreadCount } from '../api/messages';
 import AuthGate from './dashboard/AuthGate';
 import SetupProfile from './dashboard/SetupProfile';
@@ -14,13 +15,24 @@ function Dashboard() {
   const [profilesLoaded, setProfilesLoaded] = useState(false);
   const [dashboardProfileId, setDashboardProfileId] = useState(null);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    fetchAllProfiles().then((data) => {
+    fetchAllProfiles().then(async (data) => {
       setProfiles(data);
       if (data.length > 0 && !dashboardProfileId) {
         setDashboardProfileId(data[0].id);
+      }
+      // On first load at /dashboard index, redirect to kiosks page if profiles exist but no kiosks
+      if (data.length > 0 && location.pathname === '/dashboard') {
+        try {
+          const kiosks = await fetchKiosks();
+          if (kiosks.length === 0) {
+            navigate('/dashboard/kiosks', { replace: true });
+          }
+        } catch {}
       }
       setProfilesLoaded(true);
     }).catch(console.error);

@@ -186,6 +186,17 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_challenge_completions_profile ON challen
 db.exec("CREATE INDEX IF NOT EXISTS idx_apps_folder ON apps(folder_id)");
 db.exec("CREATE INDEX IF NOT EXISTS idx_folders_profile ON folders(profile_id)");
 
+// --- Account & auth tables ---
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Migration: add account_id to profiles
 const profileCols = db.prepare("PRAGMA table_info(profiles)").all();
 if (!profileCols.some(c => c.name === 'account_id')) {
@@ -197,17 +208,6 @@ if (!profileCols.some(c => c.name === 'account_id')) {
     console.log(`Backfilled profiles with account_id = ${firstAccount.id}`);
   }
 }
-
-// --- Account & auth tables ---
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  )
-`);
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
@@ -343,14 +343,6 @@ if (!bpCols.find(col => col.name === 'account_id')) {
   console.log('Added account_id column to bulletin_pins table');
 }
 
-// Seed default bulletin pin if table is empty
-const pinCount = db.prepare('SELECT COUNT(*) as count FROM bulletin_pins').get();
-if (pinCount.count === 0) {
-  db.prepare(
-    'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run('message', 'Click the icons below to explore, or post your own note on this board for everyone to see!', 50, 45, -2, '#fef08a');
-  console.log('Seeded default bulletin board pin');
-}
 
 // --- Migration: make settings account-scoped ---
 const settingsCols = db.prepare("PRAGMA table_info(settings)").all();

@@ -27,6 +27,11 @@ router.post('/api/auth/register', async (req, res) => {
   const result = db.prepare('INSERT INTO accounts (email, password_hash) VALUES (?, ?)').run(email, passwordHash);
   const accountId = result.lastInsertRowid;
 
+  // Seed a default bulletin board pin for the new account
+  db.prepare(
+    'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color, is_parent, account_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+  ).run('message', 'Click the icons below to explore, or post your own note on this board for everyone to see!', 50, 45, -2, '#fef08a', accountId);
+
   const token = createSession(accountId);
   cleanupSessions();
 

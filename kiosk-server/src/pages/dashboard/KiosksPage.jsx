@@ -116,7 +116,22 @@ export default function KiosksPage() {
           {loading ? (
             <p className="text-slate-400 text-sm">Loading...</p>
           ) : kiosks.length === 0 ? (
-            <p className="text-slate-400 text-sm">No kiosks registered yet. Start the kiosk app and enter the pairing code above.</p>
+            <div className="text-slate-400 text-sm space-y-3">
+              <p>No kiosks registered yet.</p>
+              <p>
+                To get started, install the kiosk software on the computer your kids will use.
+                Follow the{' '}
+                <a
+                  href="https://github.com/petesimard/kbnmouse?tab=readme-ov-file#quick-install"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  installation guide
+                </a>{' '}
+                to set it up. Once installed, the kiosk will display a 5-digit pairing code that you can enter above.
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
               {kiosks.map((kiosk) => (
