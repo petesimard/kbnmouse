@@ -15,12 +15,44 @@ info()  { echo -e "${GREEN}[✓]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
 error() { echo -e "${RED}[✗]${NC} $1"; }
 
+# --- Banner ---
+echo -e "${GREEN}"
+cat << 'BANNER'
+
+    ##  ##  #######           ##     ##
+    ## ##   ##   ##           ###   ###
+    ####    ##   ##           #### ####
+    ###     ######   #####   ## ### ##
+    ####    ##   ##  ##  ##  ##  #  ##
+    ## ##   ##   ##  ##  ##  ##     ##
+    ##  ##  #######  ##  ##  ##     ##
+                     ##
+     ~Kids Browser & Mouse~
+
+BANNER
+echo -e "${NC}"
+
 # --- Must run as root ---
 if [[ $EUID -ne 0 ]]; then
   error "This script must be run as root."
   echo "  Usage: sudo $0" >&2
   exit 1
 fi
+
+# --- Confirm installation ---
+echo "This will set up your system as a KBnM kiosk:"
+echo "  - Create/use a dedicated 'kbnm' user account"
+echo "  - Install LightDM, Openbox, and dependencies"
+echo "  - Configure a kiosk X session"
+echo "  - Install the Electron kiosk app to /opt/kiosk-app"
+echo ""
+read -rp "Continue with installation? (n/Y): " confirm
+confirm="${confirm:-Y}"
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+  echo "Installation cancelled."
+  exit 0
+fi
+echo ""
 
 # --- Detect distro ---
 DISTRO=""
