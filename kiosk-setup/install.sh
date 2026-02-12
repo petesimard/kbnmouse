@@ -43,7 +43,7 @@ echo "  - Install LightDM, Openbox, and dependencies"
 echo "  - Configure a kiosk X session"
 echo "  - Install the Electron kiosk app to /opt/kiosk-app"
 echo ""
-read -rp "Continue with installation? (n/Y): " confirm
+read -rp "Continue with installation? (n/Y): " confirm < /dev/tty
 confirm="${confirm:-Y}"
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   echo "Installation cancelled."
@@ -138,7 +138,7 @@ else
 fi
 
 # --- Autologin prompt ---
-read -rp "Automatically login as kiosk user on reboot? (n/Y): " autologin_choice
+read -rp "Automatically login as kiosk user on reboot? (n/Y): " autologin_choice < /dev/tty
 autologin_choice="${autologin_choice:-Y}"
 
 if [[ "$autologin_choice" =~ ^[Yy]$ ]]; then
