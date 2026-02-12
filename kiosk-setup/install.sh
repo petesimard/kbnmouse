@@ -179,8 +179,14 @@ if command -v systemctl &>/dev/null; then
   for dm in gdm gdm3 sddm lxdm; do
     systemctl disable "$dm" 2>/dev/null || true
   done
-  systemctl enable lightdm
-  info "LightDM enabled"
+  # Some distros manage display managers via a symlink rather than systemctl enable
+  if systemctl enable lightdm 2>/dev/null; then
+    info "LightDM enabled via systemctl"
+  else
+    ln -sf /usr/lib/systemd/system/lightdm.service /etc/systemd/system/display-manager.service
+    systemctl daemon-reload
+    info "LightDM enabled via display-manager symlink"
+  fi
 else
   warn "systemctl not found — enable LightDM manually"
 fi
