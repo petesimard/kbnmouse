@@ -209,6 +209,12 @@ if (!profileCols.some(c => c.name === 'account_id')) {
   }
 }
 
+// Migration: add age to profiles
+const profileCols2 = db.prepare("PRAGMA table_info(profiles)").all();
+if (!profileCols2.some(c => c.name === 'age')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN age INTEGER');
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -249,7 +255,7 @@ db.exec(`
 `);
 
 // Seed default apps and challenges for a given profile
-export function seedProfileDefaults(profileId) {
+export function seedProfileDefaults(profileId, age) {
   const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id) VALUES (?, ?, ?, ?, ?, ?)');
   const defaultApps = [
     { name: 'Home', url: '/test-content', icon: '🏠', sort_order: 0, app_type: 'url' },
@@ -263,16 +269,46 @@ export function seedProfileDefaults(profileId) {
     insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
   }
 
+  // Tune challenge configs based on age
+  let addSubConfig, mulDivConfig, typingConfig;
+  if (age && age <= 5) {
+    addSubConfig = { min_number: 0, max_number: 10 };
+    typingConfig = { difficulty: 'easy' };
+  } else if (age && age <= 7) {
+    addSubConfig = { min_number: 0, max_number: 20 };
+    typingConfig = { difficulty: 'easy' };
+  } else if (age && age <= 9) {
+    addSubConfig = { min_number: 0, max_number: 50 };
+    mulDivConfig = { min_number: 2, max_number: 10 };
+    typingConfig = { difficulty: 'medium' };
+  } else if (age && age <= 11) {
+    addSubConfig = { min_number: 10, max_number: 500 };
+    mulDivConfig = { min_number: 2, max_number: 12 };
+    typingConfig = { difficulty: 'medium' };
+  } else if (age && age >= 12) {
+    addSubConfig = { min_number: 10, max_number: 999 };
+    mulDivConfig = { min_number: 2, max_number: 20 };
+    typingConfig = { difficulty: 'hard' };
+  } else {
+    // No age provided — use component defaults
+    addSubConfig = {};
+    mulDivConfig = {};
+    typingConfig = {};
+  }
+
   const insertChallenge = db.prepare(
     'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   );
-  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, '{}', 0, profileId);
-  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, '{}', 1, profileId);
-  insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, '{}', 2, profileId);
-  insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, '{}', 3, profileId);
-  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, '{}', 4, profileId);
+  let order = 0;
+  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, JSON.stringify(addSubConfig), order++, profileId);
+  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, JSON.stringify(addSubConfig), order++, profileId);
+  if (!age || age >= 8) {
+    insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, JSON.stringify(mulDivConfig), order++, profileId);
+    insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, JSON.stringify(mulDivConfig), order++, profileId);
+  }
+  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId);
 
-  console.log(`Seeded default apps and challenges for profile ${profileId}`);
+  console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
 }
 
 

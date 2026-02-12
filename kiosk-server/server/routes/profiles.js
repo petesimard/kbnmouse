@@ -51,7 +51,7 @@ router.get('/api/admin/profiles', requireAuth, (req, res) => {
 
 // POST /api/admin/profiles - Create profile
 router.post('/api/admin/profiles', requireAuth, (req, res) => {
-  const { name, icon = '👤' } = req.body;
+  const { name, icon = '👤', age } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
   }
@@ -59,10 +59,11 @@ router.post('/api/admin/profiles', requireAuth, (req, res) => {
   const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM profiles WHERE account_id = ?').get(req.accountId);
   const sortOrder = (maxOrder.max || 0) + 1;
 
-  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order, account_id) VALUES (?, ?, ?, ?)').run(name, icon, sortOrder, req.accountId);
+  const parsedAge = age != null ? Number(age) || null : null;
+  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order, account_id, age) VALUES (?, ?, ?, ?, ?)').run(name, icon, sortOrder, req.accountId, parsedAge);
   const profileId = result.lastInsertRowid;
 
-  seedProfileDefaults(profileId);
+  seedProfileDefaults(profileId, parsedAge);
 
   const newProfile = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(profileId, req.accountId);
   broadcastRefresh();
@@ -91,18 +92,20 @@ router.put('/api/admin/profiles/reorder', requireAuth, (req, res) => {
 
 // PUT /api/admin/profiles/:id - Update profile
 router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
-  const { name, icon } = req.body;
+  const { name, icon, age } = req.body;
   const existing = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   if (!existing) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
+  const parsedAge = age !== undefined ? (age != null ? Number(age) || null : null) : undefined;
   db.prepare(`
     UPDATE profiles
     SET name = COALESCE(?, name),
-        icon = COALESCE(?, icon)
+        icon = COALESCE(?, icon),
+        age = COALESCE(?, age)
     WHERE id = ? AND account_id = ?
-  `).run(name, icon, req.params.id, req.accountId);
+  `).run(name, icon, parsedAge !== undefined ? parsedAge : existing.age, req.params.id, req.accountId);
 
   const updated = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   broadcastRefresh();
