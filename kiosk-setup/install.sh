@@ -128,13 +128,20 @@ else
   echo "Creating kiosk user '$KIOSK_USER'..."
   case "$DISTRO" in
     debian)
-      adduser --disabled-password --gecos "Kiosk User" "$KIOSK_USER"
+      adduser --disabled-password --gecos "" "$KIOSK_USER"
       ;;
     *)
-      useradd -m -s /bin/bash -c "Kiosk User" "$KIOSK_USER"
+      useradd -m -s /bin/bash "$KIOSK_USER"
       ;;
   esac
+  # Allow passwordless login
+  passwd -d "$KIOSK_USER"
   info "Created user: $KIOSK_USER"
+fi
+
+# Ensure kbnm can login without a password (needed for LightDM autologin)
+if getent group nopasswdlogin &>/dev/null; then
+  usermod -aG nopasswdlogin "$KIOSK_USER"
 fi
 
 # --- Autologin prompt ---
