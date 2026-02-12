@@ -73,66 +73,53 @@ fi
 
 info "Detected distro family: $DISTRO"
 
-# --- Collect non-admin (non-sudo) user accounts ---
-# Get human users (UID >= 1000, excluding nobody), filter out anyone in sudo/wheel/admin groups
-admin_groups="sudo wheel admin"
-admin_users=""
-for group in $admin_groups; do
-  members=$(getent group "$group" 2>/dev/null | cut -d: -f4)
-  if [[ -n "$members" ]]; then
-    admin_users="$admin_users,$members"
-  fi
-done
+# --- Setup kbnm user account ---
+KIOSK_USER="kbnm"
 
-candidates=()
-while IFS=: read -r username _ uid _ _ home shell; do
-  # Skip system accounts and nobody
-  [[ $uid -lt 1000 ]] && continue
-  [[ $username == "nobody" ]] && continue
-  # Skip users with nologin/false shells
-  [[ $shell == */nologin ]] && continue
-  [[ $shell == */false ]] && continue
-  # Skip admin users
-  if echo ",$admin_users," | grep -q ",$username,"; then
-    continue
-  fi
-  candidates+=("$username")
-done < /etc/passwd
+if id "$KIOSK_USER" &>/dev/null; then
+  # User exists — check it's not an admin
+  is_admin=false
+  for group in sudo wheel admin; do
+    if id -nG "$KIOSK_USER" 2>/dev/null | grep -qw "$group"; then
+      is_admin=true
+      break
+    fi
+  done
 
-# --- Handle no available accounts ---
-if [[ ${#candidates[@]} -eq 0 ]]; then
-  echo "No non-admin user accounts found."
-  echo "You need a non-admin account for kiosk mode."
-  echo ""
-  echo "Create a user manually:"
+  if $is_admin; then
+    error "User '$KIOSK_USER' exists but has admin privileges (sudo/wheel/admin group)."
+    error "The kiosk user must not be an administrator."
+    error "Either remove '$KIOSK_USER' from admin groups or delete the account and re-run this script."
+    exit 1
+  fi
+
+  info "Found existing non-admin user: $KIOSK_USER"
+else
+  # User does not exist — create it
+  echo "Creating kiosk user '$KIOSK_USER'..."
   case "$DISTRO" in
-    debian)       echo "  sudo adduser <username>" ;;
-    fedora|rhel)  echo "  sudo useradd -m <username> && sudo passwd <username>" ;;
-    arch)         echo "  sudo useradd -m -s /bin/bash <username> && sudo passwd <username>" ;;
-    suse)         echo "  sudo useradd -m <username> && sudo passwd <username>" ;;
+    debian)
+      adduser --disabled-password --gecos "Kiosk User" "$KIOSK_USER"
+      ;;
+    *)
+      useradd -m -s /bin/bash -c "Kiosk User" "$KIOSK_USER"
+      ;;
   esac
-  exit 1
+  info "Created user: $KIOSK_USER"
 fi
 
-# --- Let the user pick an account ---
-echo "Available non-admin user accounts:"
-echo ""
-for i in "${!candidates[@]}"; do
-  echo "  $((i + 1))) ${candidates[$i]}"
-done
-echo ""
+# --- Autologin prompt ---
+read -rp "Automatically login as kiosk user on reboot? (n/Y): " autologin_choice
+autologin_choice="${autologin_choice:-Y}"
 
-while true; do
-  read -rp "Select the kiosk user [1-${#candidates[@]}]: " choice
-  if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#candidates[@]} )); then
-    KIOSK_USER="${candidates[$((choice - 1))]}"
-    break
-  fi
-  echo "Invalid selection. Try again."
-done
+if [[ "$autologin_choice" =~ ^[Yy]$ ]]; then
+  AUTOLOGIN=true
+  info "Autologin enabled for $KIOSK_USER"
+else
+  AUTOLOGIN=false
+  info "Autologin disabled — user will need to login manually"
+fi
 
-echo ""
-echo "Using account: $KIOSK_USER"
 echo ""
 
 # --- Install system dependencies ---
@@ -177,14 +164,21 @@ echo "Installing kiosk startup script..."
 cp "$SCRIPT_DIR/kiosk-start.sh" /usr/local/bin/
 chmod +x /usr/local/bin/kiosk-start.sh
 
-# --- Configure LightDM for selected user ---
+# --- Configure LightDM ---
 echo "Configuring LightDM..."
 mkdir -p /etc/lightdm
-cat > /etc/lightdm/lightdm.conf <<EOF
+if $AUTOLOGIN; then
+  cat > /etc/lightdm/lightdm.conf <<EOF
 [Seat:*]
 autologin-user=$KIOSK_USER
 autologin-session=kiosk
 EOF
+else
+  cat > /etc/lightdm/lightdm.conf <<EOF
+[Seat:*]
+autologin-session=kiosk
+EOF
+fi
 
 # --- Configure AccountsService for selected user ---
 if [ -d /var/lib/AccountsService ] || command -v accountsservice &>/dev/null; then
@@ -215,10 +209,3 @@ echo ""
 info "=== Kiosk mode installed successfully! ==="
 echo "Kiosk user: $KIOSK_USER"
 echo "Reboot to start kiosk mode."
-echo ""
-echo "To access admin account: Press Ctrl+Alt+F1 for TTY, login, then run:"
-echo "  sudo systemctl restart lightdm"
-echo ""
-echo "For development with hot-reload, run:"
-echo "  cd /opt/kiosk-app && npm run dev"
-echo ""
