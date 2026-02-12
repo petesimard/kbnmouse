@@ -258,12 +258,11 @@ db.exec(`
 export function seedProfileDefaults(profileId, age) {
   const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id) VALUES (?, ?, ?, ?, ?, ?)');
   const defaultApps = [
-    { name: 'Home', url: '/test-content', icon: '🏠', sort_order: 0, app_type: 'url' },
-    { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 1, app_type: 'builtin' },
-    { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 2, app_type: 'builtin' },
-    { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 3, app_type: 'builtin' },
-    { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 4, app_type: 'builtin' },
-    { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 5, app_type: 'builtin' },
+    { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 0, app_type: 'builtin' },
+    { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 1, app_type: 'builtin' },
+    { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 2, app_type: 'builtin' },
+    { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 3, app_type: 'builtin' },
+    { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 4, app_type: 'builtin' },
   ];
   for (const app of defaultApps) {
     insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
