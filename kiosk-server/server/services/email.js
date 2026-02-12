@@ -1,11 +1,9 @@
-import { getSetting } from '../db.js';
-
-export async function sendEmail({ to, subject, html, accountId }) {
-  const apiKey = getSetting('resend_api_key', accountId);
-  const from = getSetting('resend_from_email', accountId) || 'Kiosk <noreply@example.com>';
+export async function sendEmail({ to, subject, html }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL || 'Kiosk <noreply@example.com>';
 
   if (!apiKey) {
-    throw new Error('Resend API key not configured. Set it in Dashboard > Settings.');
+    throw new Error('Resend API key not configured. Set RESEND_API_KEY in .env');
   }
 
   const res = await fetch('https://api.resend.com/emails', {

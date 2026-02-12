@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useProfile } from '../../contexts/ProfileContext';
-import { fetchDrawings, fetchDrawing, saveDrawing, updateDrawing, deleteDrawing } from '../../api/drawings.js';
+import { fetchDrawings, fetchDrawing, saveDrawing, updateDrawing, deleteDrawing, stylizeDrawing } from '../../api/drawings.js';
 
 export const meta = { key: 'drawing', name: 'Drawing', icon: '🎨', description: 'KidPix-style creative studio' };
 
@@ -247,6 +247,10 @@ function Drawing() {
   const [currentDrawingName, setCurrentDrawingName] = useState(null);
   const [isClearing, setIsClearing] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showAiPicker, setShowAiPicker] = useState(false);
+  const [aiProcessing, setAiProcessing] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiError, setAiError] = useState(null);
 
   // ─── Canvas Setup ───────────────────────────────────────────────────────
 
@@ -729,6 +733,51 @@ function Drawing() {
     }
   }, [currentDrawingId, loadGallery, showToast]);
 
+  // ─── AI Style Transfer ─────────────────────────────────────────────────
+
+  const handleAiStyle = useCallback(async (style) => {
+    if (!profileId) { showToast('No profile selected'); return; }
+    setShowAiPicker(false);
+    setAiProcessing(true);
+    setAiError(null);
+
+    try {
+      const canvas = canvasRef.current;
+      const image_data = canvas.toDataURL('image/png');
+      const result = await stylizeDrawing({ image_data, style, profile_id: profileId });
+
+      if (result.error) {
+        setAiError(result.error);
+        setAiProcessing(false);
+        return;
+      }
+
+      setAiResult(`data:image/png;base64,${result.imageData}`);
+    } catch {
+      setAiError('generation_failed');
+    }
+    setAiProcessing(false);
+  }, [profileId, showToast]);
+
+  const handleAiUse = useCallback(() => {
+    if (!aiResult) return;
+    pushUndo();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      setAiResult(null);
+      setCurrentDrawingId(null);
+      setCurrentDrawingName(null);
+      showToast('AI art applied!');
+    };
+    img.src = aiResult;
+  }, [aiResult, pushUndo, showToast]);
+
   // ─── Tool select handler ──────────────────────────────────────────────
 
   const handleToolSelect = useCallback((toolId) => {
@@ -790,6 +839,11 @@ function Drawing() {
             title="Save">
             💾 Save
           </button>
+          <button onClick={() => setShowAiPicker(true)} disabled={aiProcessing}
+            className="h-10 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            title="AI Style Transfer">
+            🤖 AI
+          </button>
           <button onClick={handleOpenGallery}
             className="h-10 px-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium transition-colors flex items-center gap-1.5"
             title="Gallery">
@@ -837,6 +891,15 @@ function Drawing() {
                     }`}>{s}</button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* AI Processing Overlay */}
+          {aiProcessing && (
+            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center z-20 backdrop-blur-sm">
+              <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4" />
+              <div className="text-white text-xl font-bold">AI is painting...</div>
+              <div className="text-white/60 text-sm mt-1">This may take a moment</div>
             </div>
           )}
         </div>
@@ -945,6 +1008,72 @@ function Drawing() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Style Picker Modal */}
+      {showAiPicker && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" onClick={() => setShowAiPicker(false)}>
+          <div className="bg-slate-800 rounded-xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-white text-lg font-bold mb-4 text-center">Choose a Style</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { id: 'comic', emoji: '📰', label: 'Comic' },
+                { id: 'anime', emoji: '🎌', label: 'Anime' },
+                { id: 'realistic', emoji: '📷', label: 'Realistic' },
+                { id: 'painting', emoji: '🖌️', label: 'Painting' },
+              ].map((s) => (
+                <button key={s.id} onClick={() => handleAiStyle(s.id)}
+                  className="bg-slate-700 hover:bg-purple-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-colors group">
+                  <span className="text-5xl group-hover:scale-110 transition-transform">{s.emoji}</span>
+                  <span className="text-white font-medium">{s.label}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowAiPicker(false)}
+              className="w-full mt-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white transition-colors">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Result Preview Modal */}
+      {aiResult && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-slate-800 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-white text-lg font-bold mb-4 text-center">AI Result</h3>
+            <div className="bg-white rounded-lg overflow-hidden mb-4">
+              <img src={aiResult} alt="AI styled drawing" className="w-full h-auto" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setAiResult(null)}
+                className="flex-1 py-3 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors">Discard</button>
+              <button onClick={handleAiUse}
+                className="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors">Use This</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Error Modal */}
+      {aiError && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" onClick={() => setAiError(null)}>
+          <div className="bg-slate-800 rounded-xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-white text-lg font-bold mb-3">
+              {aiError === 'api_key_missing' ? 'API Key Needed' :
+               aiError === 'api_key_invalid' ? 'API Key Error' :
+               aiError === 'content_policy' ? 'Content Issue' :
+               aiError === 'rate_limit' ? 'Slow Down' : 'Oops!'}
+            </h3>
+            <p className="text-slate-300 text-sm mb-4">
+              {aiError === 'api_key_missing' ? 'Ask a parent to add an OpenAI API key in Dashboard Settings to use AI features.' :
+               aiError === 'api_key_invalid' ? 'The OpenAI API key isn\'t working. Ask a parent to check Dashboard Settings.' :
+               aiError === 'content_policy' ? 'The AI couldn\'t process this drawing. Try changing your drawing a bit and try again.' :
+               aiError === 'rate_limit' ? 'Too many requests — wait a moment and try again.' :
+               'Something went wrong. Please try again.'}
+            </p>
+            <button onClick={() => setAiError(null)}
+              className="w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors">OK</button>
           </div>
         </div>
       )}

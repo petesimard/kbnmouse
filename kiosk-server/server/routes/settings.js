@@ -8,8 +8,6 @@ const router = Router();
 const ALLOWED_SETTINGS_KEYS = new Set([
   'openai_api_key',
   'openai_endpoint_url',
-  'resend_api_key',
-  'resend_from_email',
   'google_api_key',
   'parent_name',
 ]);

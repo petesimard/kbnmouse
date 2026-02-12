@@ -1,7 +1,16 @@
 import { Router } from 'express';
+import OpenAI from 'openai';
 import db from '../db.js';
+import { getSetting } from '../db.js';
 
 const router = Router();
+
+const STYLE_PROMPTS = {
+  comic: 'Transform this children\'s drawing into a vibrant comic book illustration with bold outlines, halftone dots, and dynamic colors. Keep the same subject and composition.',
+  anime: 'Transform this children\'s drawing into anime/manga art style with clean lines, expressive features, and cel-shading. Keep the same subject and composition.',
+  realistic: 'Transform this children\'s drawing into a photorealistic rendering with natural lighting, textures, and depth. Keep the same subject and composition.',
+  painting: 'Transform this children\'s drawing into a beautiful oil painting with visible brushstrokes, rich colors, and artistic composition. Keep the same subject and composition.',
+};
 
 function verifyProfileOwnership(profileId, accountId) {
   return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
@@ -78,6 +87,78 @@ router.delete('/:id', (req, res) => {
   }
   db.prepare('DELETE FROM drawings WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// POST /api/drawings/stylize — AI style transfer
+router.post('/stylize', async (req, res) => {
+  const { image_data, style, profile_id } = req.body;
+  if (!image_data || !style || !profile_id) {
+    return res.status(400).json({ error: 'image_data, style, and profile_id are required' });
+  }
+  if (!STYLE_PROMPTS[style]) {
+    return res.status(400).json({ error: 'Invalid style' });
+  }
+  if (!verifyProfileOwnership(profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Profile not found' });
+  }
+
+  const apiKey = getSetting('openai_api_key', req.accountId);
+  const endpointUrl = getSetting('openai_endpoint_url', req.accountId);
+
+  if (!apiKey) {
+    return res.json({ error: 'api_key_missing' });
+  }
+
+  try {
+    const openai = new OpenAI({
+      apiKey,
+      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
+    });
+
+    // Strip data URL prefix to get raw base64
+    const base64 = image_data.replace(/^data:image\/\w+;base64,/, '');
+
+    console.log('[Stylize] Applying style:', style);
+
+    const response = await openai.responses.create({
+      model: 'gpt-5',
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_image',
+              image_url: `data:image/png;base64,${base64}`,
+            },
+            {
+              type: 'input_text',
+              text: STYLE_PROMPTS[style],
+            },
+          ],
+        },
+      ],
+      tools: [{ type: 'image_generation' }],
+    });
+
+    const imageOutput = response.output.find(o => o.type === 'image_generation_call');
+    if (!imageOutput?.result) {
+      return res.status(500).json({ error: 'generation_failed', message: 'No image was generated. Please try again.' });
+    }
+    res.json({ imageData: imageOutput.result });
+  } catch (err) {
+    console.error('OpenAI stylize error:', err.message);
+
+    if (err.status === 401) {
+      return res.json({ error: 'api_key_invalid' });
+    }
+    if (err.code === 'content_policy_violation' || err.message?.includes('content policy')) {
+      return res.json({ error: 'content_policy', message: 'Your drawing was rejected due to content policy. Try changing it a bit.' });
+    }
+    if (err.status === 429) {
+      return res.json({ error: 'rate_limit', message: 'Too many requests. Please wait a moment and try again.' });
+    }
+    res.status(500).json({ error: 'generation_failed', message: 'Failed to stylize drawing. Please try again.' });
+  }
 });
 
 export default router;

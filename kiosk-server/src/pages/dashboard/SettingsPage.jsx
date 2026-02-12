@@ -20,21 +20,12 @@ export default function SettingsPage() {
   const [openaiError, setOpenaiError] = useState('');
   const [openaiSuccess, setOpenaiSuccess] = useState('');
 
-  // Resend email config state
-  const [resendApiKey, setResendApiKey] = useState(null);
-  const [resendFromEmail, setResendFromEmail] = useState(null);
-  const [resendSaving, setResendSaving] = useState(false);
-  const [resendError, setResendError] = useState('');
-  const [resendSuccess, setResendSuccess] = useState('');
-
   // Sync settings into local state once loaded
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   if (!settingsLoading && !settingsLoaded) {
     setParentName(settings.parent_name || 'Mom & Dad');
     setOpenaiApiKey(settings.openai_api_key || '');
     setOpenaiEndpointUrl(settings.openai_endpoint_url || '');
-    setResendApiKey(settings.resend_api_key || '');
-    setResendFromEmail(settings.resend_from_email || '');
     setSettingsLoaded(true);
   }
 
@@ -72,24 +63,6 @@ export default function SettingsPage() {
       setOpenaiError(err.message);
     } finally {
       setOpenaiSaving(false);
-    }
-  };
-
-  const handleSaveResend = async (e) => {
-    e.preventDefault();
-    setResendError('');
-    setResendSuccess('');
-    setResendSaving(true);
-    try {
-      await updateSettings({
-        resend_api_key: resendApiKey,
-        resend_from_email: resendFromEmail,
-      });
-      setResendSuccess('Email settings saved');
-    } catch (err) {
-      setResendError(err.message);
-    } finally {
-      setResendSaving(false);
     }
   };
 
@@ -252,47 +225,6 @@ export default function SettingsPage() {
           </form>
         </div>
 
-        {/* Resend Email Configuration */}
-        <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Email Configuration (Resend)</h3>
-          <form onSubmit={handleSaveResend} className="space-y-4 max-w-sm">
-            <div>
-              <label className="block text-slate-400 text-sm mb-1">Resend API Key</label>
-              <input
-                type="password"
-                value={resendApiKey ?? ''}
-                onChange={(e) => setResendApiKey(e.target.value)}
-                placeholder="re_..."
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Required for magic link login and password reset emails. Get one from resend.com
-              </p>
-            </div>
-            <div>
-              <label className="block text-slate-400 text-sm mb-1">From Email</label>
-              <input
-                type="email"
-                value={resendFromEmail ?? ''}
-                onChange={(e) => setResendFromEmail(e.target.value)}
-                placeholder="kbnmouse <noreply@yourdomain.com>"
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                The email address used as the sender for magic links and password resets.
-              </p>
-            </div>
-            {resendError && <p className="text-red-400 text-sm">{resendError}</p>}
-            {resendSuccess && <p className="text-emerald-400 text-sm">{resendSuccess}</p>}
-            <button
-              type="submit"
-              disabled={resendSaving || !settingsLoaded}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-            >
-              {resendSaving ? 'Saving...' : 'Save'}
-            </button>
-          </form>
-        </div>
       </div>
     </>
   );
