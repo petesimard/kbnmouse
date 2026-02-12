@@ -361,6 +361,20 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_bulletin_pins_created ON bulletin_pins(created_at)");
 
+// Create drawings table for save/load in Drawing builtin
+db.exec(`
+  CREATE TABLE IF NOT EXISTS drawings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    profile_id INTEGER NOT NULL,
+    image_data TEXT NOT NULL,
+    thumbnail TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+db.exec("CREATE INDEX IF NOT EXISTS idx_drawings_profile ON drawings(profile_id)");
+
 // Migration: add is_parent column to bulletin_pins
 const bpCols = db.prepare("PRAGMA table_info(bulletin_pins)").all();
 if (!bpCols.find(col => col.name === 'is_parent')) {
