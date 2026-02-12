@@ -145,7 +145,7 @@ function Menu() {
 
   // Fetch apps and folders from the database, scoped by profile
   const fetchApps = useCallback(() => {
-    if (needsProfileSelection) return;
+    if (needsProfileSelection || !profileId) return;
     const profileQuery = profileId ? `?profile=${profileId}` : '';
     Promise.all([
       fetch(`/api/apps${profileQuery}`).then((res) => res.json()),
@@ -203,9 +203,10 @@ function Menu() {
           const data = JSON.parse(event.data);
           if (data.type === 'refresh') {
             console.log('Received refresh signal, reloading...');
-            refreshProfilesRef.current();
-            fetchAppsRef.current();
             setCurrentFolderId(null);
+            refreshProfilesRef.current().then(() => {
+              fetchAppsRef.current();
+            });
           } else if (data.type === 'new_message' && data.message) {
             const msg = data.message;
             const pid = profileIdRef.current;
