@@ -49,9 +49,9 @@ rm -rf /opt/kiosk-app
 cp -r /tmp/kiosk-app /opt/kiosk-app
 chown -R "$KIOSK_USER:$KIOSK_USER" /opt/kiosk-app
 
-info "Running npm install (production)..."
+info "Running npm install..."
 cd /opt/kiosk-app
-sudo -u "$KIOSK_USER" npm install --production
+sudo -u "$KIOSK_USER" npm install
 
 # --- Configure LightDM ---
 info "Configuring LightDM..."
