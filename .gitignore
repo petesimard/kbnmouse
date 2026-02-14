@@ -37,6 +37,11 @@ kiosk-app/data/kiosk-registration.json
 # Uploads
 kiosk-server/data/uploads/
 
+# Kiosk Live ISO builder
+kiosk-live/work/
+kiosk-live/downloads/
+kiosk-live/*.iso
+
 # Misc
 .cache/
 tmp/
