@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { setupWebSocket } from './websocket.js';
 
 // Import routes
@@ -27,7 +28,9 @@ import { requireAnyAuth } from './middleware/auth.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-const PORT = 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+const PORT = parseInt(process.env.PORT, 10) || (isProduction ? 80 : 3001);
+const distDir = join(__dirname, '..', 'dist');
 
 // Create HTTP server and WebSocket server
 const server = createServer(app);
@@ -81,7 +84,17 @@ app.use('/customgames', requireAnyAuth, (req, res, next) => {
     .catch(() => gamesStatic(req, res, next));
 }, gamesStatic);
 
-server.listen(PORT, () => {
-  console.log(`API server running at http://localhost:${PORT}`);
-  console.log(`WebSocket server running at ws://localhost:${PORT}/ws`);
+// In production, serve the built React frontend
+if (isProduction && existsSync(distDir)) {
+  app.use(express.static(distDir));
+
+  // SPA fallback — serve index.html for any non-API, non-file request
+  app.use((req, res) => {
+    res.sendFile(join(distDir, 'index.html'));
+  });
+}
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`${isProduction ? 'Production' : 'API'} server running at http://0.0.0.0:${PORT}`);
+  console.log(`WebSocket server running at ws://0.0.0.0:${PORT}/ws`);
 });
