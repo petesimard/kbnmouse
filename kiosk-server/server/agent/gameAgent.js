@@ -1,12 +1,38 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { access, mkdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, '..', '..', 'data', 'games');
 
-function buildSystemPrompt(gameDir) {
+/**
+ * Creates a canUseTool callback that restricts all file operations
+ * to the given directory. Denies any path that resolves outside it.
+ */
+function createToolGuard(allowedDir) {
+  const resolvedDir = resolve(allowedDir);
+
+  return async (toolName, input) => {
+    if (!['Write', 'Edit', 'Read', 'Glob'].includes(toolName)) {
+      return { behavior: 'deny', message: `Tool "${toolName}" is not allowed` };
+    }
+
+    // Extract the path from the tool input
+    const filePath = input.file_path || input.path;
+    if (filePath) {
+      const resolved = resolve(resolvedDir, String(filePath));
+      if (resolved !== resolvedDir && !resolved.startsWith(resolvedDir + '/')) {
+        console.log(`[GameAgent] Blocked ${toolName} outside sandbox: ${filePath}`);
+        return { behavior: 'deny', message: 'Access denied: path is outside the game directory' };
+      }
+    }
+
+    return { behavior: 'allow' };
+  };
+}
+
+function buildSystemPrompt() {
   return `You are a game developer creating a fun Three.js browser game for kids.
 
 ## Requirements
@@ -27,14 +53,15 @@ function buildSystemPrompt(gameDir) {
 - Include sound effects using the Web Audio API (simple beeps/tones) if appropriate
 
 ## Important
-- Write all files to ${gameDir} using absolute paths
+- Write all files to the current working directory using relative paths (e.g. ./index.html, ./game.js)
+- Do NOT use absolute paths — only write files relative to the current directory
 - The game should be self-contained and require no build step
 - Test your HTML by reading it back to verify correctness
 - Make sure the game loop runs smoothly`;
 }
 
-async function runClaude(prompt, cwd, systemPrompt) {
-  console.log(`[GameAgent] Running in ${cwd}`);
+async function runClaude(prompt, gameDir, systemPrompt) {
+  console.log(`[GameAgent] Running in ${gameDir}`);
   console.log(`[GameAgent] Prompt: ${prompt.substring(0, 200)}...`);
 
   let resultText = '';
@@ -43,11 +70,11 @@ async function runClaude(prompt, cwd, systemPrompt) {
   for await (const message of query({
     prompt,
     options: {
-      cwd,
+      cwd: gameDir,
       systemPrompt,
-      allowedTools: ['Write', 'Edit', 'Read', 'Bash', 'Glob'],
+      disallowedTools: ['Bash'],
+      canUseTool: createToolGuard(gameDir),
       maxTurns: 30,
-      permissionMode: 'bypassPermissions',
     },
   })) {
     // Log messages for visibility
@@ -76,11 +103,11 @@ export async function generateGame(gameId, prompt) {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt(gameDir);
+  const systemPrompt = buildSystemPrompt();
 
   const userPrompt = `Create a Three.js game based on this description: ${prompt}
 
-Write all game files to ${gameDir}. The main file must be named index.html (i.e. ${gameDir}/index.html).`;
+Write all game files to the current directory. The main file must be named index.html.`;
 
   const { resultText, wroteFiles } = await runClaude(userPrompt, gameDir, systemPrompt);
 
@@ -100,11 +127,11 @@ export async function updateGame(gameId, prompt) {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt(gameDir);
+  const systemPrompt = buildSystemPrompt();
 
-  const userPrompt = `Update the existing Three.js game in ${gameDir} based on this request: ${prompt}
+  const userPrompt = `Update the existing Three.js game based on this request: ${prompt}
 
-Read the existing files first to understand the current game, then make the requested changes. Keep the game working and fun.`;
+Read the existing files in the current directory first to understand the current game, then make the requested changes. Keep the game working and fun.`;
 
   const { resultText, wroteFiles } = await runClaude(userPrompt, gameDir, systemPrompt);
 
