@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, '..', '..', 'data', 'games');
 
+const ALLOWED_TOOLS = ['Write', 'Edit', 'Read', 'Glob'];
+
 /**
  * Creates a canUseTool callback that restricts all file operations
  * to the given directory. Denies any path that resolves outside it.
@@ -14,10 +16,6 @@ function createToolGuard(allowedDir) {
   const resolvedDir = resolve(allowedDir);
 
   return async (toolName, input) => {
-    if (!['Write', 'Edit', 'Read', 'Glob'].includes(toolName)) {
-      return { behavior: 'deny', message: `Tool "${toolName}" is not allowed` };
-    }
-
     // Extract the path from the tool input
     const filePath = input.file_path || input.path;
     if (filePath) {
@@ -72,7 +70,9 @@ async function runClaude(prompt, gameDir, systemPrompt) {
     options: {
       cwd: gameDir,
       systemPrompt,
-      disallowedTools: ['Bash'],
+      allowedTools: ALLOWED_TOOLS,
+      disallowedTools: ['Bash', 'Task', 'TodoWrite'],
+      permissionMode: 'dontAsk',
       canUseTool: createToolGuard(gameDir),
       maxTurns: 30,
     },
