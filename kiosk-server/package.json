@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "client": "vite",
-    "server": "node server/index.js",
+    "server": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
-    "start": "vite build && NODE_ENV=production node server/index.js",
+    "start": "vite build && NODE_ENV=production node --env-file-if-exists=.env server/index.js",
     "preview": "vite preview"
   },
   "devDependencies": {

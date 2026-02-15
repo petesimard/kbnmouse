@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParentName } from '../../hooks/useParentName';
 
 export const meta = {
   key: 'chatbot',
@@ -9,7 +8,6 @@ export const meta = {
 };
 
 function ChatBot() {
-  const parentName = useParentName();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,14 +63,6 @@ function ChatBot() {
       });
       const data = await res.json();
 
-      if (data.error === 'api_key_missing') {
-        setConfigError('api_key_missing');
-        return;
-      }
-      if (data.error === 'api_key_invalid') {
-        setConfigError('api_key_invalid');
-        return;
-      }
       if (data.error) {
         setMessages([...newMessages, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' }]);
         return;
@@ -92,32 +82,6 @@ function ChatBot() {
       sendMessage();
     }
   };
-
-  if (configError === 'api_key_missing' || configError === 'api_key_invalid') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <div className="text-8xl mb-6">🔧</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Setup Required</h1>
-          <p className="text-slate-300 text-lg mb-6">
-            {configError === 'api_key_missing'
-              ? 'ChatBot needs an OpenAI API key to work.'
-              : 'The OpenAI API key is invalid. Please check it.'}
-          </p>
-          <div className="bg-slate-800/50 rounded-xl p-6 text-left">
-            <p className="text-slate-400 text-sm">
-              Ask {parentName} to:
-            </p>
-            <ol className="text-slate-300 text-sm mt-2 space-y-2 list-decimal list-inside">
-              <li>Go to the Dashboard</li>
-              <li>Go to Settings</li>
-              <li>Enter an OpenAI API key</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (configError) {
     return (

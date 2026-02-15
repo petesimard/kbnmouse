@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useImageStorage } from '../../hooks/useImageStorage';
-import { useParentName } from '../../hooks/useParentName';
 
 export const meta = {
   key: 'imagegen',
@@ -10,7 +9,6 @@ export const meta = {
 };
 
 function ImageGenerator() {
-  const parentName = useParentName();
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [configError, setConfigError] = useState(null);
@@ -73,14 +71,6 @@ function ImageGenerator() {
       });
       const data = await res.json();
 
-      if (data.error === 'api_key_missing') {
-        setConfigError('api_key_missing');
-        return;
-      }
-      if (data.error === 'api_key_invalid') {
-        setConfigError('api_key_invalid');
-        return;
-      }
       if (data.error === 'content_policy') {
         setError(data.message || 'Your prompt was rejected. Please try something different.');
         return;
@@ -137,32 +127,6 @@ function ImageGenerator() {
     await clearAll();
     setCurrentImage(null);
   };
-
-  if (configError === 'api_key_missing' || configError === 'api_key_invalid') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center p-8">
-        <div className="text-center max-w-md">
-          <div className="text-8xl mb-6">🔧</div>
-          <h1 className="text-3xl font-bold text-white mb-4">Setup Required</h1>
-          <p className="text-slate-300 text-lg mb-6">
-            {configError === 'api_key_missing'
-              ? 'Image Generator needs an OpenAI API key to work.'
-              : 'The OpenAI API key is invalid. Please check it.'}
-          </p>
-          <div className="bg-slate-800/50 rounded-xl p-6 text-left">
-            <p className="text-slate-400 text-sm">
-              Ask {parentName} to:
-            </p>
-            <ol className="text-slate-300 text-sm mt-2 space-y-2 list-decimal list-inside">
-              <li>Go to the Dashboard</li>
-              <li>Go to Settings</li>
-              <li>Enter an OpenAI API key</li>
-            </ol>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (configError) {
     return (

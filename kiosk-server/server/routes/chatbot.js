@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import db from '../db.js';
-import { getSetting } from '../db.js';
 
 const router = Router();
 
@@ -26,12 +25,9 @@ router.post('/message', async (req, res) => {
 
   const config = JSON.parse(appRecord.config || '{}');
 
-  // Resolve API key and endpoint: per-app config overrides global settings
-  const globalApiKey = getSetting('openai_api_key', req.accountId);
-  const globalEndpoint = getSetting('openai_endpoint_url', req.accountId);
-
-  const apiKey = config.openai_api_key || globalApiKey;
-  const endpointUrl = config.openai_endpoint_url || globalEndpoint;
+  // Resolve API key and endpoint: per-app config overrides env vars
+  const apiKey = config.openai_api_key || process.env.OPENAI_API_KEY;
+  const endpointUrl = config.openai_endpoint_url || process.env.OPENAI_ENDPOINT_URL;
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });

@@ -13,19 +13,10 @@ export default function SettingsPage() {
   const [parentNameError, setParentNameError] = useState('');
   const [parentNameSuccess, setParentNameSuccess] = useState('');
 
-  // OpenAI config state
-  const [openaiApiKey, setOpenaiApiKey] = useState(null);
-  const [openaiEndpointUrl, setOpenaiEndpointUrl] = useState(null);
-  const [openaiSaving, setOpenaiSaving] = useState(false);
-  const [openaiError, setOpenaiError] = useState('');
-  const [openaiSuccess, setOpenaiSuccess] = useState('');
-
   // Sync settings into local state once loaded
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   if (!settingsLoading && !settingsLoaded) {
     setParentName(settings.parent_name || 'Mom & Dad');
-    setOpenaiApiKey(settings.openai_api_key || '');
-    setOpenaiEndpointUrl(settings.openai_endpoint_url || '');
     setSettingsLoaded(true);
   }
 
@@ -45,24 +36,6 @@ export default function SettingsPage() {
       setParentNameError(err.message);
     } finally {
       setParentNameSaving(false);
-    }
-  };
-
-  const handleSaveOpenai = async (e) => {
-    e.preventDefault();
-    setOpenaiError('');
-    setOpenaiSuccess('');
-    setOpenaiSaving(true);
-    try {
-      await updateSettings({
-        openai_api_key: openaiApiKey,
-        openai_endpoint_url: openaiEndpointUrl,
-      });
-      setOpenaiSuccess('OpenAI settings saved');
-    } catch (err) {
-      setOpenaiError(err.message);
-    } finally {
-      setOpenaiSaving(false);
     }
   };
 
@@ -179,48 +152,6 @@ export default function SettingsPage() {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
             >
               {pwSaving ? 'Saving...' : 'Change Password'}
-            </button>
-          </form>
-        </div>
-
-        {/* OpenAI Configuration */}
-        <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">OpenAI Configuration</h3>
-          <form onSubmit={handleSaveOpenai} className="space-y-4 max-w-sm">
-            <div>
-              <label className="block text-slate-400 text-sm mb-1">API Key</label>
-              <input
-                type="password"
-                value={openaiApiKey ?? ''}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Used by ChatBot and Image Generator. Get one from platform.openai.com
-              </p>
-            </div>
-            <div>
-              <label className="block text-slate-400 text-sm mb-1">Endpoint URL</label>
-              <input
-                type="text"
-                value={openaiEndpointUrl ?? ''}
-                onChange={(e) => setOpenaiEndpointUrl(e.target.value)}
-                placeholder="https://api.openai.com/v1"
-                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 font-mono"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Leave blank to use the default OpenAI endpoint. Set this if using a compatible API provider.
-              </p>
-            </div>
-            {openaiError && <p className="text-red-400 text-sm">{openaiError}</p>}
-            {openaiSuccess && <p className="text-emerald-400 text-sm">{openaiSuccess}</p>}
-            <button
-              type="submit"
-              disabled={openaiSaving || !settingsLoaded}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
-            >
-              {openaiSaving ? 'Saving...' : 'Save'}
             </button>
           </form>
         </div>

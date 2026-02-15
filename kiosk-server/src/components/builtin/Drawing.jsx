@@ -1060,15 +1060,11 @@ function Drawing() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm" onClick={() => setAiError(null)}>
           <div className="bg-slate-800 rounded-xl p-6 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-white text-lg font-bold mb-3">
-              {aiError === 'api_key_missing' ? 'API Key Needed' :
-               aiError === 'api_key_invalid' ? 'API Key Error' :
-               aiError === 'content_policy' ? 'Content Issue' :
+              {aiError === 'content_policy' ? 'Content Issue' :
                aiError === 'rate_limit' ? 'Slow Down' : 'Oops!'}
             </h3>
             <p className="text-slate-300 text-sm mb-4">
-              {aiError === 'api_key_missing' ? 'Ask a parent to add an OpenAI API key in Dashboard Settings to use AI features.' :
-               aiError === 'api_key_invalid' ? 'The OpenAI API key isn\'t working. Ask a parent to check Dashboard Settings.' :
-               aiError === 'content_policy' ? 'The AI couldn\'t process this drawing. Try changing your drawing a bit and try again.' :
+              {aiError === 'content_policy' ? 'The AI couldn\'t process this drawing. Try changing your drawing a bit and try again.' :
                aiError === 'rate_limit' ? 'Too many requests — wait a moment and try again.' :
                'Something went wrong. Please try again.'}
             </p>

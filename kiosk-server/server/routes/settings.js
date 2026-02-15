@@ -6,8 +6,6 @@ import { broadcastRefresh } from '../websocket.js';
 const router = Router();
 
 const ALLOWED_SETTINGS_KEYS = new Set([
-  'openai_api_key',
-  'openai_endpoint_url',
   'google_api_key',
   'parent_name',
 ]);

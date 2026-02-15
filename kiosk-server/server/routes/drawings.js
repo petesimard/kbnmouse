@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
 import db from '../db.js';
-import { getSetting } from '../db.js';
 
 const router = Router();
 
@@ -102,8 +101,8 @@ router.post('/stylize', async (req, res) => {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
-  const apiKey = getSetting('openai_api_key', req.accountId);
-  const endpointUrl = getSetting('openai_endpoint_url', req.accountId);
+  const apiKey = process.env.OPENAI_API_KEY;
+  const endpointUrl = process.env.OPENAI_ENDPOINT_URL;
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
