@@ -4,9 +4,10 @@ const fs = require('fs');
 
 const isPackaged = app.isPackaged;
 
-// Writable data dir: /opt/kiosk-app/data in prod, ./data in dev
+// Writable data dir: ~/.config/kbnmouse in prod, ./data in dev
+// Kiosk deployments override via KIOSK_DATA_DIR=/opt/kiosk-app/data
 const DATA_DIR = isPackaged
-  ? (process.env.KIOSK_DATA_DIR || '/opt/kiosk-app/data')
+  ? (process.env.KIOSK_DATA_DIR || path.join(app.getPath('userData')))
   : path.join(__dirname, 'data');
 
 // Ensure data dir exists

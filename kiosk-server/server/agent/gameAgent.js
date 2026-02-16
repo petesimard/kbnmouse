@@ -30,7 +30,7 @@ function createToolGuard(allowedDir) {
   };
 }
 
-function buildSystemPrompt() {
+function buildSystemPrompt3D() {
   return `You are a game developer creating a fun Three.js browser game for kids.
 
 ## Requirements
@@ -56,6 +56,76 @@ function buildSystemPrompt() {
 - The game should be self-contained and require no build step
 - Test your HTML by reading it back to verify correctness
 - Make sure the game loop runs smoothly`;
+}
+
+function buildSystemPrompt2D() {
+  return `You are a game developer creating a fun 2D browser game for kids using PixiJS.
+
+## PixiJS Setup
+- Include PixiJS via CDN: <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.6.6/pixi.min.js"></script>
+- PixiJS 8 exposes everything under the global \`PIXI\` namespace
+
+## PixiJS API Quick Reference
+- App init (async):
+  \`\`\`js
+  const app = new PIXI.Application();
+  await app.init({ width: 800, height: 600, background: '#1099bb', resizeTo: window });
+  document.body.appendChild(app.canvas);
+  \`\`\`
+- Display objects: \`new PIXI.Container()\`, \`new PIXI.Sprite(texture)\`, \`new PIXI.AnimatedSprite(textures)\`
+- Graphics (shape drawing):
+  \`\`\`js
+  const g = new PIXI.Graphics();
+  g.rect(x, y, w, h).fill(0xff0000);         // rectangle
+  g.circle(x, y, radius).fill(0x00ff00);      // circle
+  g.moveTo(x1,y1).lineTo(x2,y2).stroke({ width: 2, color: 0xffffff }); // line
+  g.roundRect(x, y, w, h, radius).fill(color); // rounded rectangle
+  \`\`\`
+- Text: \`new PIXI.Text({ text: 'Hello', style: { fontSize: 32, fill: 0xffffff, fontFamily: 'Arial' } })\`
+- Positioning: \`obj.x\`, \`obj.y\`, \`obj.rotation\`, \`obj.scale.set(sx, sy)\`, \`obj.anchor.set(0.5)\` (sprites)
+- Game loop: \`app.ticker.add((ticker) => { const dt = ticker.deltaTime; /* update logic */ })\`
+- Adding to stage: \`app.stage.addChild(obj)\`, \`container.addChild(obj)\`, \`obj.destroy()\`
+- Keyboard input: listen to \`window.addEventListener('keydown'/'keyup', e => { ... })\` and track key state in an object
+- Mouse/Touch: \`obj.eventMode = 'static'; obj.on('pointerdown', handler)\` or use global \`app.stage.eventMode = 'static'; app.stage.on('pointermove', handler)\`
+- Collision detection: manual — use simple AABB or distance checks:
+  \`\`\`js
+  function hitTest(a, b, radius) { return Math.hypot(a.x - b.x, a.y - b.y) < radius; }
+  function boundsOverlap(a, b) { return a.getBounds().intersects(b.getBounds()); }
+  \`\`\`
+- Screen size: \`app.screen.width\`, \`app.screen.height\`
+- Random: \`Math.random() * (max - min) + min\`
+- Tween/animation: use ticker-based lerp or simple velocity patterns
+- Particles: draw with Graphics in the ticker, or use simple arrays of particle objects
+
+## Requirements
+- Create a complete, playable 2D game as a single index.html file (you may also create separate .js files if needed)
+- The game must work immediately when index.html is opened in a browser
+- Do NOT use any external image/sprite files — draw everything with PIXI.Graphics shapes and PIXI.Text
+- Make the game fun, colorful, and kid-friendly (ages 6-12)
+- Use bright colors, simple controls (keyboard arrows/WASD and mouse), and clear visual feedback
+- Include a simple score or objective system
+- Add a title/instructions screen or overlay
+- Keep the game simple enough for kids but engaging
+- Use async/await for app initialization (PixiJS 8 requires it)
+
+## Style Guidelines
+- Use cheerful, bright colors (no dark/scary themes)
+- Create simple particle effects with Graphics objects for visual flair
+- Use PIXI.Text for UI/HUD elements with clear, large text
+- Use the Web Audio API for simple sound effects (beeps/tones) if appropriate
+
+## Important
+- Write all files to the current working directory using relative paths (e.g. ./index.html, ./game.js)
+- Do NOT use absolute paths — only write files relative to the current directory
+- The game should be self-contained and require no build step
+- Do NOT reference any image/sprite files — use only PIXI.Graphics shapes and PIXI.Text
+- Test your HTML by reading it back to verify correctness
+- Make sure the game loop runs smoothly
+- PixiJS 8 app init is async — wrap game setup in an async function`;
+}
+
+function buildSystemPrompt(gameType) {
+  return gameType === '2d' ? buildSystemPrompt2D() : buildSystemPrompt3D();
 }
 
 async function runClaude(prompt, gameDir, systemPrompt) {
@@ -99,13 +169,14 @@ async function runClaude(prompt, gameDir, systemPrompt) {
   return { resultText, wroteFiles };
 }
 
-export async function generateGame(gameId, prompt) {
+export async function generateGame(gameId, prompt, gameType = '3d') {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(gameType);
+  const engineLabel = gameType === '2d' ? 'PixiJS 2D' : 'Three.js';
 
-  const userPrompt = `Create a Three.js game based on this description: ${prompt}
+  const userPrompt = `Create a ${engineLabel} game based on this description: ${prompt}
 
 Write all game files to the current directory. The main file must be named index.html.`;
 
@@ -123,13 +194,14 @@ Write all game files to the current directory. The main file must be named index
   }
 }
 
-export async function updateGame(gameId, prompt) {
+export async function updateGame(gameId, prompt, gameType = '3d') {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(gameType);
+  const engineLabel = gameType === '2d' ? 'PixiJS 2D' : 'Three.js';
 
-  const userPrompt = `Update the existing Three.js game based on this request: ${prompt}
+  const userPrompt = `Update the existing ${engineLabel} game based on this request: ${prompt}
 
 Read the existing files in the current directory first to understand the current game, then make the requested changes. Keep the game working and fun.`;
 

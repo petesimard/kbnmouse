@@ -275,7 +275,7 @@ export function seedProfileDefaults(profileId, age) {
     'INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)'
   ).run('AI', '🤖', '#8b5cf6', 6, profileId).lastInsertRowid;
   insertAppInFolder.run('Image Generator', 'imagegen', '🖼️', 0, 'builtin', profileId, aiFolderId);
-  insertAppInFolder.run('ChatBot', 'chatbot', '🤖', 1, 'builtin', profileId, aiFolderId);
+  insertAppInFolder.run('ChatBot', 'chatbot', '💬', 1, 'builtin', profileId, aiFolderId);
 
   // Tune challenge configs based on age
   let addSubConfig, mulDivConfig, typingConfig;
