@@ -11,6 +11,16 @@ Run on target machine running a compatible linux distro. Root required to modify
 curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash
 ```
 
+### Dev Install (from source)
+
+If no AppImage release exists yet, or you want to run from source:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash -s -- --dev
+```
+
+This clones the repo, runs `npm install` in `kiosk-app/`, copies the source to `/opt/kiosk-app/`, and launches Electron directly instead of via AppImage.
+
 
 ## How It Works
 

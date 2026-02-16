@@ -3,6 +3,14 @@
 
 set -e
 
+# --- Parse flags ---
+DEV_MODE=false
+for arg in "$@"; do
+  case "$arg" in
+    --dev) DEV_MODE=true ;;
+  esac
+done
+
 # --- Colors ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -18,10 +26,11 @@ step()  { echo -e "\n${BOLD}→ $1${NC}"; }
 # --- Must run as root ---
 if [[ $EUID -ne 0 ]]; then
   error "This script must be run as root."
-  echo "  Usage: sudo bash setup.sh"
+  echo "  Usage: sudo bash setup.sh [--dev]"
   echo ""
   echo "  Or via curl:"
   echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash"
+  echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash -s -- --dev"
   exit 1
 fi
 
@@ -153,11 +162,19 @@ else
 fi
 
 # --- Install kiosk-app ---
-step "Installing kiosk-app dependencies"
-cd "$PROJECT_DIR/kiosk-app"
-npm install
-info "kiosk-app dependencies installed"
+if $DEV_MODE; then
+  step "Installing kiosk-app dependencies (dev mode)"
+  cd "$PROJECT_DIR/kiosk-app"
+  npm install
+  info "kiosk-app dependencies installed"
+else
+  info "Skipping kiosk-app npm install (AppImage mode)"
+fi
 
 # --- Run kiosk system install ---
 step "Installing kiosk system configuration"
-bash "$PROJECT_DIR/kiosk-setup/install.sh"
+if $DEV_MODE; then
+  bash "$PROJECT_DIR/kiosk-setup/install.sh" --dev
+else
+  bash "$PROJECT_DIR/kiosk-setup/install.sh"
+fi
