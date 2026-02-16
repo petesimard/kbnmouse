@@ -482,21 +482,22 @@ function createWindow() {
     menuView.setBounds({ x: 0, y: newContentHeight, width: newWidth, height: newMenuHeight });
   });
 
-  // Dev tools shortcut (F12) for both views
-  const setupDevTools = (view, name) => {
-    view.webContents.on('before-input-event', (event, input) => {
-      if (input.key === 'F12') {
-        view.webContents.toggleDevTools();
-      }
-      // Emergency exit: Ctrl+Shift+Q
-      if (input.control && input.shift && input.key === 'Q') {
-        app.quit();
-      }
-    });
-  };
+  // Dev tools shortcut (F12) and emergency exit (Ctrl+Shift+Q) — dev mode only
+  if (isDev) {
+    const setupDevTools = (view, name) => {
+      view.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'F12') {
+          view.webContents.toggleDevTools();
+        }
+        if (input.control && input.shift && input.key === 'Q') {
+          app.quit();
+        }
+      });
+    };
 
-  setupDevTools(contentView, 'content');
-  setupDevTools(menuView, 'menu');
+    setupDevTools(contentView, 'content');
+    setupDevTools(menuView, 'menu');
+  }
 
   // Whitelist enforcement: intercept navigation in content view
   contentView.webContents.on('will-navigate', (event, url) => {
@@ -961,6 +962,14 @@ ipcMain.handle('content:reload', async () => {
     return { success: true };
   }
   return { success: false };
+});
+
+// Zoom control — applies to both content and menu views
+ipcMain.handle('zoom:set', async (event, factor) => {
+  const f = Math.max(0.25, Math.min(3.0, Number(factor) || 1));
+  if (contentView) contentView.webContents.setZoomFactor(f);
+  if (menuView) menuView.webContents.setZoomFactor(f);
+  return { success: true };
 });
 
 // Whitelist management

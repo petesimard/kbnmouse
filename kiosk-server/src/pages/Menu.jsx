@@ -31,6 +31,13 @@ function Menu() {
 
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
+  // Kiosk settings
+  const [showSettings, setShowSettings] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(() => {
+    const saved = localStorage.getItem('kioskZoom');
+    return saved ? Number(saved) : 100;
+  });
+
   // Paging state for app shortcuts overflow
   const scrollContainerRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -168,8 +175,21 @@ function Menu() {
     // Check if running in Electron with kiosk API
     setHasKiosk(typeof window.kiosk?.content !== 'undefined');
 
+    // Apply saved zoom level on startup
+    if (window.kiosk?.zoom?.set) {
+      window.kiosk.zoom.set(zoomLevel / 100);
+    }
+
     fetchApps();
-  }, [fetchApps]);
+  }, [fetchApps]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyZoom = useCallback((level) => {
+    setZoomLevel(level);
+    localStorage.setItem('kioskZoom', String(level));
+    if (window.kiosk?.zoom?.set) {
+      window.kiosk.zoom.set(level / 100);
+    }
+  }, []);
 
   // Keep stable refs for WS handler so the connection doesn't tear down on every state change
   const fetchAppsRef = useRef(fetchApps);
@@ -539,10 +559,49 @@ function Menu() {
     );
   };
 
+  if (showSettings) {
+    return (
+      <div className="h-screen bg-slate-800 flex items-center px-4 gap-4">
+        <button
+          onClick={() => setShowSettings(false)}
+          className="w-10 h-10 rounded-lg bg-slate-600 hover:bg-slate-500 text-white flex items-center justify-center transition-colors flex-shrink-0"
+          title="Close settings"
+        >
+          ✕
+        </button>
+        <span className="text-slate-400 text-sm flex-shrink-0">Zoom</span>
+        <input
+          type="range"
+          min="25"
+          max="300"
+          step="5"
+          value={zoomLevel}
+          onChange={(e) => setZoomLevel(Number(e.target.value))}
+          onPointerUp={(e) => applyZoom(Number(e.target.value))}
+          className="flex-1 max-w-xs accent-sky-500 h-2"
+        />
+        <span className="text-white text-sm font-mono w-12 text-right flex-shrink-0">{zoomLevel}%</span>
+        <button
+          onClick={() => applyZoom(100)}
+          className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition-colors flex-shrink-0"
+        >
+          Reset
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-slate-800 flex items-center px-4 gap-4">
       {/* Navigation controls */}
       <div className="flex gap-2 flex-shrink-0">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
+          title="Kiosk settings"
+        >
+          ⚙
+        </button>
         {profiles.length > 1 && (
           <button
             onClick={handleSwitchUser}
@@ -655,16 +714,18 @@ function Menu() {
         )}
       </div>
 
-      {/* Status indicator */}
-      <div className="text-slate-500 text-xs flex-shrink-0 whitespace-nowrap">
-        {timeLimitError ? (
-          <span className="text-red-400">● Time limit reached</span>
-        ) : timeWarning ? (
-          <span className="text-yellow-400 animate-pulse">● ~1 minute remaining</span>
-        ) : nativeRunning ? (
-          <span className="text-green-400">● Native app running...</span>
-        ) : hasKiosk ? '● Connected' : '○ Browser Mode'}
-      </div>
+      {/* Status indicator — only shown for actionable states */}
+      {(timeLimitError || timeWarning || nativeRunning) && (
+        <div className="text-slate-500 text-xs flex-shrink-0 whitespace-nowrap">
+          {timeLimitError ? (
+            <span className="text-red-400">● Time limit reached</span>
+          ) : timeWarning ? (
+            <span className="text-yellow-400 animate-pulse">● ~1 minute remaining</span>
+          ) : (
+            <span className="text-green-400">● Native app running...</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

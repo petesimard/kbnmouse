@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('kiosk', {
     setWhitelist: (domains) => ipcRenderer.invoke('whitelist:set', domains),
   },
 
+  // Zoom control
+  zoom: {
+    set: (factor) => ipcRenderer.invoke('zoom:set', factor),
+  },
+
   // Native app launching
   native: {
     launch: (command, appId) => ipcRenderer.invoke('native:launch', command, appId),
