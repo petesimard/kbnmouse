@@ -46,7 +46,7 @@
     "publish": {
       "provider": "github",
       "owner": "petesimard",
-      "repo": "kids-desktop",
+      "repo": "kbnmouse",
       "releaseType": "release"
     }
   }

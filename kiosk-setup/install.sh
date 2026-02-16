@@ -250,7 +250,7 @@ if [[ -n "$LOCAL_APPIMAGE" ]]; then
   cp "$LOCAL_APPIMAGE" "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
 else
   echo "Downloading latest AppImage from GitHub..."
-  REPO="petesimard/kids-desktop"
+  REPO="petesimard/kbnmouse"
   LATEST_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" \
     | grep "browser_download_url.*AppImage\"" | head -1 | cut -d '"' -f 4)
   if [[ -z "$LATEST_URL" ]]; then
