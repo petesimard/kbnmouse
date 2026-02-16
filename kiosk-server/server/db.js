@@ -257,16 +257,25 @@ db.exec(`
 // Seed default apps and challenges for a given profile
 export function seedProfileDefaults(profileId, age) {
   const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertAppInFolder = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const defaultApps = [
     { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 0, app_type: 'builtin' },
     { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 1, app_type: 'builtin' },
-    { name: 'Timer', url: 'timer', icon: '⏱️', sort_order: 2, app_type: 'builtin' },
+    { name: 'Calculator', url: 'calculator', icon: '🧮', sort_order: 2, app_type: 'builtin' },
     { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 3, app_type: 'builtin' },
     { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 4, app_type: 'builtin' },
+    { name: 'Message Center', url: 'messages', icon: '✉️', sort_order: 5, app_type: 'builtin' },
   ];
   for (const app of defaultApps) {
     insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
   }
+
+  // Create "AI" folder with AI-powered apps
+  const aiFolderId = db.prepare(
+    'INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)'
+  ).run('AI', '🤖', '#8b5cf6', 6, profileId).lastInsertRowid;
+  insertAppInFolder.run('Image Generator', 'imagegen', '🖼️', 0, 'builtin', profileId, aiFolderId);
+  insertAppInFolder.run('ChatBot', 'chatbot', '🤖', 1, 'builtin', profileId, aiFolderId);
 
   // Tune challenge configs based on age
   let addSubConfig, mulDivConfig, typingConfig;
@@ -326,6 +335,14 @@ db.exec(`
   )
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_custom_games_profile ON custom_games(profile_id)");
+
+// Migration: add game_type column to custom_games
+{
+  const cols = db.prepare("PRAGMA table_info(custom_games)").all();
+  if (!cols.find(c => c.name === 'game_type')) {
+    db.exec("ALTER TABLE custom_games ADD COLUMN game_type TEXT DEFAULT '3d'");
+  }
+}
 
 // Create messages table
 db.exec(`
