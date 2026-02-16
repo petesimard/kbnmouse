@@ -164,16 +164,16 @@ echo "Installing system dependencies..."
 case "$DISTRO" in
   debian)
     apt update -y
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter libfuse2
     ;;
   fedora|rhel)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter fuse-libs
     ;;
   arch)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter fuse2
     ;;
   suse)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter libfuse2
     ;;
 esac
 
@@ -237,17 +237,35 @@ else
   warn "AccountsService not found — skipping (LightDM autologin will still work)"
 fi
 
-# --- Install Electron kiosk app ---
-echo "Installing Electron kiosk app to /opt/kiosk-app..."
-rm -rf /opt/kiosk-app
-cp -r "$PROJECT_ROOT/kiosk-app" /opt/kiosk-app
-chown -R "$KIOSK_USER:$KIOSK_USER" /opt/kiosk-app
+# --- Install Electron kiosk app (AppImage) ---
+INSTALL_DIR="/opt/kiosk-app"
+mkdir -p "$INSTALL_DIR/data"
 
-echo "Installing npm dependencies (this may take a moment)..."
-cd /opt/kiosk-app
-sudo -u "$KIOSK_USER" npm install
+echo "Installing Electron kiosk app to $INSTALL_DIR..."
+
+# Check for local AppImage first (from dev build), else download from GitHub
+LOCAL_APPIMAGE=$(ls -1 "$PROJECT_ROOT/kiosk-app/dist/"*AppImage 2>/dev/null | head -1)
+if [[ -n "$LOCAL_APPIMAGE" ]]; then
+  info "Found local AppImage: $LOCAL_APPIMAGE"
+  cp "$LOCAL_APPIMAGE" "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
+else
+  echo "Downloading latest AppImage from GitHub..."
+  REPO="petesimard/kids-desktop"
+  LATEST_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" \
+    | grep "browser_download_url.*AppImage\"" | head -1 | cut -d '"' -f 4)
+  if [[ -z "$LATEST_URL" ]]; then
+    error "Could not find AppImage download URL. Build one with 'cd kiosk-app && npm run dist' or create a GitHub release."
+    exit 1
+  fi
+  curl -L -o "$INSTALL_DIR/KBnMouse-Kiosk.AppImage" "$LATEST_URL"
+fi
+
+chmod +x "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
+chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR"
 
 echo ""
 info "=== Kiosk mode installed successfully! ==="
 echo "Kiosk user: $KIOSK_USER"
+echo "AppImage: $INSTALL_DIR/KBnMouse-Kiosk.AppImage"
+echo "Data dir: $INSTALL_DIR/data"
 echo "Reboot to start kiosk mode."

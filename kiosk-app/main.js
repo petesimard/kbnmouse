@@ -1,11 +1,30 @@
-require('dotenv').config();
 const { app, BrowserWindow, BrowserView, ipcMain, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// Load config
-const configPath = path.join(__dirname, 'config.json');
-const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+const isPackaged = app.isPackaged;
+
+// Writable data dir: /opt/kiosk-app/data in prod, ./data in dev
+const DATA_DIR = isPackaged
+  ? (process.env.KIOSK_DATA_DIR || '/opt/kiosk-app/data')
+  : path.join(__dirname, 'data');
+
+// Ensure data dir exists
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// Load .env from external data dir in prod
+require('dotenv').config(isPackaged ? { path: path.join(DATA_DIR, '.env') } : {});
+
+// Load config — check external override first, then bundled
+function loadConfig() {
+  const external = path.join(DATA_DIR, 'config.json');
+  const bundled = isPackaged
+    ? path.join(process.resourcesPath, 'config.json')
+    : path.join(__dirname, 'config.json');
+  const configFile = fs.existsSync(external) ? external : bundled;
+  return JSON.parse(fs.readFileSync(configFile, 'utf-8'));
+}
+const config = loadConfig();
 
 // Environment variables override config file
 const KIOSK_URL = process.env.KIOSK_URL || config.url;
@@ -15,15 +34,41 @@ const HOT_RELOAD_WATCH = process.env.KIOSK_HOT_RELOAD_WATCH || config.hotReloadW
 
 // Hot reload in development
 if (process.env.NODE_ENV === 'development') {
-  require('electron-reload')(path.join(__dirname, HOT_RELOAD_WATCH), {
-    electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
-    hardResetMethod: 'exit'
+  try {
+    require('electron-reload')(path.join(__dirname, HOT_RELOAD_WATCH), {
+      electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
+      hardResetMethod: 'exit'
+    });
+  } catch {}
+}
+
+// Auto-updater (packaged builds only)
+if (isPackaged) {
+  const { autoUpdater } = require('electron-updater');
+
+  autoUpdater.logger = {
+    info: (...args) => console.log('[updater]', ...args),
+    warn: (...args) => console.warn('[updater]', ...args),
+    error: (...args) => console.error('[updater]', ...args),
+  };
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[updater] Update available:', info.version);
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[updater] Update downloaded:', info.version, '— will install on next restart');
+  });
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] Error:', err.message);
   });
 }
 
 
 // Kiosk registration (pairing) persistence
-const registrationPath = path.join(__dirname, 'data', 'kiosk-registration.json');
+const registrationPath = path.join(DATA_DIR, 'kiosk-registration.json');
 let kioskToken = null;
 
 function loadRegistration() {
@@ -708,6 +753,14 @@ app.whenReady().then(() => {
     createWindow();
     if (!kioskToken) startPairingFlow();
   }
+
+  // Check for updates (packaged builds only)
+  if (isPackaged) {
+    const { autoUpdater } = require('electron-updater');
+    // Check 30s after startup, then every 4 hours
+    setTimeout(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 30000);
+    setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 4 * 60 * 60 * 1000);
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -910,6 +963,7 @@ ipcMain.handle('fs:readdir', async (event, dirPath) => {
 ipcMain.handle('system:info', async () => {
   const os = require('os');
   return {
+    appVersion: app.getVersion(),
     platform: os.platform(),
     hostname: os.hostname(),
     uptime: os.uptime(),
