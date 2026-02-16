@@ -44,6 +44,8 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Auto-updater (packaged builds only)
+let updateStatus = 'up-to-date';
+
 if (isPackaged) {
   const { autoUpdater } = require('electron-updater');
 
@@ -56,14 +58,23 @@ if (isPackaged) {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
+  autoUpdater.on('checking-for-update', () => {
+    updateStatus = 'checking';
+  });
+  autoUpdater.on('update-not-available', () => {
+    updateStatus = 'up-to-date';
+  });
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] Update available:', info.version);
+    updateStatus = 'downloading';
   });
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[updater] Update downloaded:', info.version, '— will install on next restart');
+    updateStatus = 'ready';
   });
   autoUpdater.on('error', (err) => {
     console.error('[updater] Error:', err.message);
+    updateStatus = 'error';
   });
 }
 
@@ -762,6 +773,39 @@ app.whenReady().then(() => {
     setTimeout(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 30000);
     setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 4 * 60 * 60 * 1000);
   }
+
+  // Heartbeat: report version + update status to server every 60s
+  async function sendHeartbeat() {
+    if (!kioskToken) return;
+    try {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/kiosk/heartbeat`, {
+        method: 'POST',
+        headers: kioskHeaders(),
+        body: JSON.stringify({
+          app_version: app.getVersion(),
+          update_status: updateStatus,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.action === 'update' && isPackaged) {
+          const { autoUpdater } = require('electron-updater');
+          if (updateStatus === 'ready') {
+            console.log('[heartbeat] Update command received — installing now');
+            autoUpdater.quitAndInstall(false, true);
+          } else if (updateStatus === 'up-to-date' || updateStatus === 'error') {
+            console.log('[heartbeat] Update command received — checking for updates');
+            autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
+          }
+        }
+      }
+    } catch (err) {
+      // Heartbeat failures are non-critical
+    }
+  }
+  setTimeout(sendHeartbeat, 5000);
+  setInterval(sendHeartbeat, 60000);
 });
 
 app.on('window-all-closed', () => {
