@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { fetchKiosks, claimPairingCode, deleteKiosk, triggerKioskUpdate } from '../../api/auth';
+import { fetchKiosks, claimPairingCode, deleteKiosk, triggerKioskUpdate, triggerAllKiosksUpdateCheck } from '../../api/auth';
 
 function isOnline(lastSeenAt) {
   if (!lastSeenAt) return false;
@@ -83,6 +83,7 @@ export default function KiosksPage() {
 
   useEffect(() => {
     loadKiosks();
+    triggerAllKiosksUpdateCheck().catch(() => {});
     refreshRef.current = setInterval(loadKiosks, 15000);
     return () => clearInterval(refreshRef.current);
   }, []);

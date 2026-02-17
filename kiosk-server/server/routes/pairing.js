@@ -152,6 +152,15 @@ router.get('/api/admin/kiosks', requireAuth, (req, res) => {
   res.json(kiosks);
 });
 
+// POST /api/admin/kiosks/check-updates — Queue update check on all online kiosks
+router.post('/api/admin/kiosks/check-updates', requireAuth, (req, res) => {
+  const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const result = db.prepare(
+    'UPDATE kiosks SET pending_action = ? WHERE account_id = ? AND last_seen_at > ? AND (pending_action IS NULL OR pending_action != ?)'
+  ).run('update', req.accountId, twoMinAgo, 'update');
+  res.json({ ok: true, updated: result.changes });
+});
+
 // POST /api/admin/kiosks/:id/update — Queue an update command for the kiosk
 router.post('/api/admin/kiosks/:id/update', requireAuth, (req, res) => {
   const result = db.prepare('UPDATE kiosks SET pending_action = ? WHERE id = ? AND account_id = ?').run('update', req.params.id, req.accountId);
