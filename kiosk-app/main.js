@@ -79,7 +79,7 @@ if (isPackaged) {
 }
 
 // Source-based update system (non-packaged builds running from git repo)
-let sourceUpdateReady = false;
+let sourceUpdateAvailable = false;
 
 function getRepoRoot() {
   try {
@@ -123,18 +123,11 @@ async function checkSourceUpdate() {
 
     if (local !== remote) {
       console.log('[updater] Source update available:', local.slice(0, 7), '->', remote.slice(0, 7));
-      updateStatus = 'downloading';
-
-      await execGitAsync('git pull --ff-only');
-      await execGitAsync('npm install', {
-        cwd: path.join(repoRoot, 'kiosk-app'),
-        timeout: 300000
-      });
       updateStatus = 'ready';
-      sourceUpdateReady = true;
-      console.log('[updater] Source update pulled and installed, ready to restart');
+      sourceUpdateAvailable = true;
     } else {
       updateStatus = 'up-to-date';
+      sourceUpdateAvailable = false;
     }
   } catch (err) {
     console.error('[updater] Source update error:', err.message);
@@ -142,20 +135,32 @@ async function checkSourceUpdate() {
   }
 }
 
-function applySourceUpdate() {
-  if (!sourceUpdateReady) return;
-  console.log('[updater] Restarting to apply source update...');
+async function pullAndApplySourceUpdate() {
+  if (!repoRoot) return;
+  console.log('[updater] Pulling and applying source update...');
+  updateStatus = 'downloading';
   if (contentView) {
     showStartupScreen(`
       <div class="spinner"></div>
       <h1>Updating</h1>
-      <p>Restarting with the latest version...</p>
+      <p>Downloading and installing update...</p>
     `);
   }
-  setTimeout(() => {
-    app.relaunch();
-    app.exit(0);
-  }, 500);
+  try {
+    await execGitAsync('git pull --ff-only');
+    await execGitAsync('npm install', {
+      cwd: path.join(repoRoot, 'kiosk-app'),
+      timeout: 300000
+    });
+    console.log('[updater] Source update installed, restarting...');
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 500);
+  } catch (err) {
+    console.error('[updater] Source update error:', err.message);
+    updateStatus = 'error';
+  }
 }
 
 // Kiosk registration (pairing) persistence
@@ -884,13 +889,11 @@ app.whenReady().then(() => {
               autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
             }
           } else if (repoRoot) {
-            if (data.action === 'update' && sourceUpdateReady) {
-              applySourceUpdate();
-            } else if (!sourceUpdateReady) {
+            if (data.action === 'update') {
+              pullAndApplySourceUpdate();
+            } else if (!sourceUpdateAvailable) {
               console.log('[heartbeat] Check command received — checking source updates');
-              checkSourceUpdate().then(() => {
-                if (data.action === 'update' && sourceUpdateReady) applySourceUpdate();
-              });
+              checkSourceUpdate();
             }
           }
         }
