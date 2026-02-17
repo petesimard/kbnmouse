@@ -55,13 +55,38 @@ router.get('/api/apps/:id/usage', (req, res) => {
   const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset).toISOString();
 
+  // Check if this app is in a "My Games" folder with shared limits enabled
+  let usageAppIds = [req.params.id];
+  if (appRecord.folder_id) {
+    const folder = db.prepare('SELECT id, name FROM folders WHERE id = ?').get(appRecord.folder_id);
+    if (folder && folder.name === 'My Games') {
+      // Check the gamecreator builtin app's config for share_daily_limit
+      const gcApp = db.prepare(
+        "SELECT config FROM apps WHERE app_type = 'builtin' AND url = 'gamecreator' AND profile_id = ?"
+      ).get(appRecord.profile_id);
+      let shareEnabled = true; // default to true
+      if (gcApp && gcApp.config) {
+        try {
+          const config = JSON.parse(gcApp.config);
+          if (config.share_daily_limit === false) shareEnabled = false;
+        } catch {}
+      }
+      if (shareEnabled) {
+        const folderApps = db.prepare('SELECT id FROM apps WHERE folder_id = ?').all(folder.id);
+        usageAppIds = folderApps.map(a => a.id);
+      }
+    }
+  }
+
+  const placeholders = usageAppIds.map(() => '?').join(',');
+
   const todayUsage = db.prepare(
-    'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
-  ).get(req.params.id, todayStart);
+    `SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id IN (${placeholders}) AND started_at >= ?`
+  ).get(...usageAppIds, todayStart);
 
   const weekUsage = db.prepare(
-    'SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id = ? AND started_at >= ?'
-  ).get(req.params.id, weekStart);
+    `SELECT COALESCE(SUM(duration_seconds), 0) as total FROM app_usage WHERE app_id IN (${placeholders}) AND started_at >= ?`
+  ).get(...usageAppIds, weekStart);
 
   const profileId = appRecord.profile_id;
   let bonusResult;

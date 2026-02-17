@@ -19,6 +19,11 @@ export const configSchema = {
     min: 0,
     max: 480,
   }),
+  share_daily_limit: field(z.boolean().default(true), {
+    label: 'Created games share daily limit',
+    description: 'Time spent on one created game counts toward all created games.',
+    type: 'boolean',
+  }),
 };
 
 function StatusBadge({ status }) {
