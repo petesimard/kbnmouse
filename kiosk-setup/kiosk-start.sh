@@ -1,13 +1,5 @@
 #!/bin/bash
 
-# Disable screen blanking and power management
-xset s off
-xset s noblank
-xset -dpms
-
-# Hide cursor after 0.5 seconds of inactivity
-unclutter -idle 0.5 -root &
-
 # Start window manager (needed for Electron)
 openbox &
 
