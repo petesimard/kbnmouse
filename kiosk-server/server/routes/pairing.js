@@ -156,8 +156,8 @@ router.get('/api/admin/kiosks', requireAuth, (req, res) => {
 router.post('/api/admin/kiosks/check-updates', requireAuth, (req, res) => {
   const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
   const result = db.prepare(
-    'UPDATE kiosks SET pending_action = ? WHERE account_id = ? AND last_seen_at > ? AND (pending_action IS NULL OR pending_action != ?)'
-  ).run('update', req.accountId, twoMinAgo, 'update');
+    'UPDATE kiosks SET pending_action = ? WHERE account_id = ? AND last_seen_at > ? AND pending_action IS NULL'
+  ).run('check', req.accountId, twoMinAgo);
   res.json({ ok: true, updated: result.changes });
 });
 

@@ -874,23 +874,23 @@ app.whenReady().then(() => {
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.action === 'update') {
+        if (data.action === 'check' || data.action === 'update') {
           if (isPackaged) {
             const { autoUpdater } = require('electron-updater');
-            if (updateStatus === 'ready') {
+            if (data.action === 'update' && updateStatus === 'ready') {
               console.log('[heartbeat] Update command received — installing now');
               autoUpdater.quitAndInstall(false, true);
             } else if (updateStatus === 'up-to-date' || updateStatus === 'error') {
-              console.log('[heartbeat] Update command received — checking for updates');
+              console.log('[heartbeat] Check command received — checking for updates');
               autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
             }
           } else if (repoRoot) {
-            if (sourceUpdateReady) {
+            if (data.action === 'update' && sourceUpdateReady) {
               applySourceUpdate();
-            } else {
-              console.log('[heartbeat] Update command received — checking source updates');
+            } else if (!sourceUpdateReady) {
+              console.log('[heartbeat] Check command received — checking source updates');
               checkSourceUpdate().then(() => {
-                if (sourceUpdateReady) applySourceUpdate();
+                if (data.action === 'update' && sourceUpdateReady) applySourceUpdate();
               });
             }
           }
