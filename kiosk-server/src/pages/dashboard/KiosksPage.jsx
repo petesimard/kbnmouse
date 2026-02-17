@@ -24,7 +24,7 @@ function UpdateStatusBadge({ kiosk }) {
     return <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">Update ready</span>;
   }
   if (kiosk.update_status === 'downloading') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Downloading update...</span>;
+    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">{kiosk.install_method === 'source' ? 'Pulling update...' : 'Downloading update...'}</span>;
   }
   if (kiosk.update_status === 'checking') {
     return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Checking...</span>;
@@ -33,6 +33,26 @@ function UpdateStatusBadge({ kiosk }) {
     return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">Update error</span>;
   }
   return null;
+}
+
+function VersionBadge({ kiosk }) {
+  if (!kiosk.app_version) return null;
+  const isSource = kiosk.install_method === 'source';
+  return (
+    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-600 text-slate-300 font-mono" title={isSource ? 'Git commit' : 'Release version'}>
+      {isSource ? kiosk.app_version : `v${kiosk.app_version}`}
+    </span>
+  );
+}
+
+function InstallMethodBadge({ kiosk }) {
+  if (!kiosk.install_method) return null;
+  const isSource = kiosk.install_method === 'source';
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded-full ${isSource ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+      {isSource ? 'source' : 'release'}
+    </span>
+  );
 }
 
 export default function KiosksPage() {
@@ -193,9 +213,8 @@ export default function KiosksPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-white font-medium">{kiosk.name}</span>
-                          {kiosk.app_version && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-600 text-slate-300 font-mono">v{kiosk.app_version}</span>
-                          )}
+                          <VersionBadge kiosk={kiosk} />
+                          <InstallMethodBadge kiosk={kiosk} />
                           <UpdateStatusBadge kiosk={kiosk} />
                         </div>
                         <div className="text-slate-400 text-xs mt-0.5">
@@ -209,7 +228,7 @@ export default function KiosksPage() {
                           onClick={() => handleUpdate(kiosk.id)}
                           className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded hover:bg-slate-600 transition-colors"
                         >
-                          Update Now
+                          {kiosk.install_method === 'source' ? 'Restart Now' : 'Update Now'}
                         </button>
                       )}
                       <button

@@ -315,6 +315,7 @@ export function seedProfileDefaults(profileId, age) {
     insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, JSON.stringify(mulDivConfig), order++, profileId);
   }
   insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId);
+  insertChallenge.run('Hacking', '🔓', 'Bypass 6 security locks', 'hacking', 15, '{}', order++, profileId);
 
   console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
 }

@@ -1,14 +1,14 @@
 const { app, BrowserWindow, BrowserView, ipcMain, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { exec, execSync, spawn } = require('child_process');
 
 const isPackaged = app.isPackaged;
 
-// Writable data dir: ~/.config/kbnmouse in prod, ./data in dev
-// Kiosk deployments override via KIOSK_DATA_DIR=/opt/kiosk-app/data
-const DATA_DIR = isPackaged
-  ? (process.env.KIOSK_DATA_DIR || path.join(app.getPath('userData')))
-  : path.join(__dirname, 'data');
+// Writable data dir: KIOSK_DATA_DIR env var (set by kiosk-start.sh),
+// else ~/.config/kbnmouse in packaged builds, else ./data in dev
+const DATA_DIR = process.env.KIOSK_DATA_DIR
+  || (isPackaged ? path.join(app.getPath('userData')) : path.join(__dirname, 'data'));
 
 // Ensure data dir exists
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -76,6 +76,86 @@ if (isPackaged) {
     console.error('[updater] Error:', err.message);
     updateStatus = 'error';
   });
+}
+
+// Source-based update system (non-packaged builds running from git repo)
+let sourceUpdateReady = false;
+
+function getRepoRoot() {
+  try {
+    return execSync('git rev-parse --show-toplevel', {
+      cwd: __dirname, encoding: 'utf-8', timeout: 5000
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+const repoRoot = !isPackaged ? getRepoRoot() : null;
+
+function getCommitHash() {
+  if (!repoRoot) return null;
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      cwd: repoRoot, encoding: 'utf-8', timeout: 5000
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function execGitAsync(cmd, opts = {}) {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { cwd: repoRoot, timeout: 120000, ...opts }, (err, stdout) => {
+      if (err) reject(err);
+      else resolve(stdout.toString().trim());
+    });
+  });
+}
+
+async function checkSourceUpdate() {
+  if (!repoRoot) return;
+  updateStatus = 'checking';
+  try {
+    await execGitAsync('git fetch');
+    const local = await execGitAsync('git rev-parse HEAD');
+    const remote = await execGitAsync('git rev-parse origin/main');
+
+    if (local !== remote) {
+      console.log('[updater] Source update available:', local.slice(0, 7), '->', remote.slice(0, 7));
+      updateStatus = 'downloading';
+
+      await execGitAsync('git pull --ff-only');
+      await execGitAsync('npm install --omit=dev', {
+        cwd: path.join(repoRoot, 'kiosk-app'),
+        timeout: 300000
+      });
+      updateStatus = 'ready';
+      sourceUpdateReady = true;
+      console.log('[updater] Source update pulled and installed, ready to restart');
+    } else {
+      updateStatus = 'up-to-date';
+    }
+  } catch (err) {
+    console.error('[updater] Source update error:', err.message);
+    updateStatus = 'error';
+  }
+}
+
+function applySourceUpdate() {
+  if (!sourceUpdateReady) return;
+  console.log('[updater] Restarting to apply source update...');
+  if (contentView) {
+    showStartupScreen(`
+      <div class="spinner"></div>
+      <h1>Updating</h1>
+      <p>Restarting with the latest version...</p>
+    `);
+  }
+  setTimeout(() => {
+    app.relaunch();
+    app.exit(0);
+  }, 500);
 }
 
 
@@ -766,12 +846,16 @@ app.whenReady().then(() => {
     if (!kioskToken) startPairingFlow();
   }
 
-  // Check for updates (packaged builds only)
+  // Check for updates — packaged builds use electron-updater, source builds use git
   if (isPackaged) {
     const { autoUpdater } = require('electron-updater');
     // Check 30s after startup, then every 4 hours
     setTimeout(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 30000);
     setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 4 * 60 * 60 * 1000);
+  } else if (repoRoot) {
+    // Source builds: check git for updates
+    setTimeout(() => checkSourceUpdate(), 30000);
+    setInterval(() => checkSourceUpdate(), 4 * 60 * 60 * 1000);
   }
 
   // Heartbeat: report version + update status to server every 60s
@@ -783,20 +867,32 @@ app.whenReady().then(() => {
         method: 'POST',
         headers: kioskHeaders(),
         body: JSON.stringify({
-          app_version: app.getVersion(),
+          app_version: isPackaged ? app.getVersion() : (getCommitHash() || 'dev'),
           update_status: updateStatus,
+          install_method: isPackaged ? 'release' : 'source',
         }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.action === 'update' && isPackaged) {
-          const { autoUpdater } = require('electron-updater');
-          if (updateStatus === 'ready') {
-            console.log('[heartbeat] Update command received — installing now');
-            autoUpdater.quitAndInstall(false, true);
-          } else if (updateStatus === 'up-to-date' || updateStatus === 'error') {
-            console.log('[heartbeat] Update command received — checking for updates');
-            autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
+        if (data.action === 'update') {
+          if (isPackaged) {
+            const { autoUpdater } = require('electron-updater');
+            if (updateStatus === 'ready') {
+              console.log('[heartbeat] Update command received — installing now');
+              autoUpdater.quitAndInstall(false, true);
+            } else if (updateStatus === 'up-to-date' || updateStatus === 'error') {
+              console.log('[heartbeat] Update command received — checking for updates');
+              autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
+            }
+          } else if (repoRoot) {
+            if (sourceUpdateReady) {
+              applySourceUpdate();
+            } else {
+              console.log('[heartbeat] Update command received — checking source updates');
+              checkSourceUpdate().then(() => {
+                if (sourceUpdateReady) applySourceUpdate();
+              });
+            }
           }
         }
       }
@@ -821,8 +917,6 @@ app.on('window-all-closed', () => {
 // ============================================
 // IPC Handlers for native system calls
 // ============================================
-
-const { exec, spawn } = require('child_process');
 
 // Execute shell command
 ipcMain.handle('shell:exec', async (event, command) => {

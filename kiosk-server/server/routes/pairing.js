@@ -63,6 +63,10 @@ if (!kioskCols.find(col => col.name === 'last_seen_at')) {
 if (!kioskCols.find(col => col.name === 'pending_action')) {
   db.exec("ALTER TABLE kiosks ADD COLUMN pending_action TEXT DEFAULT NULL");
 }
+// Migration: add install_method column to kiosks
+if (!kioskCols.find(col => col.name === 'install_method')) {
+  db.exec("ALTER TABLE kiosks ADD COLUMN install_method TEXT DEFAULT NULL");
+}
 
 // POST /api/pairing/code — Kiosk generates a 5-digit pairing code
 router.post('/api/pairing/code', (req, res) => {
@@ -129,10 +133,10 @@ router.get('/api/pairing/status/:code', (req, res) => {
 
 // POST /api/kiosk/heartbeat — Kiosk reports version and update status
 router.post('/api/kiosk/heartbeat', requireKiosk, (req, res) => {
-  const { app_version, update_status } = req.body;
+  const { app_version, update_status, install_method } = req.body;
   db.prepare(
-    'UPDATE kiosks SET app_version = ?, update_status = ?, last_seen_at = ? WHERE id = ?'
-  ).run(app_version || null, update_status || null, new Date().toISOString(), req.kioskId);
+    'UPDATE kiosks SET app_version = ?, update_status = ?, install_method = ?, last_seen_at = ? WHERE id = ?'
+  ).run(app_version || null, update_status || null, install_method || null, new Date().toISOString(), req.kioskId);
 
   const kiosk = db.prepare('SELECT pending_action FROM kiosks WHERE id = ?').get(req.kioskId);
   const action = kiosk?.pending_action || null;
@@ -144,7 +148,7 @@ router.post('/api/kiosk/heartbeat', requireKiosk, (req, res) => {
 
 // GET /api/admin/kiosks — List registered kiosks
 router.get('/api/admin/kiosks', requireAuth, (req, res) => {
-  const kiosks = db.prepare('SELECT id, name, created_at, app_version, update_status, last_seen_at, pending_action FROM kiosks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId);
+  const kiosks = db.prepare('SELECT id, name, created_at, app_version, update_status, last_seen_at, pending_action, install_method FROM kiosks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId);
   res.json(kiosks);
 });
 

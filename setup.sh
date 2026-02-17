@@ -4,10 +4,11 @@
 set -e
 
 # --- Parse flags ---
-DEV_MODE=false
+# Default: source (git) install. Use --release for AppImage install.
+RELEASE_MODE=false
 for arg in "$@"; do
   case "$arg" in
-    --dev) DEV_MODE=true ;;
+    --release) RELEASE_MODE=true ;;
   esac
 done
 
@@ -26,11 +27,14 @@ step()  { echo -e "\n${BOLD}→ $1${NC}"; }
 # --- Must run as root ---
 if [[ $EUID -ne 0 ]]; then
   error "This script must be run as root."
-  echo "  Usage: sudo bash setup.sh [--dev]"
+  echo "  Usage: sudo bash setup.sh [--release]"
+  echo ""
+  echo "  Default installs from source (git-based updates)."
+  echo "  Use --release for AppImage install (electron-updater updates)."
   echo ""
   echo "  Or via curl:"
   echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash"
-  echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash -s -- --dev"
+  echo "    curl -fsSL https://raw.githubusercontent.com/petesimard/kbnmouse/main/setup.sh | sudo bash -s -- --release"
   exit 1
 fi
 
@@ -139,42 +143,56 @@ if ! command -v npm &>/dev/null; then
 fi
 info "npm $(npm -v) found"
 
-# --- Clone if needed ---
+# --- Clone / update source ---
 REPO_URL="https://github.com/petesimard/kbnmouse.git"
-INSTALL_DIR="kbnmouse"
 
-if [ -f "kiosk-app/package.json" ]; then
-  # Already inside the project directory
-  PROJECT_DIR="$(pwd)"
-  info "Already in project directory"
-elif [ -d "$INSTALL_DIR" ]; then
-  step "Updating existing clone"
-  cd "$INSTALL_DIR"
-  git pull
-  PROJECT_DIR="$(pwd)"
-  info "Updated to latest"
+if $RELEASE_MODE; then
+  # Release mode: clone to a working directory to get install scripts
+  if [ -f "kiosk-app/package.json" ]; then
+    PROJECT_DIR="$(pwd)"
+    info "Already in project directory"
+  elif [ -d "kbnmouse" ]; then
+    step "Updating existing clone"
+    cd "kbnmouse"
+    git pull
+    PROJECT_DIR="$(pwd)"
+    info "Updated to latest"
+  else
+    step "Cloning repository"
+    git clone "$REPO_URL" "kbnmouse"
+    cd "kbnmouse"
+    PROJECT_DIR="$(pwd)"
+    info "Cloned to $PROJECT_DIR"
+  fi
+
+  # --- Run kiosk system install (release mode) ---
+  step "Installing kiosk system configuration"
+  bash "$PROJECT_DIR/kiosk-setup/install.sh" --release
 else
-  step "Cloning repository"
-  git clone "$REPO_URL" "$INSTALL_DIR"
-  cd "$INSTALL_DIR"
-  PROJECT_DIR="$(pwd)"
-  info "Cloned to $PROJECT_DIR"
-fi
+  # Source mode (default): install directly to /opt/kbnmouse
+  SOURCE_DIR="/opt/kbnmouse"
 
-# --- Install kiosk-app ---
-if $DEV_MODE; then
-  step "Installing kiosk-app dependencies (dev mode)"
-  cd "$PROJECT_DIR/kiosk-app"
+  if [ -d "$SOURCE_DIR/.git" ]; then
+    step "Updating source installation"
+    git -c safe.directory="$SOURCE_DIR" -C "$SOURCE_DIR" pull
+    info "Updated to latest"
+  elif [ -f "kiosk-app/package.json" ] && [ -d ".git" ]; then
+    # Running from within a local git checkout — clone from it
+    step "Installing from local checkout to $SOURCE_DIR"
+    git clone "$(pwd)" "$SOURCE_DIR"
+    info "Cloned to $SOURCE_DIR"
+  else
+    step "Cloning repository to $SOURCE_DIR"
+    git clone "$REPO_URL" "$SOURCE_DIR"
+    info "Cloned to $SOURCE_DIR"
+  fi
+
+  step "Installing kiosk-app dependencies"
+  cd "$SOURCE_DIR/kiosk-app"
   npm install
   info "kiosk-app dependencies installed"
-else
-  info "Skipping kiosk-app npm install (AppImage mode)"
-fi
 
-# --- Run kiosk system install ---
-step "Installing kiosk system configuration"
-if $DEV_MODE; then
-  bash "$PROJECT_DIR/kiosk-setup/install.sh" --dev
-else
-  bash "$PROJECT_DIR/kiosk-setup/install.sh"
+  # --- Run kiosk system install (source mode) ---
+  step "Installing kiosk system configuration"
+  bash "$SOURCE_DIR/kiosk-setup/install.sh"
 fi

@@ -5,10 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # --- Parse flags ---
-DEV_MODE=false
+# Default: source install. Use --release for AppImage install.
+RELEASE_MODE=false
 for arg in "$@"; do
   case "$arg" in
-    --dev) DEV_MODE=true ;;
+    --release) RELEASE_MODE=true ;;
   esac
 done
 
@@ -49,10 +50,10 @@ echo "This will set up your system as a KBnM kiosk:"
 echo "  - Create/use a dedicated 'kbnm' user account"
 echo "  - Install LightDM, Openbox, and dependencies"
 echo "  - Configure a kiosk X session"
-if $DEV_MODE; then
-  echo "  - Install the Electron kiosk app to /opt/kiosk-app (dev mode — from source)"
+if $RELEASE_MODE; then
+  echo "  - Install the Electron kiosk app to /opt/kiosk-app (AppImage)"
 else
-  echo "  - Install the Electron kiosk app to /opt/kiosk-app"
+  echo "  - Install the Electron kiosk app from source at /opt/kbnmouse (git-based updates)"
 fi
 echo ""
 read -rp "Continue with installation? (n/Y): " confirm < /dev/tty
@@ -174,7 +175,7 @@ echo ""
 echo "Installing system dependencies..."
 
 FUSE_PKG=""
-if ! $DEV_MODE; then
+if $RELEASE_MODE; then
   case "$DISTRO" in
     debian|suse) FUSE_PKG="libfuse2" ;;
     fedora|rhel)  FUSE_PKG="fuse-libs" ;;
@@ -224,22 +225,7 @@ echo "Installing kiosk session..."
 cp "$SCRIPT_DIR/kiosk.desktop" /usr/share/xsessions/
 
 echo "Installing kiosk startup script..."
-if $DEV_MODE; then
-  cat > /usr/local/bin/kiosk-start.sh <<'STARTEOF'
-#!/bin/bash
-
-# Start window manager (needed for Electron)
-openbox &
-
-# Wait for X to be ready
-sleep 2
-
-# Launch Electron kiosk app from source
-export KIOSK_DATA_DIR="/opt/kiosk-app/data"
-cd /opt/kiosk-app
-exec node_modules/.bin/electron . --no-sandbox
-STARTEOF
-else
+if $RELEASE_MODE; then
   cat > /usr/local/bin/kiosk-start.sh <<'STARTEOF'
 #!/bin/bash
 
@@ -252,6 +238,21 @@ sleep 2
 # Launch Electron kiosk AppImage
 export KIOSK_DATA_DIR="/opt/kiosk-app/data"
 exec /opt/kiosk-app/KBnMouse-Kiosk.AppImage --no-sandbox
+STARTEOF
+else
+  cat > /usr/local/bin/kiosk-start.sh <<'STARTEOF'
+#!/bin/bash
+
+# Start window manager (needed for Electron)
+openbox &
+
+# Wait for X to be ready
+sleep 2
+
+# Launch Electron kiosk app from source
+export KIOSK_DATA_DIR="/opt/kbnmouse/kiosk-app/data"
+cd /opt/kbnmouse/kiosk-app
+exec node_modules/.bin/electron . --no-sandbox
 STARTEOF
 fi
 chmod +x /usr/local/bin/kiosk-start.sh
@@ -288,18 +289,11 @@ else
 fi
 
 # --- Install Electron kiosk app ---
-INSTALL_DIR="/opt/kiosk-app"
-mkdir -p "$INSTALL_DIR/data"
+if $RELEASE_MODE; then
+  # Release mode: install AppImage to /opt/kiosk-app
+  INSTALL_DIR="/opt/kiosk-app"
+  mkdir -p "$INSTALL_DIR/data"
 
-if $DEV_MODE; then
-  echo "Installing Electron kiosk app from source to $INSTALL_DIR..."
-  # Copy source files (exclude node_modules, dist, data — we'll npm install fresh)
-  rsync -a --exclude='node_modules' --exclude='dist' --exclude='data' \
-    "$PROJECT_ROOT/kiosk-app/" "$INSTALL_DIR/"
-  cd "$INSTALL_DIR"
-  npm install --omit=dev
-  info "Kiosk app installed from source"
-else
   echo "Installing Electron kiosk app (AppImage) to $INSTALL_DIR..."
 
   # Check for local AppImage first (from dev build), else download from GitHub
@@ -320,17 +314,28 @@ else
   fi
 
   chmod +x "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
-fi
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR"
 
-chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR"
-
-echo ""
-info "=== Kiosk mode installed successfully! ==="
-echo "Kiosk user: $KIOSK_USER"
-if $DEV_MODE; then
-  echo "Source:   $INSTALL_DIR (dev)"
+  echo ""
+  info "=== Kiosk mode installed successfully! ==="
+  echo "Install method: release (AppImage)"
+  echo "Kiosk user:     $KIOSK_USER"
+  echo "AppImage:       $INSTALL_DIR/KBnMouse-Kiosk.AppImage"
+  echo "Data dir:       $INSTALL_DIR/data"
+  echo "Updates:        Automatic via GitHub Releases (electron-updater)"
+  echo "Reboot to start kiosk mode."
 else
-  echo "AppImage: $INSTALL_DIR/KBnMouse-Kiosk.AppImage"
+  # Source mode: code is already at /opt/kbnmouse (cloned by setup.sh)
+  SOURCE_DIR="/opt/kbnmouse"
+  mkdir -p "$SOURCE_DIR/kiosk-app/data"
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$SOURCE_DIR"
+
+  echo ""
+  info "=== Kiosk mode installed successfully! ==="
+  echo "Install method: source (git)"
+  echo "Kiosk user:     $KIOSK_USER"
+  echo "Source:         $SOURCE_DIR"
+  echo "Data dir:       $SOURCE_DIR/kiosk-app/data"
+  echo "Updates:        Automatic via git pull + restart"
+  echo "Reboot to start kiosk mode."
 fi
-echo "Data dir: $INSTALL_DIR/data"
-echo "Reboot to start kiosk mode."
