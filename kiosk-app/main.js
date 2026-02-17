@@ -126,7 +126,7 @@ async function checkSourceUpdate() {
       updateStatus = 'downloading';
 
       await execGitAsync('git pull --ff-only');
-      await execGitAsync('npm install --omit=dev', {
+      await execGitAsync('npm install', {
         cwd: path.join(repoRoot, 'kiosk-app'),
         timeout: 300000
       });
