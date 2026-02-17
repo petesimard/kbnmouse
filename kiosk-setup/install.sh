@@ -238,6 +238,7 @@ else
   warn "AccountsService not found — skipping (LightDM autologin will still work)"
 fi
 
+
 # --- Clone repository ---
 REPO_URL="$(cd "$PROJECT_ROOT" && git remote get-url origin 2>/dev/null || true)"
 
