@@ -194,7 +194,7 @@ function onGameReady(gameId, name, profileId) {
   // Add to apps table inside the "My Games" folder
   db.prepare(
     'INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(name, `/game/${gameId}`, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId, dailyLimit);
+  ).run(name, `/customgames/${gameId}/index.html?kiosk=1`, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId, dailyLimit);
 
   broadcastRefresh();
   console.log(`[GameCreator] Game ${gameId} ready and added to apps${dailyLimit ? ` (daily limit: ${dailyLimit}min)` : ''}`);

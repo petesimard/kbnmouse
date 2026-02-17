@@ -441,6 +441,19 @@ if (!settingsCols.find(col => col.name === 'account_id')) {
   console.log('Migrated settings table to account-scoped');
 }
 
+// Migration: point game app URLs directly to /customgames/ for accurate time tracking
+// (Previously they pointed to /game/:id management page, which counted management time)
+const gameUrlMigrated = db.prepare("SELECT COUNT(*) as c FROM apps WHERE url LIKE '/game/%'").get();
+if (gameUrlMigrated.c > 0) {
+  const gameApps = db.prepare("SELECT id, url FROM apps WHERE url LIKE '/game/%'").all();
+  const update = db.prepare("UPDATE apps SET url = ? WHERE id = ?");
+  for (const app of gameApps) {
+    const gameId = app.url.replace('/game/', '');
+    update.run(`/customgames/${gameId}/index.html?kiosk=1`, app.id);
+  }
+  console.log(`Migrated ${gameApps.length} game app URL(s) from /game/ to /customgames/`);
+}
+
 // --- Settings helpers ---
 
 export function getSetting(key, accountId) {

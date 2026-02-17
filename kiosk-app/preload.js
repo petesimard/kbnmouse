@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld('kiosk', {
     goForward: () => ipcRenderer.invoke('content:goForward'),
     reload: () => ipcRenderer.invoke('content:reload'),
     setWhitelist: (domains) => ipcRenderer.invoke('whitelist:set', domains),
+    onNavigated: (callback) => {
+      const handler = (event, url) => callback(url);
+      ipcRenderer.on('content:navigated', handler);
+      return () => ipcRenderer.removeListener('content:navigated', handler);
+    },
   },
 
   // Zoom control

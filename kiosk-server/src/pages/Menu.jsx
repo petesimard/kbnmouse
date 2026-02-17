@@ -86,7 +86,7 @@ function Menu() {
   const loadedProfileSelectRef = useRef(false);
 
   // Session tracking for URL/builtin apps
-  // Shape: { appId, startedAt, enforcementTimer, warningTimer }
+  // Shape: { appId, startedAt, enforcementTimer, warningTimer, paused }
   const sessionRef = useRef(null);
   const activeBuiltinRef = useRef(null);
 
@@ -318,7 +318,9 @@ function Menu() {
     if (!session) return;
     clearTimeout(session.enforcementTimer);
     clearTimeout(session.warningTimer);
-    postUsage(session.appId, session.startedAt, new Date());
+    if (!session.paused) {
+      postUsage(session.appId, session.startedAt, new Date());
+    }
     sessionRef.current = null;
   }, [postUsage]);
 
@@ -345,7 +347,9 @@ function Menu() {
         const s = sessionRef.current;
         if (s) {
           clearTimeout(s.warningTimer);
-          postUsage(s.appId, s.startedAt, new Date());
+          if (!s.paused) {
+            postUsage(s.appId, s.startedAt, new Date());
+          }
           sessionRef.current = null;
         }
         refreshUsage();
@@ -384,11 +388,34 @@ function Menu() {
     });
   }, []);
 
+  // Pause/resume tracking when content view navigates between /game/ and /customgames/
+  useEffect(() => {
+    if (!window.kiosk?.content?.onNavigated) return;
+    return window.kiosk.content.onNavigated((url) => {
+      const session = sessionRef.current;
+      if (!session) return;
+      try {
+        const path = new URL(url).pathname;
+        const isGameManage = path.startsWith('/game/');
+        const isGamePlay = path.startsWith('/customgames/');
+        if (isGameManage && !session.paused) {
+          // Navigated to management page — flush accumulated time and pause
+          postUsage(session.appId, session.startedAt, new Date());
+          session.paused = true;
+        } else if (isGamePlay && session.paused) {
+          // Navigated back to actual game — resume tracking
+          session.startedAt = new Date();
+          session.paused = false;
+        }
+      } catch {}
+    });
+  }, [postUsage]);
+
   // Client-side countdown: update displayed remaining time every second for active session
   useEffect(() => {
     const interval = setInterval(() => {
       const session = sessionRef.current;
-      if (!session) return;
+      if (!session || session.paused) return;
       setUsageMap((prev) => {
         if (prev[session.appId] == null) return prev;
         return { ...prev, [session.appId]: Math.max(0, prev[session.appId] - 1) };
@@ -401,7 +428,7 @@ function Menu() {
   useEffect(() => {
     const interval = setInterval(() => {
       const session = sessionRef.current;
-      if (!session) return;
+      if (!session || session.paused) return;
       const now = new Date();
       postUsage(session.appId, session.startedAt, now);
       session.startedAt = now;
@@ -414,7 +441,7 @@ function Menu() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       const session = sessionRef.current;
-      if (!session) return;
+      if (!session || session.paused) return;
       const now = new Date();
       const durationSeconds = Math.round((now - session.startedAt) / 1000);
       if (durationSeconds < 1) return;

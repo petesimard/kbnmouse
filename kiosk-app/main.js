@@ -500,6 +500,14 @@ function createWindow() {
   }
 
   // Whitelist enforcement: intercept navigation in content view
+  // Forward content view navigation events to the menu (for time tracking)
+  contentView.webContents.on('did-navigate', (event, url) => {
+    if (menuView) menuView.webContents.send('content:navigated', url);
+  });
+  contentView.webContents.on('did-navigate-in-page', (event, url) => {
+    if (menuView) menuView.webContents.send('content:navigated', url);
+  });
+
   contentView.webContents.on('will-navigate', (event, url) => {
     if (!isURLAllowed(url)) {
       event.preventDefault();
