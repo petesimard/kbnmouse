@@ -181,7 +181,7 @@ export default function KiosksPage() {
 
         {/* Registered kiosks */}
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-white font-medium mb-4">Registered Kiosks!!!!!!!!!!!test</h3>
+          <h3 className="text-white font-medium mb-4">Registered Kiosks</h3>
           {loading ? (
             <p className="text-slate-400 text-sm">Loading...</p>
           ) : kiosks.length === 0 ? (
