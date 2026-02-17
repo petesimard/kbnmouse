@@ -5,6 +5,7 @@ import express from 'express';
 import db from '../db.js';
 import crypto from 'crypto';
 import { requireAuth, requireKiosk } from '../middleware/auth.js';
+import { getKioskConnectionInfo, sendToKiosk, getServerGitHash, refreshServerGitHash } from '../websocket.js';
 
 const router = Router();
 
@@ -114,10 +115,19 @@ router.get('/api/pairing/status/:code', (req, res) => {
   res.json({ claimed: true, kioskId: row.kiosk_id, kioskToken: row.kiosk_token });
 });
 
-// GET /api/admin/kiosks — List registered kiosks
+// GET /api/admin/kiosks — List registered kiosks (with connection info)
 router.get('/api/admin/kiosks', requireAuth, (req, res) => {
   const kiosks = db.prepare('SELECT id, name, created_at FROM kiosks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId);
-  res.json(kiosks);
+  const connectionInfo = getKioskConnectionInfo();
+  const enriched = kiosks.map(k => {
+    const info = connectionInfo.get(k.id);
+    return {
+      ...k,
+      connected: !!info,
+      git_hash: info?.gitHash || null,
+    };
+  });
+  res.json(enriched);
 });
 
 // DELETE /api/admin/kiosks/:id — Remove a kiosk
@@ -287,6 +297,31 @@ router.get('/api/admin/installed-apps', requireAuth, (req, res) => {
 
   merged.sort((a, b) => a.name.localeCompare(b.name));
   res.json(merged);
+});
+
+// GET /api/admin/server-version — Get server's git hash
+router.get('/api/admin/server-version', requireAuth, (req, res) => {
+  const hash = getServerGitHash();
+  res.json({ hash });
+});
+
+// POST /api/admin/server-version/refresh — Refresh cached server git hash
+router.post('/api/admin/server-version/refresh', requireAuth, (req, res) => {
+  const hash = refreshServerGitHash();
+  res.json({ hash });
+});
+
+// POST /api/admin/kiosks/:id/update — Send update command to a kiosk
+router.post('/api/admin/kiosks/:id/update', requireAuth, (req, res) => {
+  const kiosk = db.prepare('SELECT id FROM kiosks WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
+  if (!kiosk) {
+    return res.status(404).json({ error: 'Kiosk not found' });
+  }
+  const sent = sendToKiosk(kiosk.id, { type: 'do_update' });
+  if (!sent) {
+    return res.status(409).json({ error: 'Kiosk not connected' });
+  }
+  res.json({ sent: true });
 });
 
 export default router;

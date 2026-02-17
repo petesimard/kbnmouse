@@ -15,5 +15,5 @@ openbox &
 sleep 2
 
 # Launch Electron kiosk app
-cd /opt/kiosk-app
+cd /opt/kbnmouse/kiosk-app
 /usr/bin/npm start

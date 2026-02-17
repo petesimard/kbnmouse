@@ -3,6 +3,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+INSTALL_DIR="/opt/kbnmouse"
 
 # --- Colors ---
 GREEN='\033[0;32m'
@@ -41,7 +42,7 @@ echo "This will set up your system as a KBnM kiosk:"
 echo "  - Create/use a dedicated 'kbnm' user account"
 echo "  - Install LightDM, Openbox, and dependencies"
 echo "  - Configure a kiosk X session"
-echo "  - Install the Electron kiosk app to /opt/kiosk-app"
+echo "  - Clone the repository to $INSTALL_DIR"
 echo ""
 read -rp "Continue with installation? (n/Y): " confirm < /dev/tty
 confirm="${confirm:-Y}"
@@ -237,17 +238,34 @@ else
   warn "AccountsService not found — skipping (LightDM autologin will still work)"
 fi
 
-# --- Install Electron kiosk app ---
-echo "Installing Electron kiosk app to /opt/kiosk-app..."
-rm -rf /opt/kiosk-app
-cp -r "$PROJECT_ROOT/kiosk-app" /opt/kiosk-app
-chown -R "$KIOSK_USER:$KIOSK_USER" /opt/kiosk-app
+# --- Clone repository ---
+REPO_URL="$(cd "$PROJECT_ROOT" && git remote get-url origin 2>/dev/null || true)"
+
+if [[ -z "$REPO_URL" ]]; then
+  error "Could not detect git remote origin. Is this a git repository?"
+  exit 1
+fi
+
+echo "Cloning repository to $INSTALL_DIR..."
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+  info "Existing clone found at $INSTALL_DIR — pulling latest"
+  cd "$INSTALL_DIR"
+  sudo -u "$KIOSK_USER" git pull
+else
+  rm -rf "$INSTALL_DIR"
+  git clone "$REPO_URL" "$INSTALL_DIR"
+  chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR"
+fi
+
+info "Repository cloned from $REPO_URL"
 
 echo "Installing npm dependencies (this may take a moment)..."
-cd /opt/kiosk-app
+cd "$INSTALL_DIR/kiosk-app"
 sudo -u "$KIOSK_USER" npm install
 
 echo ""
 info "=== Kiosk mode installed successfully! ==="
 echo "Kiosk user: $KIOSK_USER"
+echo "Installed to: $INSTALL_DIR"
+echo "Update with: cd $INSTALL_DIR && git pull && cd kiosk-app && npm install"
 echo "Reboot to start kiosk mode."

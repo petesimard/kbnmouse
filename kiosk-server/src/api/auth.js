@@ -113,3 +113,16 @@ export async function fetchInstalledApps() {
   const res = await fetch('/api/admin/installed-apps', { headers: authHeaders() });
   return handleResponse(res);
 }
+
+export async function fetchServerVersion() {
+  const res = await fetch('/api/admin/server-version', { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function updateKiosk(id) {
+  const res = await fetch(`/api/admin/kiosks/${id}/update`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}

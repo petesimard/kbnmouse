@@ -625,6 +625,7 @@ async function startupConnect() {
   contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
   menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
   pushInstalledApps();
+  connectWebSocket();
 }
 
 // Show pairing code on the content view and poll for claim
@@ -673,6 +674,7 @@ async function startPairingFlow() {
         saveRegistration(data.kioskToken, data.kioskId);
         console.log('Kiosk paired successfully!');
         pushInstalledApps();
+        connectWebSocket();
         // Proceed to normal operation
         const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
         if (contentView) contentView.webContents.loadURL(`${baseURL}/kiosk/test-content`);
@@ -682,6 +684,95 @@ async function startPairingFlow() {
       console.error('Pairing poll error:', err.message);
     }
   }, 3000);
+}
+
+// ============================================
+// WebSocket connection to server for remote updates
+// ============================================
+
+let kioskWs = null;
+let wsReconnectTimer = null;
+const repoRoot = path.resolve(__dirname, '..');
+
+function connectWebSocket() {
+  if (!kioskToken) return;
+
+  const apiBase = getApiBaseUrl();
+  const wsUrl = apiBase.replace(/^http/, 'ws') + '/ws';
+
+  try {
+    const ws = new WebSocket(wsUrl);
+    kioskWs = ws;
+
+    ws.on('open', () => {
+      console.log('Kiosk WebSocket connected');
+      ws.send(JSON.stringify({ type: 'identify', clientType: 'kiosk', token: kioskToken }));
+    });
+
+    ws.on('message', (data) => {
+      try {
+        const msg = JSON.parse(data);
+        handleServerMessage(ws, msg);
+      } catch {}
+    });
+
+    ws.on('close', () => {
+      console.log('Kiosk WebSocket disconnected');
+      kioskWs = null;
+      scheduleReconnect();
+    });
+
+    ws.on('error', (err) => {
+      console.error('Kiosk WebSocket error:', err.message);
+      kioskWs = null;
+    });
+  } catch (err) {
+    console.error('Failed to create WebSocket:', err.message);
+    scheduleReconnect();
+  }
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  wsReconnectTimer = setTimeout(connectWebSocket, 3000);
+}
+
+function handleServerMessage(ws, msg) {
+  if (msg.type === 'get_version') {
+    try {
+      const hash = execSync('git rev-parse HEAD', { cwd: repoRoot, encoding: 'utf-8' }).trim();
+      ws.send(JSON.stringify({ type: 'version_response', hash }));
+    } catch (err) {
+      console.error('Failed to get git hash:', err.message);
+      ws.send(JSON.stringify({ type: 'version_response', hash: null }));
+    }
+  }
+
+  if (msg.type === 'do_update') {
+    performUpdate(ws);
+  }
+}
+
+async function performUpdate(ws) {
+  try {
+    ws.send(JSON.stringify({ type: 'update_status', status: 'updating' }));
+
+    execSync('git pull', { cwd: repoRoot, encoding: 'utf-8', timeout: 60000 });
+    execSync('npm install', { cwd: path.join(repoRoot, 'kiosk-app'), encoding: 'utf-8', timeout: 120000 });
+
+    ws.send(JSON.stringify({ type: 'update_status', status: 'restarting' }));
+
+    // Brief delay to let the message send
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 500);
+  } catch (err) {
+    console.error('Update failed:', err.message);
+    try {
+      ws.send(JSON.stringify({ type: 'update_status', status: 'error', error: err.message }));
+    } catch {}
+  }
 }
 
 // Start app (with or without built-in server)
@@ -717,6 +808,12 @@ app.on('window-all-closed', () => {
     try { process.kill(-nativeProcess.pid, 'SIGTERM'); } catch {}
     nativeProcess = null;
   }
+  if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+  if (kioskWs) {
+    kioskWs.onclose = null;
+    kioskWs.close();
+    kioskWs = null;
+  }
   app.quit();
 });
 
@@ -724,7 +821,8 @@ app.on('window-all-closed', () => {
 // IPC Handlers for native system calls
 // ============================================
 
-const { exec, spawn } = require('child_process');
+const { exec, execSync, spawn } = require('child_process');
+const WebSocket = require('ws');
 
 // Execute shell command
 ipcMain.handle('shell:exec', async (event, command) => {
