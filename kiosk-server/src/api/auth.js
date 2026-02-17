@@ -109,22 +109,6 @@ export async function deleteKiosk(id) {
   return handleResponse(res);
 }
 
-export async function triggerKioskUpdate(id) {
-  const res = await fetch(`/api/admin/kiosks/${id}/update`, {
-    method: 'POST',
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-}
-
-export async function triggerAllKiosksUpdateCheck() {
-  const res = await fetch('/api/admin/kiosks/check-updates', {
-    method: 'POST',
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-}
-
 export async function fetchInstalledApps() {
   const res = await fetch('/api/admin/installed-apps', { headers: authHeaders() });
   return handleResponse(res);

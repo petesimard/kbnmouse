@@ -134,7 +134,6 @@ db.exec(`
   )
 `);
 
-
 // --- Profile migration: add profile_id to existing tables ---
 const appsColumns = db.prepare("PRAGMA table_info(apps)").all();
 if (!appsColumns.find(col => col.name === 'profile_id')) {
@@ -276,7 +275,7 @@ export function seedProfileDefaults(profileId, age) {
     'INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)'
   ).run('AI', '🤖', '#8b5cf6', 6, profileId).lastInsertRowid;
   insertAppInFolder.run('Image Generator', 'imagegen', '🖼️', 0, 'builtin', profileId, aiFolderId);
-  insertAppInFolder.run('ChatBot', 'chatbot', '💬', 1, 'builtin', profileId, aiFolderId);
+  insertAppInFolder.run('ChatBot', 'chatbot', '🤖', 1, 'builtin', profileId, aiFolderId);
 
   // Tune challenge configs based on age
   let addSubConfig, mulDivConfig, typingConfig;
@@ -316,7 +315,6 @@ export function seedProfileDefaults(profileId, age) {
     insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, JSON.stringify(mulDivConfig), order++, profileId);
   }
   insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId);
-  insertChallenge.run('Hacking', '🔓', 'Bypass 6 security locks', 'hacking', 15, '{}', order++, profileId);
 
   console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
 }

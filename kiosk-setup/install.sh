@@ -4,15 +4,6 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# --- Parse flags ---
-# Default: source install. Use --release for AppImage install.
-RELEASE_MODE=false
-for arg in "$@"; do
-  case "$arg" in
-    --release) RELEASE_MODE=true ;;
-  esac
-done
-
 # --- Colors ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -50,11 +41,7 @@ echo "This will set up your system as a KBnM kiosk:"
 echo "  - Create/use a dedicated 'kbnm' user account"
 echo "  - Install LightDM, Openbox, and dependencies"
 echo "  - Configure a kiosk X session"
-if $RELEASE_MODE; then
-  echo "  - Install the Electron kiosk app to /opt/kiosk-app (AppImage)"
-else
-  echo "  - Install the Electron kiosk app from source at /opt/kbnmouse (git-based updates)"
-fi
+echo "  - Install the Electron kiosk app to /opt/kiosk-app"
 echo ""
 read -rp "Continue with installation? (n/Y): " confirm < /dev/tty
 confirm="${confirm:-Y}"
@@ -174,28 +161,19 @@ echo ""
 # --- Install system dependencies ---
 echo "Installing system dependencies..."
 
-FUSE_PKG=""
-if $RELEASE_MODE; then
-  case "$DISTRO" in
-    debian|suse) FUSE_PKG="libfuse2" ;;
-    fedora|rhel)  FUSE_PKG="fuse-libs" ;;
-    arch)         FUSE_PKG="fuse2" ;;
-  esac
-fi
-
 case "$DISTRO" in
   debian)
     apt update -y
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter $FUSE_PKG
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
     ;;
   fedora|rhel)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter $FUSE_PKG
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
     ;;
   arch)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter $FUSE_PKG
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
     ;;
   suse)
-    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter $FUSE_PKG
+    $PKG_INSTALL openbox unclutter lightdm lightdm-gtk-greeter
     ;;
 esac
 
@@ -225,36 +203,7 @@ echo "Installing kiosk session..."
 cp "$SCRIPT_DIR/kiosk.desktop" /usr/share/xsessions/
 
 echo "Installing kiosk startup script..."
-if $RELEASE_MODE; then
-  cat > /usr/local/bin/kiosk-start.sh <<'STARTEOF'
-#!/bin/bash
-
-# Start window manager (needed for Electron)
-openbox &
-
-# Wait for X to be ready
-sleep 2
-
-# Launch Electron kiosk AppImage
-export KIOSK_DATA_DIR="/opt/kiosk-app/data"
-exec /opt/kiosk-app/KBnMouse-Kiosk.AppImage --no-sandbox
-STARTEOF
-else
-  cat > /usr/local/bin/kiosk-start.sh <<'STARTEOF'
-#!/bin/bash
-
-# Start window manager (needed for Electron)
-openbox &
-
-# Wait for X to be ready
-sleep 2
-
-# Launch Electron kiosk app from source
-export KIOSK_DATA_DIR="/opt/kbnmouse/kiosk-app/data"
-cd /opt/kbnmouse/kiosk-app
-exec node_modules/.bin/electron . --no-sandbox
-STARTEOF
-fi
+cp "$SCRIPT_DIR/kiosk-start.sh" /usr/local/bin/
 chmod +x /usr/local/bin/kiosk-start.sh
 
 # --- Configure LightDM ---
@@ -289,53 +238,16 @@ else
 fi
 
 # --- Install Electron kiosk app ---
-if $RELEASE_MODE; then
-  # Release mode: install AppImage to /opt/kiosk-app
-  INSTALL_DIR="/opt/kiosk-app"
-  mkdir -p "$INSTALL_DIR/data"
+echo "Installing Electron kiosk app to /opt/kiosk-app..."
+rm -rf /opt/kiosk-app
+cp -r "$PROJECT_ROOT/kiosk-app" /opt/kiosk-app
+chown -R "$KIOSK_USER:$KIOSK_USER" /opt/kiosk-app
 
-  echo "Installing Electron kiosk app (AppImage) to $INSTALL_DIR..."
+echo "Installing npm dependencies (this may take a moment)..."
+cd /opt/kiosk-app
+sudo -u "$KIOSK_USER" npm install
 
-  # Check for local AppImage first (from dev build), else download from GitHub
-  LOCAL_APPIMAGE=$(ls -1 "$PROJECT_ROOT/kiosk-app/dist/"*AppImage 2>/dev/null | head -1)
-  if [[ -n "$LOCAL_APPIMAGE" ]]; then
-    info "Found local AppImage: $LOCAL_APPIMAGE"
-    cp "$LOCAL_APPIMAGE" "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
-  else
-    echo "Downloading latest AppImage from GitHub..."
-    REPO="petesimard/kbnmouse"
-    LATEST_URL=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" \
-      | grep "browser_download_url.*AppImage\"" | head -1 | cut -d '"' -f 4)
-    if [[ -z "$LATEST_URL" ]]; then
-      error "Could not find AppImage download URL. Build one with 'cd kiosk-app && npm run dist' or create a GitHub release."
-      exit 1
-    fi
-    curl -L -o "$INSTALL_DIR/KBnMouse-Kiosk.AppImage" "$LATEST_URL"
-  fi
-
-  chmod +x "$INSTALL_DIR/KBnMouse-Kiosk.AppImage"
-  chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR"
-
-  echo ""
-  info "=== Kiosk mode installed successfully! ==="
-  echo "Install method: release (AppImage)"
-  echo "Kiosk user:     $KIOSK_USER"
-  echo "AppImage:       $INSTALL_DIR/KBnMouse-Kiosk.AppImage"
-  echo "Data dir:       $INSTALL_DIR/data"
-  echo "Updates:        Automatic via GitHub Releases (electron-updater)"
-  echo "Reboot to start kiosk mode."
-else
-  # Source mode: code is already at /opt/kbnmouse (cloned by setup.sh)
-  SOURCE_DIR="/opt/kbnmouse"
-  mkdir -p "$SOURCE_DIR/kiosk-app/data"
-  chown -R "$KIOSK_USER:$KIOSK_USER" "$SOURCE_DIR"
-
-  echo ""
-  info "=== Kiosk mode installed successfully! ==="
-  echo "Install method: source (git)"
-  echo "Kiosk user:     $KIOSK_USER"
-  echo "Source:         $SOURCE_DIR"
-  echo "Data dir:       $SOURCE_DIR/kiosk-app/data"
-  echo "Updates:        Automatic via git pull + restart"
-  echo "Reboot to start kiosk mode."
-fi
+echo ""
+info "=== Kiosk mode installed successfully! ==="
+echo "Kiosk user: $KIOSK_USER"
+echo "Reboot to start kiosk mode."

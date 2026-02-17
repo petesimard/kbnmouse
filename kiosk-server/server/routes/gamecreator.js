@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
     return res.status(404).json({ error: 'Profile not found' });
   }
   const games = db.prepare(
-    'SELECT id, name, description, prompt, status, error_message, game_type, created_at, updated_at FROM custom_games WHERE profile_id = ? ORDER BY created_at DESC'
+    'SELECT id, name, description, prompt, status, error_message, created_at, updated_at FROM custom_games WHERE profile_id = ? ORDER BY created_at DESC'
   ).all(profileId);
   res.json(games);
 });
@@ -43,7 +43,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/games — create game and start generation
 router.post('/', async (req, res) => {
-  const { name, prompt, profile_id, game_type } = req.body;
+  const { name, prompt, profile_id } = req.body;
   if (!name || !prompt || !profile_id) {
     return res.status(400).json({ error: 'name, prompt, and profile_id are required' });
   }
@@ -51,16 +51,14 @@ router.post('/', async (req, res) => {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
-  const type = game_type === '2d' ? '2d' : '3d';
-
   const result = db.prepare(
-    'INSERT INTO custom_games (name, prompt, profile_id, game_type) VALUES (?, ?, ?, ?)'
-  ).run(name, prompt, profile_id, type);
+    'INSERT INTO custom_games (name, prompt, profile_id) VALUES (?, ?, ?)'
+  ).run(name, prompt, profile_id);
 
   const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(result.lastInsertRowid);
 
   // Start generation in background (imported dynamically to avoid circular deps)
-  startGeneration(game.id, name, prompt, profile_id, type);
+  startGeneration(game.id, name, prompt, profile_id);
 
   res.status(201).json(game);
 });
@@ -87,7 +85,7 @@ router.post('/:id/update', async (req, res) => {
   const updated = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(game.id);
 
   // Start update generation in background
-  startUpdate(game.id, prompt, game.game_type);
+  startUpdate(game.id, prompt);
 
   res.json(updated);
 });
@@ -121,11 +119,11 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Background generation helper
-function startGeneration(gameId, name, prompt, profileId, gameType = '3d') {
+function startGeneration(gameId, name, prompt, profileId) {
   (async () => {
     try {
       const { generateGame } = await import('../agent/gameAgent.js');
-      await generateGame(gameId, prompt, gameType);
+      await generateGame(gameId, prompt);
       onGameReady(gameId, name, profileId);
     } catch (err) {
       console.error(`[GameCreator] Generation failed for game ${gameId}:`, err.message);
@@ -138,11 +136,12 @@ function startGeneration(gameId, name, prompt, profileId, gameType = '3d') {
 }
 
 // Background update helper
-function startUpdate(gameId, prompt, gameType = '3d') {
+function startUpdate(gameId, prompt) {
   (async () => {
     try {
+      const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(gameId);
       const { updateGame } = await import('../agent/gameAgent.js');
-      await updateGame(gameId, prompt, gameType);
+      await updateGame(gameId, prompt);
       db.prepare(
         "UPDATE custom_games SET status = 'ready', error_message = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
       ).run(gameId);

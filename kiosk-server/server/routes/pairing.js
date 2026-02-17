@@ -50,23 +50,6 @@ const kioskCols = db.prepare("PRAGMA table_info(kiosks)").all();
 if (!kioskCols.find(col => col.name === 'installed_apps')) {
   db.exec("ALTER TABLE kiosks ADD COLUMN installed_apps TEXT DEFAULT NULL");
 }
-// Migration: add heartbeat/update columns to kiosks
-if (!kioskCols.find(col => col.name === 'app_version')) {
-  db.exec("ALTER TABLE kiosks ADD COLUMN app_version TEXT DEFAULT NULL");
-}
-if (!kioskCols.find(col => col.name === 'update_status')) {
-  db.exec("ALTER TABLE kiosks ADD COLUMN update_status TEXT DEFAULT NULL");
-}
-if (!kioskCols.find(col => col.name === 'last_seen_at')) {
-  db.exec("ALTER TABLE kiosks ADD COLUMN last_seen_at TEXT DEFAULT NULL");
-}
-if (!kioskCols.find(col => col.name === 'pending_action')) {
-  db.exec("ALTER TABLE kiosks ADD COLUMN pending_action TEXT DEFAULT NULL");
-}
-// Migration: add install_method column to kiosks
-if (!kioskCols.find(col => col.name === 'install_method')) {
-  db.exec("ALTER TABLE kiosks ADD COLUMN install_method TEXT DEFAULT NULL");
-}
 
 // POST /api/pairing/code — Kiosk generates a 5-digit pairing code
 router.post('/api/pairing/code', (req, res) => {
@@ -131,43 +114,10 @@ router.get('/api/pairing/status/:code', (req, res) => {
   res.json({ claimed: true, kioskId: row.kiosk_id, kioskToken: row.kiosk_token });
 });
 
-// POST /api/kiosk/heartbeat — Kiosk reports version and update status
-router.post('/api/kiosk/heartbeat', requireKiosk, (req, res) => {
-  const { app_version, update_status, install_method } = req.body;
-  db.prepare(
-    'UPDATE kiosks SET app_version = ?, update_status = ?, install_method = ?, last_seen_at = ? WHERE id = ?'
-  ).run(app_version || null, update_status || null, install_method || null, new Date().toISOString(), req.kioskId);
-
-  const kiosk = db.prepare('SELECT pending_action FROM kiosks WHERE id = ?').get(req.kioskId);
-  const action = kiosk?.pending_action || null;
-  if (action) {
-    db.prepare('UPDATE kiosks SET pending_action = NULL WHERE id = ?').run(req.kioskId);
-  }
-  res.json({ ok: true, action });
-});
-
 // GET /api/admin/kiosks — List registered kiosks
 router.get('/api/admin/kiosks', requireAuth, (req, res) => {
-  const kiosks = db.prepare('SELECT id, name, created_at, app_version, update_status, last_seen_at, pending_action, install_method FROM kiosks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId);
+  const kiosks = db.prepare('SELECT id, name, created_at FROM kiosks WHERE account_id = ? ORDER BY created_at DESC').all(req.accountId);
   res.json(kiosks);
-});
-
-// POST /api/admin/kiosks/check-updates — Queue update check on all online kiosks
-router.post('/api/admin/kiosks/check-updates', requireAuth, (req, res) => {
-  const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-  const result = db.prepare(
-    'UPDATE kiosks SET pending_action = ? WHERE account_id = ? AND last_seen_at > ? AND pending_action IS NULL'
-  ).run('check', req.accountId, twoMinAgo);
-  res.json({ ok: true, updated: result.changes });
-});
-
-// POST /api/admin/kiosks/:id/update — Queue an update command for the kiosk
-router.post('/api/admin/kiosks/:id/update', requireAuth, (req, res) => {
-  const result = db.prepare('UPDATE kiosks SET pending_action = ? WHERE id = ? AND account_id = ?').run('update', req.params.id, req.accountId);
-  if (result.changes === 0) {
-    return res.status(404).json({ error: 'Kiosk not found' });
-  }
-  res.json({ ok: true });
 });
 
 // DELETE /api/admin/kiosks/:id — Remove a kiosk

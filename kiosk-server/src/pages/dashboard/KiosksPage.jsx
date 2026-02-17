@@ -1,62 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { fetchKiosks, claimPairingCode, deleteKiosk, triggerKioskUpdate, triggerAllKiosksUpdateCheck } from '../../api/auth';
-
-function isOnline(lastSeenAt) {
-  if (!lastSeenAt) return false;
-  return Date.now() - new Date(lastSeenAt).getTime() < 2 * 60 * 1000;
-}
-
-function formatLastSeen(lastSeenAt) {
-  if (!lastSeenAt) return 'Never';
-  const diff = Date.now() - new Date(lastSeenAt).getTime();
-  if (diff < 60_000) return 'Just now';
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
-  return new Date(lastSeenAt).toLocaleDateString();
-}
-
-function UpdateStatusBadge({ kiosk }) {
-  if (kiosk.pending_action === 'check') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Checking...</span>;
-  }
-  if (kiosk.pending_action === 'update') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Update pending...</span>;
-  }
-  if (kiosk.update_status === 'ready') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">Update ready</span>;
-  }
-  if (kiosk.update_status === 'downloading') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">{kiosk.install_method === 'source' ? 'Pulling update...' : 'Downloading update...'}</span>;
-  }
-  if (kiosk.update_status === 'checking') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Checking...</span>;
-  }
-  if (kiosk.update_status === 'error') {
-    return <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">Update error</span>;
-  }
-  return null;
-}
-
-function VersionBadge({ kiosk }) {
-  if (!kiosk.app_version) return null;
-  const isSource = kiosk.install_method === 'source';
-  return (
-    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-600 text-slate-300 font-mono" title={isSource ? 'Git commit' : 'Release version'}>
-      {isSource ? kiosk.app_version : `v${kiosk.app_version}`}
-    </span>
-  );
-}
-
-function InstallMethodBadge({ kiosk }) {
-  if (!kiosk.install_method) return null;
-  const isSource = kiosk.install_method === 'source';
-  return (
-    <span className={`text-xs px-1.5 py-0.5 rounded-full ${isSource ? 'bg-purple-500/20 text-purple-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
-      {isSource ? 'source' : 'release'}
-    </span>
-  );
-}
+import { fetchKiosks, claimPairingCode, deleteKiosk } from '../../api/auth';
 
 export default function KiosksPage() {
   const { logout } = useOutletContext();
@@ -67,7 +11,6 @@ export default function KiosksPage() {
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const refreshRef = useRef(null);
 
   const loadKiosks = async () => {
     try {
@@ -86,9 +29,6 @@ export default function KiosksPage() {
 
   useEffect(() => {
     loadKiosks();
-    triggerAllKiosksUpdateCheck().catch(() => {});
-    refreshRef.current = setInterval(loadKiosks, 15000);
-    return () => clearInterval(refreshRef.current);
   }, []);
 
   const handleClaim = async (e) => {
@@ -123,19 +63,6 @@ export default function KiosksPage() {
         return;
       }
       setError(err.message || 'Failed to remove kiosk');
-    }
-  };
-
-  const handleUpdate = async (id) => {
-    try {
-      await triggerKioskUpdate(id);
-      loadKiosks();
-    } catch (err) {
-      if (err.name === 'UnauthorizedError') {
-        logout();
-        return;
-      }
-      setError(err.message || 'Failed to trigger update');
     }
   };
 
@@ -207,44 +134,22 @@ export default function KiosksPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {kiosks.map((kiosk) => {
-                const online = isOnline(kiosk.last_seen_at);
-                const canUpdate = online && kiosk.update_status === 'ready' && !kiosk.pending_action;
-                return (
-                  <div key={kiosk.id} className="flex items-center justify-between bg-slate-700 rounded-lg px-4 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${online ? 'bg-emerald-400' : 'bg-slate-500'}`} title={online ? 'Online' : 'Offline'} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-white font-medium">{kiosk.name}</span>
-                          <VersionBadge kiosk={kiosk} />
-                          <InstallMethodBadge kiosk={kiosk} />
-                          <UpdateStatusBadge kiosk={kiosk} />
-                        </div>
-                        <div className="text-slate-400 text-xs mt-0.5">
-                          {kiosk.last_seen_at ? `Last seen ${formatLastSeen(kiosk.last_seen_at)}` : `Registered ${new Date(kiosk.created_at).toLocaleDateString()}`}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                      {canUpdate && (
-                        <button
-                          onClick={() => handleUpdate(kiosk.id)}
-                          className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded hover:bg-slate-600 transition-colors"
-                        >
-                          {kiosk.install_method === 'source' ? 'Restart Now' : 'Update Now'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(kiosk.id)}
-                        className="text-red-400 hover:text-red-300 text-sm px-3 py-1 rounded hover:bg-slate-600 transition-colors"
-                      >
-                        Remove
-                      </button>
+              {kiosks.map((kiosk) => (
+                <div key={kiosk.id} className="flex items-center justify-between bg-slate-700 rounded-lg px-4 py-3">
+                  <div>
+                    <div className="text-white font-medium">{kiosk.name}</div>
+                    <div className="text-slate-400 text-xs">
+                      Registered {new Date(kiosk.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                );
-              })}
+                  <button
+                    onClick={() => handleDelete(kiosk.id)}
+                    className="text-red-400 hover:text-red-300 text-sm px-3 py-1 rounded hover:bg-slate-600 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

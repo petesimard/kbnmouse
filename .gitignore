@@ -32,7 +32,7 @@ Thumbs.db
 
 # Electron
 *.asar
-kiosk-app/data/
+kiosk-app/data/kiosk-registration.json
 
 # Uploads
 kiosk-server/data/uploads/

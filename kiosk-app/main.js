@@ -1,31 +1,11 @@
+require('dotenv').config();
 const { app, BrowserWindow, BrowserView, ipcMain, screen, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { exec, execSync, spawn } = require('child_process');
 
-const isPackaged = app.isPackaged;
-
-// Writable data dir: KIOSK_DATA_DIR env var (set by kiosk-start.sh),
-// else ~/.config/kbnmouse in packaged builds, else ./data in dev
-const DATA_DIR = process.env.KIOSK_DATA_DIR
-  || (isPackaged ? path.join(app.getPath('userData')) : path.join(__dirname, 'data'));
-
-// Ensure data dir exists
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-// Load .env from external data dir in prod
-require('dotenv').config(isPackaged ? { path: path.join(DATA_DIR, '.env') } : {});
-
-// Load config — check external override first, then bundled
-function loadConfig() {
-  const external = path.join(DATA_DIR, 'config.json');
-  const bundled = isPackaged
-    ? path.join(process.resourcesPath, 'config.json')
-    : path.join(__dirname, 'config.json');
-  const configFile = fs.existsSync(external) ? external : bundled;
-  return JSON.parse(fs.readFileSync(configFile, 'utf-8'));
-}
-const config = loadConfig();
+// Load config
+const configPath = path.join(__dirname, 'config.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
 // Environment variables override config file
 const KIOSK_URL = process.env.KIOSK_URL || config.url;
@@ -35,136 +15,15 @@ const HOT_RELOAD_WATCH = process.env.KIOSK_HOT_RELOAD_WATCH || config.hotReloadW
 
 // Hot reload in development
 if (process.env.NODE_ENV === 'development') {
-  try {
-    require('electron-reload')(path.join(__dirname, HOT_RELOAD_WATCH), {
-      electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
-      hardResetMethod: 'exit'
-    });
-  } catch {}
-}
-
-// Auto-updater (packaged builds only)
-let updateStatus = 'up-to-date';
-
-if (isPackaged) {
-  const { autoUpdater } = require('electron-updater');
-
-  autoUpdater.logger = {
-    info: (...args) => console.log('[updater]', ...args),
-    warn: (...args) => console.warn('[updater]', ...args),
-    error: (...args) => console.error('[updater]', ...args),
-  };
-
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  autoUpdater.on('checking-for-update', () => {
-    updateStatus = 'checking';
-  });
-  autoUpdater.on('update-not-available', () => {
-    updateStatus = 'up-to-date';
-  });
-  autoUpdater.on('update-available', (info) => {
-    console.log('[updater] Update available:', info.version);
-    updateStatus = 'downloading';
-  });
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log('[updater] Update downloaded:', info.version, '— will install on next restart');
-    updateStatus = 'ready';
-  });
-  autoUpdater.on('error', (err) => {
-    console.error('[updater] Error:', err.message);
-    updateStatus = 'error';
+  require('electron-reload')(path.join(__dirname, HOT_RELOAD_WATCH), {
+    electron: path.join(__dirname, 'node_modules', '.bin', 'electron'),
+    hardResetMethod: 'exit'
   });
 }
 
-// Source-based update system (non-packaged builds running from git repo)
-let sourceUpdateAvailable = false;
-
-function getRepoRoot() {
-  try {
-    return execSync('git rev-parse --show-toplevel', {
-      cwd: __dirname, encoding: 'utf-8', timeout: 5000
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
-const repoRoot = !isPackaged ? getRepoRoot() : null;
-
-function getCommitHash() {
-  if (!repoRoot) return null;
-  try {
-    return execSync('git rev-parse --short HEAD', {
-      cwd: repoRoot, encoding: 'utf-8', timeout: 5000
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
-function execGitAsync(cmd, opts = {}) {
-  return new Promise((resolve, reject) => {
-    exec(cmd, { cwd: repoRoot, timeout: 120000, ...opts }, (err, stdout) => {
-      if (err) reject(err);
-      else resolve(stdout.toString().trim());
-    });
-  });
-}
-
-async function checkSourceUpdate() {
-  if (!repoRoot) return;
-  updateStatus = 'checking';
-  try {
-    await execGitAsync('git fetch');
-    const local = await execGitAsync('git rev-parse HEAD');
-    const remote = await execGitAsync('git rev-parse origin/main');
-
-    if (local !== remote) {
-      console.log('[updater] Source update available:', local.slice(0, 7), '->', remote.slice(0, 7));
-      updateStatus = 'ready';
-      sourceUpdateAvailable = true;
-    } else {
-      updateStatus = 'up-to-date';
-      sourceUpdateAvailable = false;
-    }
-  } catch (err) {
-    console.error('[updater] Source update error:', err.message);
-    updateStatus = 'error';
-  }
-}
-
-async function pullAndApplySourceUpdate() {
-  if (!repoRoot) return;
-  console.log('[updater] Pulling and applying source update...');
-  updateStatus = 'downloading';
-  if (contentView) {
-    showStartupScreen(`
-      <div class="spinner"></div>
-      <h1>Updating</h1>
-      <p>Downloading and installing update...</p>
-    `);
-  }
-  try {
-    await execGitAsync('git pull --ff-only');
-    await execGitAsync('npm install', {
-      cwd: path.join(repoRoot, 'kiosk-app'),
-      timeout: 300000
-    });
-    console.log('[updater] Source update installed, restarting...');
-    setTimeout(() => {
-      app.relaunch();
-      app.exit(0);
-    }, 500);
-  } catch (err) {
-    console.error('[updater] Source update error:', err.message);
-    updateStatus = 'error';
-  }
-}
 
 // Kiosk registration (pairing) persistence
-const registrationPath = path.join(DATA_DIR, 'kiosk-registration.json');
+const registrationPath = path.join(__dirname, 'data', 'kiosk-registration.json');
 let kioskToken = null;
 
 function loadRegistration() {
@@ -849,61 +708,6 @@ app.whenReady().then(() => {
     createWindow();
     if (!kioskToken) startPairingFlow();
   }
-
-  // Check for updates — packaged builds use electron-updater, source builds use git
-  if (isPackaged) {
-    const { autoUpdater } = require('electron-updater');
-    // Check 30s after startup, then every 4 hours
-    setTimeout(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 30000);
-    setInterval(() => autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message)), 4 * 60 * 60 * 1000);
-  } else if (repoRoot) {
-    // Source builds: check git for updates
-    setTimeout(() => checkSourceUpdate(), 30000);
-    setInterval(() => checkSourceUpdate(), 4 * 60 * 60 * 1000);
-  }
-
-  // Heartbeat: report version + update status to server every 60s
-  async function sendHeartbeat() {
-    if (!kioskToken) return;
-    try {
-      const apiBase = getApiBaseUrl();
-      const res = await fetch(`${apiBase}/api/kiosk/heartbeat`, {
-        method: 'POST',
-        headers: kioskHeaders(),
-        body: JSON.stringify({
-          app_version: isPackaged ? app.getVersion() : (getCommitHash() || 'dev'),
-          update_status: updateStatus,
-          install_method: isPackaged ? 'release' : 'source',
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.action === 'check' || data.action === 'update') {
-          if (isPackaged) {
-            const { autoUpdater } = require('electron-updater');
-            if (data.action === 'update' && updateStatus === 'ready') {
-              console.log('[heartbeat] Update command received — installing now');
-              autoUpdater.quitAndInstall(false, true);
-            } else if (updateStatus === 'up-to-date' || updateStatus === 'error') {
-              console.log('[heartbeat] Check command received — checking for updates');
-              autoUpdater.checkForUpdates().catch(e => console.error('[updater]', e.message));
-            }
-          } else if (repoRoot) {
-            if (data.action === 'update') {
-              pullAndApplySourceUpdate();
-            } else if (!sourceUpdateAvailable) {
-              console.log('[heartbeat] Check command received — checking source updates');
-              checkSourceUpdate();
-            }
-          }
-        }
-      }
-    } catch (err) {
-      // Heartbeat failures are non-critical
-    }
-  }
-  setTimeout(sendHeartbeat, 5000);
-  setInterval(sendHeartbeat, 60000);
 });
 
 app.on('window-all-closed', () => {
@@ -919,6 +723,8 @@ app.on('window-all-closed', () => {
 // ============================================
 // IPC Handlers for native system calls
 // ============================================
+
+const { exec, spawn } = require('child_process');
 
 // Execute shell command
 ipcMain.handle('shell:exec', async (event, command) => {
@@ -1104,7 +910,6 @@ ipcMain.handle('fs:readdir', async (event, dirPath) => {
 ipcMain.handle('system:info', async () => {
   const os = require('os');
   return {
-    appVersion: app.getVersion(),
     platform: os.platform(),
     hostname: os.hostname(),
     uptime: os.uptime(),
