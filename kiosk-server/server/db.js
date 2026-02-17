@@ -134,7 +134,7 @@ db.exec(`
   )
 `);
 
-// --- Profile migration: add profile_id to existing tables --
+// --- Profile migration: add profile_id to existing tables ---
 const appsColumns = db.prepare("PRAGMA table_info(apps)").all();
 if (!appsColumns.find(col => col.name === 'profile_id')) {
   // Create a default profile for existing data
