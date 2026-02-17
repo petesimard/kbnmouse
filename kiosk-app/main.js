@@ -158,7 +158,6 @@ function applySourceUpdate() {
   }, 500);
 }
 
-
 // Kiosk registration (pairing) persistence
 const registrationPath = path.join(DATA_DIR, 'kiosk-registration.json');
 let kioskToken = null;
