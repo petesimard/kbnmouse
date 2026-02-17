@@ -1,6 +1,7 @@
 node_modules/
 dist/
 data/games
+data/app-icons
 data/*.db
 data/*.db-wal
 data/*.db-shm
