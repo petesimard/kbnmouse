@@ -4,7 +4,8 @@ export const meta = {
   key: 'chatbot',
   name: 'ChatBot',
   icon: '🤖',
-  description: 'Chat with an AI assistant'
+  description: 'Chat with an AI assistant',
+  defaultTimeLimit: 30,
 };
 
 function ChatBot() {

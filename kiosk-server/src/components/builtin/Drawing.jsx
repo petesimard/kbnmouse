@@ -2,7 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useProfile } from '../../contexts/ProfileContext';
 import { fetchDrawings, fetchDrawing, saveDrawing, updateDrawing, deleteDrawing, stylizeDrawing } from '../../api/drawings.js';
 
-export const meta = { key: 'drawing', name: 'Drawing', icon: '🎨', description: 'KidPix-style creative studio' };
+export const meta = { key: 'drawing', name: 'Drawing', icon: '🎨', description: 'KidPix-style creative studio', defaultTimeLimit: 30 };
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

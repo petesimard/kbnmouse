@@ -215,6 +215,11 @@ if (!profileCols2.some(c => c.name === 'age')) {
   db.exec('ALTER TABLE profiles ADD COLUMN age INTEGER');
 }
 
+// Migration: add screen_time_preset to profiles
+if (!profileCols2.some(c => c.name === 'screen_time_preset')) {
+  db.exec("ALTER TABLE profiles ADD COLUMN screen_time_preset TEXT DEFAULT 'off'");
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -254,28 +259,58 @@ db.exec(`
   )
 `);
 
+// Default time limits (in minutes) for builtin apps at the "medium" preset.
+// High = half, Low = double, Off = no limit.
+const BUILTIN_DEFAULT_TIME_LIMITS = {
+  drawing: 30,
+  chatbot: 30,
+  imagegen: 30,
+  _games: 30,  // used for gamecreator's default_daily_limit config (not the creator itself)
+};
+
+export function computeTimeLimit(appUrl, screenTimePreset) {
+  if (!screenTimePreset || screenTimePreset === 'off') return null;
+  const base = BUILTIN_DEFAULT_TIME_LIMITS[appUrl];
+  if (!base) return null;
+  if (screenTimePreset === 'medium') return base;
+  if (screenTimePreset === 'high') return Math.round(base / 2);
+  if (screenTimePreset === 'low') return base * 2;
+  return null;
+}
+
 // Seed default apps and challenges for a given profile
-export function seedProfileDefaults(profileId, age) {
-  const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id) VALUES (?, ?, ?, ?, ?, ?)');
-  const insertAppInFolder = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
+export function seedProfileDefaults(profileId, age, screenTimePreset) {
+  const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const insertAppWithConfig = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, daily_limit_minutes, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  const insertAppInFolder = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+
+  // Compute default_daily_limit for created games based on preset (same 30min base)
+  const gameCreatorLimit = computeTimeLimit('_games', screenTimePreset);
+  const gameCreatorConfig = gameCreatorLimit ? JSON.stringify({ default_daily_limit: gameCreatorLimit }) : '{}';
+
   const defaultApps = [
     { name: 'Clock', url: 'clock', icon: '🕐', sort_order: 0, app_type: 'builtin' },
     { name: 'Drawing', url: 'drawing', icon: '🎨', sort_order: 1, app_type: 'builtin' },
     { name: 'Calculator', url: 'calculator', icon: '🧮', sort_order: 2, app_type: 'builtin' },
     { name: 'Challenges', url: 'challenges', icon: '🏆', sort_order: 3, app_type: 'builtin' },
-    { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 4, app_type: 'builtin' },
+    { name: 'Game Creator', url: 'gamecreator', icon: '🎮', sort_order: 4, app_type: 'builtin', config: gameCreatorConfig },
     { name: 'Message Center', url: 'messages', icon: '✉️', sort_order: 5, app_type: 'builtin' },
   ];
   for (const app of defaultApps) {
-    insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId);
+    const limit = computeTimeLimit(app.url, screenTimePreset);
+    if (app.config) {
+      insertAppWithConfig.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId, limit, app.config);
+    } else {
+      insertApp.run(app.name, app.url, app.icon, app.sort_order, app.app_type, profileId, limit);
+    }
   }
 
   // Create "AI" folder with AI-powered apps
   const aiFolderId = db.prepare(
     'INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)'
   ).run('AI', '🤖', '#8b5cf6', 6, profileId).lastInsertRowid;
-  insertAppInFolder.run('Image Generator', 'imagegen', '🖼️', 0, 'builtin', profileId, aiFolderId);
-  insertAppInFolder.run('ChatBot', 'chatbot', '🤖', 1, 'builtin', profileId, aiFolderId);
+  insertAppInFolder.run('Image Generator', 'imagegen', '🖼️', 0, 'builtin', profileId, aiFolderId, computeTimeLimit('imagegen', screenTimePreset));
+  insertAppInFolder.run('ChatBot', 'chatbot', '🤖', 1, 'builtin', profileId, aiFolderId, computeTimeLimit('chatbot', screenTimePreset));
 
   // Tune challenge configs based on age
   let addSubConfig, mulDivConfig, typingConfig;

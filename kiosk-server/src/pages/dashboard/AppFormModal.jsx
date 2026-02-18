@@ -246,38 +246,6 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
               <>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    OpenAI API Key (Override)
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.config.openai_api_key || ''}
-                    onChange={(e) => handleConfigChange('openai_api_key', e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Optional. Overrides the global API key from Settings. Leave blank to use the global key.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Endpoint URL (Override)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.config.openai_endpoint_url || ''}
-                    onChange={(e) => handleConfigChange('openai_endpoint_url', e.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Optional. Overrides the global endpoint URL from Settings.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
                     Model
                   </label>
                   <select
@@ -335,38 +303,6 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             {/* Image Generator Settings (for imagegen builtin only) */}
             {formData.app_type === 'builtin' && formData.url === 'imagegen' && (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    OpenAI API Key (Override)
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.config.openai_api_key || ''}
-                    onChange={(e) => handleConfigChange('openai_api_key', e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Optional. Overrides the global API key from Settings. Leave blank to use the global key.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Endpoint URL (Override)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.config.openai_endpoint_url || ''}
-                    onChange={(e) => handleConfigChange('openai_endpoint_url', e.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                    Optional. Overrides the global endpoint URL from Settings.
-                  </p>
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Image Size

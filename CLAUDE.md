@@ -7,6 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A secure kiosk desktop environment for children with parental controls. Three components: an Electron desktop app (kiosk-app), a React+Express web server (kiosk-server), and Linux system setup scripts (kiosk-setup). Project is
 called kbnmouse.
 
+Don't worry about backwards compatibility or fallbacks.
+
 ## Development Commands
 
 ### kiosk-server (React frontend + Express API)

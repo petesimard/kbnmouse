@@ -11,11 +11,19 @@ const EMOJI_OPTIONS = [
   '👽', '🤖', '👾', '🎃', '👻', '💀', '☠️',
 ];
 
+const SCREEN_TIME_PRESETS = [
+  { value: 'off', label: 'Off', description: 'No time limits' },
+  { value: 'low', label: 'Low', description: '60 min/day per app' },
+  { value: 'medium', label: 'Medium', description: '30 min/day per app' },
+  { value: 'high', label: 'High', description: '15 min/day per app' },
+];
+
 export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel = 'Create Profile', savingLabel = 'Saving...' }) {
   const [formData, setFormData] = useState({
     name: '',
     icon: '👧',
     age: '',
+    screen_time_preset: 'medium',
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -26,6 +34,7 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
         name: profile.name || '',
         icon: profile.icon || '👧',
         age: profile.age != null ? String(profile.age) : '',
+        screen_time_preset: profile.screen_time_preset || 'medium',
       });
     }
   }, [profile]);
@@ -50,7 +59,7 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
 
     setSaving(true);
     try {
-      const data = { ...formData, age: formData.age ? Number(formData.age) : null };
+      const data = { ...formData, age: formData.age ? Number(formData.age) : null, screen_time_preset: formData.screen_time_preset };
       await onSubmit(data);
     } catch (err) {
       setErrors({ submit: err.message });
@@ -94,6 +103,32 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
           className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <p className="mt-1 text-slate-500 text-xs">Used to set the difficulty level of challenges</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          Screen Time Limiting Defaults
+        </label>
+        <div className="grid grid-cols-4 gap-2">
+          {SCREEN_TIME_PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              onClick={() => setFormData((prev) => ({ ...prev, screen_time_preset: preset.value }))}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                formData.screen_time_preset === preset.value
+                  ? 'bg-blue-600 ring-2 ring-blue-400 text-white'
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+              }`}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1 text-slate-500 text-xs">
+          {SCREEN_TIME_PRESETS.find(p => p.value === formData.screen_time_preset)?.description}
+          {' \u2014 applies daily limits to apps like Drawing, ChatBot, etc.'}
+        </p>
       </div>
 
       <div>

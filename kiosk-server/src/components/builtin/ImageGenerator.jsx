@@ -5,7 +5,8 @@ export const meta = {
   key: 'imagegen',
   name: 'Image Generator',
   icon: '🖼️',
-  description: 'Create images with AI'
+  description: 'Create images with AI',
+  defaultTimeLimit: 30,
 };
 
 function ImageGenerator() {
