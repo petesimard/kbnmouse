@@ -19,6 +19,7 @@ function Messages() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Conversations: Parents + other profiles
   const conversations = useMemo(() => {
@@ -72,6 +73,7 @@ function Messages() {
   const selectConvo = useCallback((convo) => {
     setSelectedConvo(convo);
     setText('');
+    setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
   useEffect(() => {
@@ -197,6 +199,7 @@ function Messages() {
               <div className="p-4 border-t border-slate-700 bg-slate-800/30">
                 <div className="flex gap-2">
                   <textarea
+                    ref={inputRef}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
