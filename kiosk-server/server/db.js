@@ -364,14 +364,6 @@ export function seedProfileDefaults(profileId, age, screenTimePreset) {
   }
   insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId, maxCompletions);
 
-  // Seed a welcome pin on the bulletin board
-  const profileRow = db.prepare('SELECT name, account_id FROM profiles WHERE id = ?').get(profileId);
-  if (profileRow) {
-    db.prepare(
-      'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color, profile_id, is_parent, account_id) VALUES (?, ?, ?, ?, ?, ?, NULL, 1, ?)'
-    ).run('message', `Welcome, ${profileRow.name}! 🎉\nThis is your bulletin board — pin messages and emoji here!`, 50, 45, -2, '#e0f2fe', profileRow.account_id);
-  }
-
   console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
 }
 
