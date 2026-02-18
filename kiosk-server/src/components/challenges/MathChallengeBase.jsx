@@ -11,14 +11,14 @@ export function makeMathConfigSchema({ description, minDefault = 10, maxDefault 
       min: 1,
       max: 100,
     }),
-    min_number: field(z.number().int().min(1).max(999).default(minDefault), {
+    min_number: field(z.number().int().min(0).max(999).default(minDefault), {
       label: 'Minimum Number',
       description: 'Smallest number in problems',
       type: 'number',
       min: 0,
       max: 99999,
     }),
-    max_number: field(z.number().int().min(1).max(999).default(maxDefault), {
+    max_number: field(z.number().int().min(0).max(999).default(maxDefault), {
       label: 'Maximum Number',
       description: 'Largest number in problems',
       type: 'number',
@@ -30,8 +30,8 @@ export function makeMathConfigSchema({ description, minDefault = 10, maxDefault 
 
 export default function MathChallengeBase({ config = {}, defaults, generateProblem, challengeType, reward, onComplete, onBack }) {
   const totalProblems = config.total_problems || defaults.total_problems;
-  const minNum = config.min_number || defaults.min_number;
-  const maxNum = config.max_number || defaults.max_number;
+  const minNum = config.min_number ?? defaults.min_number;
+  const maxNum = config.max_number ?? defaults.max_number;
 
   const [problem, setProblem] = useState(() => generateProblem(minNum, maxNum));
   const [input, setInput] = useState('');
