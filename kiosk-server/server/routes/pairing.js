@@ -164,7 +164,7 @@ router.post('/api/kiosk/app-icons', requireKiosk, express.json({ limit: '5mb' })
     return res.status(400).json({ error: 'icons must be an array' });
   }
 
-  const iconsDir = path.join(process.cwd(), 'data', 'app-icons');
+  const iconsDir = path.join(process.cwd(), 'data', 'app-icons', String(req.kioskId));
   if (!fs.existsSync(iconsDir)) {
     fs.mkdirSync(iconsDir, { recursive: true });
   }
@@ -181,31 +181,37 @@ router.post('/api/kiosk/app-icons', requireKiosk, express.json({ limit: '5mb' })
   res.json({ ok: true });
 });
 
-// GET /api/admin/app-icon/:name — Serve an app icon file (PNG)
-router.get('/api/admin/app-icon/:name', requireAuth, (req, res) => {
-  const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const iconsDir = path.join(process.cwd(), 'data', 'app-icons');
+// GET /api/admin/app-icon/:kioskId/:name — Serve an app icon file (PNG) from a specific kiosk
+// Exempt from blanket auth so <img> tags can load icons without custom headers
+function serveAppIcon(iconsDir, name, res) {
+  const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const contentTypes = { '.png': 'image/png', '.svg': 'image/svg+xml', '.xpm': 'image/x-xpixmap' };
 
-  // Check pushed icons first (always PNG after kiosk conversion)
   const pngPath = path.join(iconsDir, `${safeName}.png`);
   if (fs.existsSync(pngPath)) {
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.sendFile(path.resolve(pngPath));
   }
+  return false;
+}
 
-  // Fallback: resolve from local icon themes (works when server runs on same machine)
+router.get('/api/admin/app-icon/:kioskId/:name', (req, res) => {
+  const iconsDir = path.join(process.cwd(), 'data', 'app-icons', req.params.kioskId);
+  if (serveAppIcon(iconsDir, req.params.name, res) !== false) return;
+
+  // Fallback: resolve from local icon themes
   const resolved = resolveLocalIcon(req.params.name);
   if (resolved) {
     const ext = path.extname(resolved);
+    const contentTypes = { '.png': 'image/png', '.svg': 'image/svg+xml', '.xpm': 'image/x-xpixmap' };
     res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.sendFile(path.resolve(resolved));
   }
-
   res.status(404).end();
 });
+
 
 function resolveLocalIcon(iconName) {
   if (!iconName) return null;
@@ -273,7 +279,7 @@ function resolveLocalIcon(iconName) {
 // GET /api/admin/installed-apps — Dashboard fetches installed apps from kiosks
 router.get('/api/admin/installed-apps', requireAuth, (req, res) => {
   const kiosks = db.prepare(
-    'SELECT installed_apps FROM kiosks WHERE account_id = ? AND installed_apps IS NOT NULL ORDER BY created_at DESC'
+    'SELECT id, installed_apps FROM kiosks WHERE account_id = ? AND installed_apps IS NOT NULL ORDER BY created_at DESC'
   ).all(req.accountId);
 
   if (kiosks.length === 0) {
@@ -289,7 +295,7 @@ router.get('/api/admin/installed-apps', requireAuth, (req, res) => {
       for (const app of apps) {
         if (!seen.has(app.exec)) {
           seen.add(app.exec);
-          merged.push(app);
+          merged.push({ ...app, kioskId: kiosk.id });
         }
       }
     } catch {}

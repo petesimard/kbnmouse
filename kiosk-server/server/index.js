@@ -41,7 +41,7 @@ app.use(express.json({ limit: '2mb' }));
 // Protect all API routes — require either a kiosk token or admin session
 // Exempt: auth endpoints (login/register) and pairing endpoints (pre-token)
 app.use('/api', (req, res, next) => {
-  if (req.path.startsWith('/auth/') || req.path.startsWith('/pairing/')) {
+  if (req.path.startsWith('/auth/') || req.path.startsWith('/pairing/') || req.path.startsWith('/admin/app-icon/')) {
     return next();
   }
   requireAnyAuth(req, res, next);

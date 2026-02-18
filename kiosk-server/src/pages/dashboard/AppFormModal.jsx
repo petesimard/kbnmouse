@@ -65,7 +65,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
         ...prev,
         name: app.name,
         url: app.exec,
-        icon: app.iconKey ? `/api/admin/app-icon/${app.iconKey}` : '',
+        icon: app.iconKey && app.kioskId ? `/api/admin/app-icon/${app.kioskId}/${app.iconKey}` : '',
       }));
     }
   };
@@ -398,7 +398,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                       options={installedApps.map((a) => ({
                         value: a.exec,
                         label: a.name,
-                        iconUrl: a.iconKey ? `/api/admin/app-icon/${a.iconKey}` : '',
+                        iconUrl: a.iconKey && a.kioskId ? `/api/admin/app-icon/${a.kioskId}/${a.iconKey}` : '',
                         description: a.exec,
                       }))}
                       value={formData.url}
