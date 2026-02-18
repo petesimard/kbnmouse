@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import OpenAI from 'openai';
 import db from '../db.js';
+import { createOpenAIClient, handleOpenAIError } from '../utils/openai.js';
 
 const router = Router();
 
@@ -34,10 +34,7 @@ router.post('/message', async (req, res) => {
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
-    });
+    const openai = createOpenAIClient({ apiKey, endpointUrl });
 
     // Prepend system prompt if configured
     const systemPrompt = config.system_prompt ?? 'You are a friendly, helpful assistant for children. Keep your responses simple, age-appropriate, and encouraging. Avoid any inappropriate content, violence, or scary topics. Be patient and explain things in a way that is easy to understand. If asked about something inappropriate, politely redirect to a safer topic.';
@@ -59,11 +56,7 @@ router.post('/message', async (req, res) => {
     const response = completion.choices[0]?.message?.content || '';
     res.json({ response });
   } catch (err) {
-    console.error('OpenAI API error:', err.message);
-    if (err.status === 401) {
-      return res.json({ error: 'api_key_invalid' });
-    }
-    res.status(500).json({ error: 'Failed to get response from AI' });
+    handleOpenAIError(err, res, 'OpenAI API');
   }
 });
 

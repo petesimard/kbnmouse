@@ -1,6 +1,14 @@
 import { authHeaders, handleResponse, UnauthorizedError } from './client.js';
+import { createCrudApi } from './crud.js';
 
 export { UnauthorizedError };
+
+const crud = createCrudApi('/api/admin/profiles');
+export const fetchAllProfiles = crud.fetchAll;
+export const createProfile = crud.create;
+export const updateProfile = crud.update;
+export const deleteProfile = crud.delete;
+export const reorderProfiles = crud.reorder;
 
 export async function fetchProfiles() {
   const res = await fetch('/api/profiles', { headers: authHeaders() });
@@ -17,47 +25,6 @@ export async function setActiveProfile(profileId) {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ profile_id: profileId }),
-  });
-  return handleResponse(res);
-}
-
-// Admin endpoints
-export async function fetchAllProfiles() {
-  const res = await fetch('/api/admin/profiles', { headers: authHeaders() });
-  return handleResponse(res);
-}
-
-export async function createProfile(profile) {
-  const res = await fetch('/api/admin/profiles', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify(profile),
-  });
-  return handleResponse(res);
-}
-
-export async function updateProfile(id, profile) {
-  const res = await fetch(`/api/admin/profiles/${id}`, {
-    method: 'PUT',
-    headers: authHeaders(),
-    body: JSON.stringify(profile),
-  });
-  return handleResponse(res);
-}
-
-export async function deleteProfile(id) {
-  const res = await fetch(`/api/admin/profiles/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-}
-
-export async function reorderProfiles(order) {
-  const res = await fetch('/api/admin/profiles/reorder', {
-    method: 'PUT',
-    headers: authHeaders(),
-    body: JSON.stringify({ order }),
   });
   return handleResponse(res);
 }

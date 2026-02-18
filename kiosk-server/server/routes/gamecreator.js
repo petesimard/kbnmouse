@@ -4,15 +4,12 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import { broadcastRefresh } from '../websocket.js';
+import { verifyProfileOwnership } from '../utils/profile.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, '..', '..', 'data', 'games');
 
 const router = Router();
-
-function verifyProfileOwnership(profileId, accountId) {
-  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
-}
 
 // GET /api/games?profile=<id> — list games for profile
 router.get('/', (req, res) => {

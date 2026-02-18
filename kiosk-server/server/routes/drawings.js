@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import OpenAI from 'openai';
 import db from '../db.js';
+import { verifyProfileOwnership } from '../utils/profile.js';
+import { createOpenAIClient, handleOpenAIError } from '../utils/openai.js';
 
 const router = Router();
 
@@ -10,10 +11,6 @@ const STYLE_PROMPTS = {
   realistic: 'Transform this children\'s drawing into a photorealistic rendering with natural lighting, textures, and depth. Keep the same subject and composition.',
   painting: 'Transform this children\'s drawing into a beautiful oil painting with visible brushstrokes, rich colors, and artistic composition. Keep the same subject and composition.',
 };
-
-function verifyProfileOwnership(profileId, accountId) {
-  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
-}
 
 // GET /api/drawings?profile=<id> — list drawings (thumbnails only, no full image_data)
 router.get('/', (req, res) => {
@@ -109,10 +106,7 @@ router.post('/stylize', async (req, res) => {
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
-    });
+    const openai = createOpenAIClient({ apiKey, endpointUrl });
 
     // Strip data URL prefix to get raw base64
     const base64 = image_data.replace(/^data:image\/\w+;base64,/, '');
@@ -145,18 +139,7 @@ router.post('/stylize', async (req, res) => {
     }
     res.json({ imageData: imageOutput.result });
   } catch (err) {
-    console.error('OpenAI stylize error:', err.message);
-
-    if (err.status === 401) {
-      return res.json({ error: 'api_key_invalid' });
-    }
-    if (err.code === 'content_policy_violation' || err.message?.includes('content policy')) {
-      return res.json({ error: 'content_policy', message: 'Your drawing was rejected due to content policy. Try changing it a bit.' });
-    }
-    if (err.status === 429) {
-      return res.json({ error: 'rate_limit', message: 'Too many requests. Please wait a moment and try again.' });
-    }
-    res.status(500).json({ error: 'generation_failed', message: 'Failed to stylize drawing. Please try again.' });
+    handleOpenAIError(err, res, 'OpenAI stylize');
   }
 });
 

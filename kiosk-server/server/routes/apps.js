@@ -2,16 +2,9 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcastRefresh } from '../websocket.js';
+import { verifyProfileOwnership, accountProfileIds } from '../utils/profile.js';
 
 const router = Router();
-
-function verifyProfileOwnership(profileId, accountId) {
-  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
-}
-
-function accountProfileIds(accountId) {
-  return db.prepare('SELECT id FROM profiles WHERE account_id = ?').all(accountId).map(r => r.id);
-}
 
 // --- Public endpoints ---
 

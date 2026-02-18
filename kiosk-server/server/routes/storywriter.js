@@ -1,27 +1,19 @@
 import { Router } from 'express';
-import OpenAI from 'openai';
+import { createOpenAIClient, handleOpenAIError } from '../utils/openai.js';
 
 const router = Router();
 
-function getOpenAIConfig() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const endpointUrl = process.env.OPENAI_ENDPOINT_URL;
-  return { apiKey, endpointUrl };
-}
-
 // Generate a story prompt
 router.get('/prompt', async (req, res) => {
-  const { apiKey, endpointUrl } = getOpenAIConfig();
+  const apiKey = process.env.OPENAI_API_KEY;
+  const endpointUrl = process.env.OPENAI_ENDPOINT_URL;
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
-    });
+    const openai = createOpenAIClient({ apiKey, endpointUrl });
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5-mini',
@@ -40,11 +32,7 @@ router.get('/prompt', async (req, res) => {
     const prompt = completion.choices[0]?.message?.content?.trim() || '';
     res.json({ prompt });
   } catch (err) {
-    console.error('[StoryWriter] prompt error:', err.message);
-    if (err.status === 401) {
-      return res.json({ error: 'api_key_invalid' });
-    }
-    res.status(500).json({ error: 'Failed to generate story prompt' });
+    handleOpenAIError(err, res, '[StoryWriter] prompt');
   }
 });
 
@@ -55,17 +43,15 @@ router.post('/evaluate', async (req, res) => {
     return res.status(400).json({ error: 'prompt and story are required' });
   }
 
-  const { apiKey, endpointUrl } = getOpenAIConfig();
+  const apiKey = process.env.OPENAI_API_KEY;
+  const endpointUrl = process.env.OPENAI_ENDPOINT_URL;
 
   if (!apiKey) {
     return res.json({ error: 'api_key_missing' });
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
-    });
+    const openai = createOpenAIClient({ apiKey, endpointUrl });
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-5-mini',
@@ -97,11 +83,7 @@ router.post('/evaluate', async (req, res) => {
       feedback: result.feedback || '',
     });
   } catch (err) {
-    console.error('[StoryWriter] evaluate error:', err.message);
-    if (err.status === 401) {
-      return res.json({ error: 'api_key_invalid' });
-    }
-    res.status(500).json({ error: 'Failed to evaluate story' });
+    handleOpenAIError(err, res, '[StoryWriter] evaluate');
   }
 });
 

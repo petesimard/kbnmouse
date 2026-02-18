@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import OpenAI from 'openai';
 import db from '../db.js';
+import { createOpenAIClient, handleOpenAIError } from '../utils/openai.js';
 
 const router = Router();
 
@@ -34,10 +34,7 @@ router.post('/generate', async (req, res) => {
   }
 
   try {
-    const openai = new OpenAI({
-      apiKey,
-      ...(endpointUrl ? { baseURL: endpointUrl } : {}),
-    });
+    const openai = createOpenAIClient({ apiKey, endpointUrl });
 
     const size = config.image_size || '1024x1024';
     const quality = config.image_quality || 'standard';
@@ -62,21 +59,7 @@ router.post('/generate', async (req, res) => {
 
     res.json({ imageData, revisedPrompt });
   } catch (err) {
-    console.error('OpenAI API error:', err.message);
-
-    if (err.status === 401) {
-      return res.json({ error: 'api_key_invalid' });
-    }
-
-    if (err.code === 'content_policy_violation' || err.message?.includes('content policy')) {
-      return res.json({ error: 'content_policy', message: 'Your prompt was rejected due to content policy. Please try a different prompt.' });
-    }
-
-    if (err.status === 429) {
-      return res.json({ error: 'rate_limit', message: 'Too many requests. Please wait a moment and try again.' });
-    }
-
-    res.status(500).json({ error: 'generation_failed', message: 'Failed to generate image. Please try again.' });
+    handleOpenAIError(err, res, 'OpenAI API');
   }
 });
 

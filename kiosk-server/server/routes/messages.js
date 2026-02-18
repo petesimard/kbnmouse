@@ -2,13 +2,9 @@ import { Router } from 'express';
 import db from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcastNewMessage, broadcastMessageRead } from '../websocket.js';
+import { verifyProfileOwnership } from '../utils/profile.js';
 
 const router = Router();
-
-// Verify a profile belongs to the current account
-function verifyProfileOwnership(profileId, accountId) {
-  return db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profileId, accountId);
-}
 
 // Fetch a message with JOINed profile names/icons for broadcasting
 function getEnrichedMessage(id) {

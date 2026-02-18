@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useProfiles } from '../../hooks/useProfiles';
 import ProfileFormModal from './ProfileFormModal';
-import Modal from '../../components/Modal';
+import DeleteConfirmModal from '../../components/common/DeleteConfirmModal';
 
 export default function ProfilesPage() {
   const { logout, refreshDashboardProfiles } = useOutletContext();
@@ -115,26 +115,13 @@ export default function ProfilesPage() {
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <Modal onClose={() => setDeleteConfirm(null)} className="p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold text-white mb-2">Delete Profile?</h3>
-            <p className="text-slate-400 mb-6">
-              Are you sure you want to delete "{deleteConfirm.name}"? This will remove all their apps, challenges, usage data, and completions. This cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-        </Modal>
+        <DeleteConfirmModal
+          entityName="Profile"
+          itemName={deleteConfirm.name}
+          message={`Are you sure you want to delete "${deleteConfirm.name}"? This will remove all their apps, challenges, usage data, and completions. This cannot be undone.`}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteConfirm(null)}
+        />
       )}
     </>
   );

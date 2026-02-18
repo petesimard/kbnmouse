@@ -18,6 +18,7 @@ import AppFormModal from './AppFormModal';
 import FolderFormModal from './FolderFormModal';
 import FolderCard from './FolderCard';
 import Modal from '../../components/Modal';
+import DeleteConfirmModal from '../../components/common/DeleteConfirmModal';
 
 function UngroupedDropZone({ hasFolders, children }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'ungrouped' });
@@ -354,50 +355,23 @@ export default function AppsPage() {
 
       {/* Delete App Confirmation */}
       {deleteConfirm && (
-        <Modal onClose={() => setDeleteConfirm(null)} className="p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold text-white mb-2">Delete App?</h3>
-            <p className="text-slate-400 mb-6">
-              Are you sure you want to delete "{deleteConfirm.name}"? This cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-        </Modal>
+        <DeleteConfirmModal
+          entityName="App"
+          itemName={deleteConfirm.name}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteConfirm(null)}
+        />
       )}
 
       {/* Delete Folder Confirmation */}
       {deleteFolderConfirm && (
-        <Modal onClose={() => setDeleteFolderConfirm(null)} className="p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold text-white mb-2">Delete Folder?</h3>
-            <p className="text-slate-400 mb-6">
-              Are you sure you want to delete "{deleteFolderConfirm.name}"? Apps in this folder will be moved to the root level.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteFolderConfirm(null)}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDeleteFolder}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-        </Modal>
+        <DeleteConfirmModal
+          entityName="Folder"
+          itemName={deleteFolderConfirm.name}
+          message={`Are you sure you want to delete "${deleteFolderConfirm.name}"? Apps in this folder will be moved to the root level.`}
+          onConfirm={confirmDeleteFolder}
+          onClose={() => setDeleteFolderConfirm(null)}
+        />
       )}
     </>
   );

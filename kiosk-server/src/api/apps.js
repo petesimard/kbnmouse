@@ -1,53 +1,20 @@
 import { authHeaders, handleResponse, UnauthorizedError } from './client.js';
+import { createCrudApi } from './crud.js';
 
 export { UnauthorizedError };
 
-export async function fetchAllApps(profileId) {
-  const url = profileId ? `/api/admin/apps?profile=${profileId}` : '/api/admin/apps';
-  const res = await fetch(url, { headers: authHeaders() });
-  return handleResponse(res);
-}
-
-export async function createApp(app) {
-  const res = await fetch('/api/admin/apps', {
-    method: 'POST',
-    headers: authHeaders(),
-    body: JSON.stringify(app),
-  });
-  return handleResponse(res);
-}
-
-export async function updateApp(id, app) {
-  const res = await fetch(`/api/admin/apps/${id}`, {
-    method: 'PUT',
-    headers: authHeaders(),
-    body: JSON.stringify(app),
-  });
-  return handleResponse(res);
-}
-
-export async function deleteApp(id) {
-  const res = await fetch(`/api/admin/apps/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(),
-  });
-  return handleResponse(res);
-}
+const crud = createCrudApi('/api/admin/apps');
+export const fetchAllApps = crud.fetchAll;
+export const createApp = crud.create;
+export const updateApp = crud.update;
+export const deleteApp = crud.delete;
+export const reorderApps = crud.reorder;
 
 export async function addBonusTime(minutes, profileId) {
   const res = await fetch('/api/admin/bonus-time', {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ minutes, profile_id: profileId }),
-  });
-  return handleResponse(res);
-}
-
-export async function reorderApps(order) {
-  const res = await fetch('/api/admin/apps/reorder', {
-    method: 'PUT',
-    headers: authHeaders(),
-    body: JSON.stringify({ order }),
   });
   return handleResponse(res);
 }
