@@ -561,7 +561,7 @@ function Menu() {
       <button
         key={app.id}
         onClick={() => handleLoadURL(app)}
-        className={`relative px-4 py-2 rounded-xl text-white flex flex-col items-center gap-0.5 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
+        className={`relative px-4 py-2 rounded-xl text-white flex items-center gap-2 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
           app.app_type === 'native' && !hasKiosk
             ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
             : 'bg-slate-700 hover:bg-slate-600'
@@ -573,10 +573,8 @@ function Menu() {
             {unreadMessageCount}
           </span>
         )}
-        <div className="flex items-center gap-2">
-          <AppIcon icon={app.icon} className="text-lg w-5 h-5 object-contain" />
-          <span className="text-sm">{app.name}</span>
-        </div>
+        <AppIcon icon={app.icon} className="text-lg w-5 h-5 object-contain" />
+        <span className="text-sm">{app.name}</span>
         {usageMap[app.id] != null && (
           <span className={`text-[10px] ${usageMap[app.id] <= 0 ? 'text-red-400' : usageMap[app.id] <= 300 ? 'text-yellow-400' : 'text-slate-400'}`}>
             {usageMap[app.id] <= 0 ? 'No time left' : formatRemaining(usageMap[app.id])}
