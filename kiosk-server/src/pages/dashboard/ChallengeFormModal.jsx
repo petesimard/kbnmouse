@@ -118,15 +118,15 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
   const configEntries = Object.entries(configFields);
 
   return (
-    <Modal onClose={onClose} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <Modal onClose={onClose} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white mb-6">
             {isEditing ? 'Edit Challenge' : 'Add New Challenge'}
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Challenge Type */}
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Challenge Type
               </label>
@@ -159,23 +159,6 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
               )}
             </div>
 
-            {/* Icon */}
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Icon
-              </label>
-              <IconPicker
-                value={formData.icon}
-                onChange={(icon) => {
-                  setFormData((prev) => ({ ...prev, icon }));
-                  setErrors((prev) => ({ ...prev, icon: '' }));
-                }}
-              />
-              {errors.icon && (
-                <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
-              )}
-            </div>
-
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -189,6 +172,23 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
                 placeholder="e.g. Solve 10 addition problems"
                 className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Icon */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Icon
+              </label>
+              <IconPicker
+                value={formData.icon}
+                onChange={(icon) => {
+                  setFormData((prev) => ({ ...prev, icon }));
+                  setErrors((prev) => ({ ...prev, icon: '' }));
+                }}
+              />
+              {errors.icon && (
+                <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
+              )}
             </div>
 
             {/* Reward Minutes */}
@@ -228,7 +228,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
 
             {/* Config Fields */}
             {configEntries.length > 0 && (
-              <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+              <div className="md:col-span-2 bg-slate-700/50 rounded-lg p-4 space-y-3">
                 <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                   Settings
                 </h3>
@@ -246,11 +246,11 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
             )}
 
             {errors.submit && (
-              <p className="text-red-400 text-sm text-center">{errors.submit}</p>
+              <p className="md:col-span-2 text-red-400 text-sm text-center">{errors.submit}</p>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4">
+            <div className="md:col-span-2 flex gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}

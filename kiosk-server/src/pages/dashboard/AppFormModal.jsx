@@ -156,15 +156,15 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   };
 
   return (
-    <Modal onClose={onClose} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <Modal onClose={onClose} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white mb-6">
             {isEditing ? 'Edit App' : 'Add New App'}
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* App Type Selector */}
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 App Type
               </label>
@@ -207,7 +207,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
 
             {/* Built-in App Selector */}
             {formData.app_type === 'builtin' && (
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Select Built-in App
                 </label>
@@ -244,7 +244,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             {/* ChatBot Settings (for chatbot builtin only) */}
             {formData.app_type === 'builtin' && formData.url === 'chatbot' && (
               <>
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     Model
                   </label>
@@ -259,7 +259,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
                   </select>
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-300 mb-2">
                     System Prompt
                   </label>
@@ -282,7 +282,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
               const entries = Object.entries(schemaFields);
               if (entries.length === 0) return null;
               return (
-                <div className="bg-slate-700/50 rounded-lg p-4 space-y-3">
+                <div className="md:col-span-2 bg-slate-700/50 rounded-lg p-4 space-y-3">
                   <h3 className="text-sm font-medium text-slate-400 uppercase tracking-wide">
                     Settings
                   </h3>
@@ -451,7 +451,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             )}
 
             {/* Time Limits */}
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-300 mb-1">
                 Time Limits
               </label>
@@ -504,16 +504,18 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             </div>
 
             {/* Icon */}
-            <IconPicker
-              value={formData.icon}
-              onChange={(icon) => {
-                setFormData((prev) => ({ ...prev, icon }));
-                setErrors((prev) => ({ ...prev, icon: '' }));
-              }}
-            />
-            {errors.icon && (
-              <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
-            )}
+            <div>
+              <IconPicker
+                value={formData.icon}
+                onChange={(icon) => {
+                  setFormData((prev) => ({ ...prev, icon }));
+                  setErrors((prev) => ({ ...prev, icon: '' }));
+                }}
+              />
+              {errors.icon && (
+                <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
+              )}
+            </div>
 
             {/* Folder */}
             {folders.length > 0 && (
@@ -535,11 +537,11 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             )}
 
             {errors.submit && (
-              <p className="text-red-400 text-sm text-center">{errors.submit}</p>
+              <p className="md:col-span-2 text-red-400 text-sm text-center">{errors.submit}</p>
             )}
 
             {/* Actions */}
-            <div className="flex gap-3 pt-4">
+            <div className="md:col-span-2 flex gap-3 pt-4">
               <button
                 type="button"
                 onClick={onClose}
