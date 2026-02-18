@@ -510,12 +510,6 @@ function Menu() {
     }
   };
 
-  const handleBack = () => {
-    if (hasKiosk) {
-      window.kiosk.content.goBack();
-    }
-  };
-
   const handleHome = () => {
     flushSession();
     setTimeWarning(false);
@@ -624,13 +618,6 @@ function Menu() {
             {currentProfile?.icon || '👤'}
           </button>
         )}
-        <button
-          onClick={handleBack}
-          className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
-          title="Back"
-        >
-          ←
-        </button>
         <button
           onClick={handleHome}
           className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
