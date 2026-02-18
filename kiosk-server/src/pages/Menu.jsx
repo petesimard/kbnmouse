@@ -516,12 +516,6 @@ function Menu() {
     }
   };
 
-  const handleForward = () => {
-    if (hasKiosk) {
-      window.kiosk.content.goForward();
-    }
-  };
-
   const handleHome = () => {
     flushSession();
     setTimeWarning(false);
@@ -529,12 +523,6 @@ function Menu() {
       window.kiosk.content.loadURL('/kiosk/builtin/home');
     } else {
       window.location.href = '/kiosk/builtin/home';
-    }
-  };
-
-  const handleReload = () => {
-    if (hasKiosk) {
-      window.kiosk.content.reload();
     }
   };
 
@@ -644,25 +632,11 @@ function Menu() {
           ←
         </button>
         <button
-          onClick={handleForward}
-          className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
-          title="Forward"
-        >
-          →
-        </button>
-        <button
           onClick={handleHome}
           className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
           title="Home"
         >
           🏠
-        </button>
-        <button
-          onClick={handleReload}
-          className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 text-white flex items-center justify-center transition-colors"
-          title="Reload"
-        >
-          ↻
         </button>
       </div>
 
