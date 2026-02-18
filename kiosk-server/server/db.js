@@ -240,6 +240,15 @@ db.exec(`
   )
 `);
 
+// Migration: add active_profile_id to kiosks for per-kiosk profile selection
+{
+  const kioskCols = db.prepare("PRAGMA table_info(kiosks)").all();
+  if (!kioskCols.find(c => c.name === 'active_profile_id')) {
+    db.exec('ALTER TABLE kiosks ADD COLUMN active_profile_id INTEGER DEFAULT NULL');
+    console.log('Added active_profile_id column to kiosks table');
+  }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS pairing_codes (
     code TEXT PRIMARY KEY,

@@ -13,29 +13,49 @@ router.get('/api/profiles', (req, res) => {
   res.json(profiles);
 });
 
-// GET /api/active-profile - Get active profile (validated against account)
+// GET /api/active-profile - Get active profile (per-kiosk if kiosk request, else per-account)
 router.get('/api/active-profile', (req, res) => {
+  if (req.kioskId) {
+    const kiosk = db.prepare('SELECT active_profile_id FROM kiosks WHERE id = ?').get(req.kioskId);
+    if (kiosk?.active_profile_id) {
+      const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(kiosk.active_profile_id, req.accountId);
+      return res.json({ profile_id: profile ? profile.id : null });
+    }
+    return res.json({ profile_id: null });
+  }
+  // Fallback for dashboard/admin requests
   const value = getSetting('active_profile', req.accountId);
   if (value) {
-    // Only return if the profile belongs to this account
     const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(Number(value), req.accountId);
     return res.json({ profile_id: profile ? profile.id : null });
   }
   res.json({ profile_id: null });
 });
 
-// POST /api/active-profile - Set active profile (must belong to account)
+// POST /api/active-profile - Set active profile (per-kiosk if kiosk request, else per-account)
 router.post('/api/active-profile', (req, res) => {
   const { profile_id } = req.body;
-  if (profile_id == null) {
-    deleteSetting('active_profile', req.accountId);
-  } else {
-    // Verify the profile belongs to this account
-    const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' });
+  if (req.kioskId) {
+    if (profile_id == null) {
+      db.prepare('UPDATE kiosks SET active_profile_id = NULL WHERE id = ?').run(req.kioskId);
+    } else {
+      const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+      db.prepare('UPDATE kiosks SET active_profile_id = ? WHERE id = ?').run(profile_id, req.kioskId);
     }
-    setSetting('active_profile', String(profile_id), req.accountId);
+  } else {
+    // Fallback for dashboard/admin requests
+    if (profile_id == null) {
+      deleteSetting('active_profile', req.accountId);
+    } else {
+      const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND account_id = ?').get(profile_id, req.accountId);
+      if (!profile) {
+        return res.status(404).json({ error: 'Profile not found' });
+      }
+      setSetting('active_profile', String(profile_id), req.accountId);
+    }
   }
   broadcastRefresh();
   res.json({ success: true });
@@ -139,10 +159,13 @@ router.delete('/api/admin/profiles/:id', requireAuth, (req, res) => {
   db.prepare('DELETE FROM apps WHERE profile_id = ?').run(profileId);
   db.prepare('DELETE FROM profiles WHERE id = ? AND account_id = ?').run(profileId, req.accountId);
 
+  // Clear from account-level settings
   const active = getSetting('active_profile', req.accountId);
   if (active === String(profileId)) {
     deleteSetting('active_profile', req.accountId);
   }
+  // Clear from any kiosks that had this profile active
+  db.prepare('UPDATE kiosks SET active_profile_id = NULL WHERE active_profile_id = ? AND account_id = ?').run(profileId, req.accountId);
 
   broadcastRefresh();
   res.status(204).send();
