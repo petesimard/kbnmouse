@@ -11,12 +11,9 @@ const EMOJI_CATEGORIES = {
   'Smileys': ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🫡','🤐','🤨','😐','😑','😶','🫥','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','🫤','😟','🙁','☹️','😮','😯','😲','😳','🥺','🥹','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'],
 };
 
-const ALL_EMOJI = Object.values(EMOJI_CATEGORIES).flat();
-
 function IconPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState('emoji');
-  const [search, setSearch] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadPreview, setUploadPreview] = useState(null);
   const pickerRef = useRef(null);
@@ -34,14 +31,9 @@ function IconPicker({ value, onChange }) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
-  const filteredEmoji = search
-    ? ALL_EMOJI.filter((e) => e.includes(search))
-    : null;
-
   const handleEmojiClick = (emoji) => {
     onChange(emoji);
     setOpen(false);
-    setSearch('');
   };
 
   const resizeImage = (file) => {
@@ -163,56 +155,27 @@ function IconPicker({ value, onChange }) {
 
           {tab === 'emoji' && (
             <div className="p-3">
-              {/* Search */}
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Type emoji to filter..."
-                className="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm mb-3"
-              />
-
               {/* Emoji grid */}
               <div className="max-h-64 overflow-y-auto space-y-3">
-                {filteredEmoji ? (
-                  <div className="grid grid-cols-8 gap-1">
-                    {filteredEmoji.map((emoji, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleEmojiClick(emoji)}
-                        className={`w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-slate-600 transition-colors ${
-                          value === emoji ? 'bg-blue-600/30 ring-2 ring-blue-500' : ''
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                    {filteredEmoji.length === 0 && (
-                      <p className="col-span-8 text-slate-500 text-sm text-center py-4">No emoji match</p>
-                    )}
-                  </div>
-                ) : (
-                  Object.entries(EMOJI_CATEGORIES).map(([category, emojis]) => (
-                    <div key={category}>
-                      <h4 className="text-xs text-slate-400 font-medium mb-1 sticky top-0 bg-slate-800 py-1">{category}</h4>
-                      <div className="grid grid-cols-8 gap-1">
-                        {emojis.map((emoji, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => handleEmojiClick(emoji)}
-                            className={`w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-slate-600 transition-colors ${
-                              value === emoji ? 'bg-blue-600/30 ring-2 ring-blue-500' : ''
-                            }`}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
+                {Object.entries(EMOJI_CATEGORIES).map(([category, emojis]) => (
+                  <div key={category}>
+                    <h4 className="text-xs text-slate-400 font-medium mb-1 sticky top-0 bg-slate-800 py-1">{category}</h4>
+                    <div className="grid grid-cols-8 gap-1">
+                      {emojis.map((emoji, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleEmojiClick(emoji)}
+                          className={`w-9 h-9 flex items-center justify-center text-xl rounded-lg hover:bg-slate-600 transition-colors ${
+                            value === emoji ? 'bg-blue-600/30 ring-2 ring-blue-500' : ''
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

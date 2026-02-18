@@ -176,9 +176,6 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
 
             {/* Icon */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Icon
-              </label>
               <IconPicker
                 value={formData.icon}
                 onChange={(icon) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Modal from '../../components/Modal';
+import IconPicker from '../../components/IconPicker';
 
 const PRESET_COLORS = [
   { name: 'Indigo', value: '#6366f1' },
@@ -96,16 +97,12 @@ function FolderFormModal({ folder, onSave, onClose }) {
 
             {/* Icon */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Icon (emoji)
-              </label>
-              <input
-                type="text"
-                name="icon"
+              <IconPicker
                 value={formData.icon}
-                onChange={handleChange}
-                placeholder="Pick an emoji"
-                className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-2xl"
+                onChange={(icon) => {
+                  setFormData((prev) => ({ ...prev, icon }));
+                  setErrors((prev) => ({ ...prev, icon: '' }));
+                }}
               />
               {errors.icon && (
                 <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>

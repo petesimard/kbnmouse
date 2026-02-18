@@ -151,14 +151,6 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
             </button>
           ))}
         </div>
-        <input
-          type="text"
-          name="icon"
-          value={formData.icon}
-          onChange={handleChange}
-          placeholder="Or type any emoji"
-          className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl"
-        />
         {errors.icon && (
           <p className="mt-1 text-red-400 text-sm">{errors.icon}</p>
         )}
