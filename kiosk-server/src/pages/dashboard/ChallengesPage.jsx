@@ -4,6 +4,7 @@ import { useChallenges } from '../../hooks/useChallenges';
 import ChallengeList from './ChallengeList';
 import ChallengeFormModal from './ChallengeFormModal';
 import ChallengeLog from './ChallengeLog';
+import Modal from '../../components/Modal';
 
 export default function ChallengesPage() {
   const { logout, dashboardProfileId } = useOutletContext();
@@ -125,8 +126,7 @@ export default function ChallengesPage() {
 
           {/* Delete Confirmation */}
           {deleteConfirm && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+            <Modal onClose={() => setDeleteConfirm(null)} className="p-6 w-full max-w-sm">
                 <h3 className="text-lg font-bold text-white mb-2">Delete Challenge?</h3>
                 <p className="text-slate-400 mb-6">
                   Are you sure you want to delete "{deleteConfirm.name}"? This cannot be undone.
@@ -145,8 +145,7 @@ export default function ChallengesPage() {
                     Delete
                   </button>
                 </div>
-              </div>
-            </div>
+            </Modal>
           )}
         </>
       ) : (

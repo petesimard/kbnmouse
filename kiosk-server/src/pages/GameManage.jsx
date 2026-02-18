@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
+import Modal from '../components/Modal';
 
 function GameManage() {
   const { id } = useParams();
@@ -142,8 +143,7 @@ function GameManage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-8 relative">
       {/* Share QR overlay */}
       {showShare && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowShare(false)}>
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm mx-4 text-center space-y-4" onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setShowShare(false)} className="p-6 max-w-sm mx-4 text-center space-y-4">
             <p className="text-white text-lg font-medium">Share "{game.name}"</p>
             <p className="text-slate-400 text-sm">Scan to play on another device</p>
             <img src={qrDataUrl} alt="QR Code" className="mx-auto w-72 h-72" />
@@ -153,14 +153,12 @@ function GameManage() {
             >
               Close
             </button>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete confirmation overlay */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-2xl p-6 max-w-sm mx-4 text-center space-y-4">
+        <Modal onClose={() => setShowDeleteConfirm(false)} className="p-6 max-w-sm mx-4 text-center space-y-4">
             <p className="text-white text-lg font-medium">Delete "{game.name}"?</p>
             <p className="text-slate-400 text-sm">This will permanently remove the game and all its files.</p>
             <div className="flex gap-3 justify-center">
@@ -178,8 +176,7 @@ function GameManage() {
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <div className="max-w-2xl mx-auto">

@@ -6,6 +6,7 @@ import IconPicker from '../../components/IconPicker';
 import AppIcon from '../../components/AppIcon';
 import SearchableSelect from '../../components/SearchableSelect';
 import { fetchInstalledApps } from '../../api/auth';
+import Modal from '../../components/Modal';
 
 function AppFormModal({ app, onSave, onClose, folders = [] }) {
   const { builtinApps } = useBuiltinApps();
@@ -155,8 +156,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <Modal onClose={onClose} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white mb-6">
             {isEditing ? 'Edit App' : 'Add New App'}
@@ -557,8 +557,7 @@ function AppFormModal({ app, onSave, onClose, folders = [] }) {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

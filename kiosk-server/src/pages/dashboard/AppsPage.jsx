@@ -17,6 +17,7 @@ import AppList from './AppList';
 import AppFormModal from './AppFormModal';
 import FolderFormModal from './FolderFormModal';
 import FolderCard from './FolderCard';
+import Modal from '../../components/Modal';
 
 function UngroupedDropZone({ hasFolders, children }) {
   const { setNodeRef, isOver } = useDroppable({ id: 'ungrouped' });
@@ -318,8 +319,7 @@ export default function AppsPage() {
 
       {/* Bonus Time Modal */}
       {bonusModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+        <Modal onClose={() => setBonusModalOpen(false)} className="p-6 w-full max-w-sm">
             <h3 className="text-lg font-bold text-white mb-4">Add Bonus Time</h3>
             <p className="text-slate-400 text-sm mb-4">
               Grant extra screen time for today. This applies to all apps with time limits.
@@ -349,14 +349,12 @@ export default function AppsPage() {
                 Add Time
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete App Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+        <Modal onClose={() => setDeleteConfirm(null)} className="p-6 w-full max-w-sm">
             <h3 className="text-lg font-bold text-white mb-2">Delete App?</h3>
             <p className="text-slate-400 mb-6">
               Are you sure you want to delete "{deleteConfirm.name}"? This cannot be undone.
@@ -375,14 +373,12 @@ export default function AppsPage() {
                 Delete
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete Folder Confirmation */}
       {deleteFolderConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+        <Modal onClose={() => setDeleteFolderConfirm(null)} className="p-6 w-full max-w-sm">
             <h3 className="text-lg font-bold text-white mb-2">Delete Folder?</h3>
             <p className="text-slate-400 mb-6">
               Are you sure you want to delete "{deleteFolderConfirm.name}"? Apps in this folder will be moved to the root level.
@@ -401,8 +397,7 @@ export default function AppsPage() {
                 Delete
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );

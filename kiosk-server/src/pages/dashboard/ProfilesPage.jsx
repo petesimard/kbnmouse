@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useProfiles } from '../../hooks/useProfiles';
 import ProfileFormModal from './ProfileFormModal';
+import Modal from '../../components/Modal';
 
 export default function ProfilesPage() {
   const { logout, refreshDashboardProfiles } = useOutletContext();
@@ -114,8 +115,7 @@ export default function ProfilesPage() {
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-sm">
+        <Modal onClose={() => setDeleteConfirm(null)} className="p-6 w-full max-w-sm">
             <h3 className="text-lg font-bold text-white mb-2">Delete Profile?</h3>
             <p className="text-slate-400 mb-6">
               Are you sure you want to delete "{deleteConfirm.name}"? This will remove all their apps, challenges, usage data, and completions. This cannot be undone.
@@ -134,8 +134,7 @@ export default function ProfilesPage() {
                 Delete
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );

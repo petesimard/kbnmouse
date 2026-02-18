@@ -3,6 +3,7 @@ import { getChallengeTypes, getChallengeLabel, getConfigFields, getDefaults, bui
 import ConfigField from '../../components/ConfigField';
 import IconPicker from '../../components/IconPicker';
 import SearchableSelect from '../../components/SearchableSelect';
+import Modal from '../../components/Modal';
 
 function ChallengeFormModal({ challenge, onSave, onClose }) {
   const isEditing = !!challenge;
@@ -117,8 +118,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
   const configEntries = Object.entries(configFields);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <Modal onClose={onClose} className="w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white mb-6">
             {isEditing ? 'Edit Challenge' : 'Add New Challenge'}
@@ -268,8 +268,7 @@ function ChallengeFormModal({ challenge, onSave, onClose }) {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

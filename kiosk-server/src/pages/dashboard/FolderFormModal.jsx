@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Modal from '../../components/Modal';
 
 const PRESET_COLORS = [
   { name: 'Indigo', value: '#6366f1' },
@@ -68,8 +69,7 @@ function FolderFormModal({ folder, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-slate-800 rounded-xl w-full max-w-md">
+    <Modal onClose={onClose} className="w-full max-w-md">
         <div className="p-6">
           <h2 className="text-xl font-bold text-white mb-6">
             {isEditing ? 'Edit Folder' : 'Add New Folder'}
@@ -158,8 +158,7 @@ function FolderFormModal({ folder, onSave, onClose }) {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
