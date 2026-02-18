@@ -278,6 +278,18 @@ export function computeTimeLimit(appUrl, screenTimePreset) {
   return null;
 }
 
+// Default max completions per day for challenges at the "medium" preset.
+// High = 2x, Low = half (min 1), Off = 0 (unlimited).
+const DEFAULT_MAX_COMPLETIONS = 2;
+
+export function computeMaxCompletions(screenTimePreset) {
+  if (!screenTimePreset || screenTimePreset === 'off') return 0;
+  if (screenTimePreset === 'medium') return DEFAULT_MAX_COMPLETIONS;
+  if (screenTimePreset === 'high') return DEFAULT_MAX_COMPLETIONS * 2;
+  if (screenTimePreset === 'low') return Math.max(1, Math.round(DEFAULT_MAX_COMPLETIONS / 2));
+  return 0;
+}
+
 // Seed default apps and challenges for a given profile
 export function seedProfileDefaults(profileId, age, screenTimePreset) {
   const insertApp = db.prepare('INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -339,17 +351,18 @@ export function seedProfileDefaults(profileId, age, screenTimePreset) {
     typingConfig = {};
   }
 
+  const maxCompletions = computeMaxCompletions(screenTimePreset);
   const insertChallenge = db.prepare(
-    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO challenges (name, icon, description, challenge_type, reward_minutes, config, sort_order, profile_id, max_completions_per_day) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   );
   let order = 0;
-  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, JSON.stringify(addSubConfig), order++, profileId);
-  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, JSON.stringify(addSubConfig), order++, profileId);
+  insertChallenge.run('Math - Addition', '➕', 'Solve 10 addition problems', 'math_addition', 10, JSON.stringify(addSubConfig), order++, profileId, maxCompletions);
+  insertChallenge.run('Math - Subtraction', '➖', 'Solve 10 subtraction problems', 'math_subtraction', 10, JSON.stringify(addSubConfig), order++, profileId, maxCompletions);
   if (!age || age >= 8) {
-    insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, JSON.stringify(mulDivConfig), order++, profileId);
-    insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, JSON.stringify(mulDivConfig), order++, profileId);
+    insertChallenge.run('Math - Multiplication', '✖️', 'Solve 10 multiplication problems', 'math_multiplication', 10, JSON.stringify(mulDivConfig), order++, profileId, maxCompletions);
+    insertChallenge.run('Math - Division', '➗', 'Solve 10 division problems', 'math_division', 10, JSON.stringify(mulDivConfig), order++, profileId, maxCompletions);
   }
-  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId);
+  insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId, maxCompletions);
 
   console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
 }
