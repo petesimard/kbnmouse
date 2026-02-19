@@ -23,7 +23,12 @@ export function setupWebSocket(server) {
 
   wss.on('connection', (ws) => {
     clients.add(ws);
+    ws.isAlive = true;
     console.log(`Client connected. Total clients: ${clients.size}`);
+
+    ws.on('pong', () => {
+      ws.isAlive = true;
+    });
 
     ws.on('message', (data) => {
       try {
@@ -33,30 +38,46 @@ export function setupWebSocket(server) {
     });
 
     ws.on('close', () => {
-      clients.delete(ws);
-      const kioskId = wsToKioskId.get(ws);
-      if (kioskId != null) {
-        kioskConnections.delete(kioskId);
-        wsToKioskId.delete(ws);
-        console.log(`Kiosk ${kioskId} disconnected`);
-        // Notify dashboard clients
-        broadcastToDashboards({ type: 'kiosk_status_change', kioskId, connected: false });
-      }
+      cleanupClient(ws);
       console.log(`Client disconnected. Total clients: ${clients.size}`);
     });
 
     ws.on('error', (err) => {
       console.error('WebSocket error:', err);
-      clients.delete(ws);
-      const kioskId = wsToKioskId.get(ws);
-      if (kioskId != null) {
-        kioskConnections.delete(kioskId);
-        wsToKioskId.delete(ws);
-      }
+      cleanupClient(ws);
     });
   });
 
+  // Ping all clients every 30s, terminate unresponsive ones
+  const pingInterval = setInterval(() => {
+    for (const ws of clients) {
+      if (!ws.isAlive) {
+        console.log('Terminating unresponsive WebSocket client');
+        cleanupClient(ws);
+        ws.terminate();
+        continue;
+      }
+      ws.isAlive = false;
+      try { ws.ping(); } catch {}
+    }
+  }, 30000);
+
+  wss.on('close', () => {
+    clearInterval(pingInterval);
+  });
+
   return wss;
+}
+
+function cleanupClient(ws) {
+  clients.delete(ws);
+  const kioskId = wsToKioskId.get(ws);
+  if (kioskId != null) {
+    kioskConnections.delete(kioskId);
+    wsToKioskId.delete(ws);
+    console.log(`Kiosk ${kioskId} disconnected`);
+    broadcastToDashboards({ type: 'kiosk_status_change', kioskId, connected: false });
+  }
 }
 
 function handleWsMessage(ws, msg) {

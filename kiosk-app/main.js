@@ -713,10 +713,18 @@ async function startPairingFlow() {
 
 let kioskWs = null;
 let wsReconnectTimer = null;
+let wsPingInterval = null;
+let wsAlive = false;
 const repoRoot = path.resolve(__dirname, '..');
 
 function connectWebSocket() {
   if (!kioskToken) return;
+
+  // Clear any pending reconnect
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
 
   const apiBase = getApiBaseUrl();
   const wsUrl = apiBase.replace(/^http/, 'ws') + '/ws';
@@ -728,6 +736,7 @@ function connectWebSocket() {
     ws.on('open', () => {
       console.log('Kiosk WebSocket connected');
       ws.send(JSON.stringify({ type: 'identify', clientType: 'kiosk', token: kioskToken }));
+      startHeartbeat(ws);
     });
 
     ws.on('message', (data) => {
@@ -737,15 +746,20 @@ function connectWebSocket() {
       } catch {}
     });
 
+    ws.on('pong', () => {
+      wsAlive = true;
+    });
+
     ws.on('close', () => {
       console.log('Kiosk WebSocket disconnected');
-      kioskWs = null;
+      cleanup();
       scheduleReconnect();
     });
 
     ws.on('error', (err) => {
       console.error('Kiosk WebSocket error:', err.message);
-      kioskWs = null;
+      cleanup();
+      scheduleReconnect();
     });
   } catch (err) {
     console.error('Failed to create WebSocket:', err.message);
@@ -753,9 +767,35 @@ function connectWebSocket() {
   }
 }
 
+function startHeartbeat(ws) {
+  stopHeartbeat();
+  wsAlive = true;
+  wsPingInterval = setInterval(() => {
+    if (!wsAlive) {
+      console.log('Kiosk WebSocket heartbeat timeout, reconnecting');
+      ws.terminate();
+      return;
+    }
+    wsAlive = false;
+    try { ws.ping(); } catch {}
+  }, 30000);
+}
+
+function stopHeartbeat() {
+  if (wsPingInterval) {
+    clearInterval(wsPingInterval);
+    wsPingInterval = null;
+  }
+}
+
+function cleanup() {
+  stopHeartbeat();
+  kioskWs = null;
+}
+
 function scheduleReconnect() {
   if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
-  wsReconnectTimer = setTimeout(connectWebSocket, 3000);
+  wsReconnectTimer = setTimeout(connectWebSocket, 5000);
 }
 
 function handleServerMessage(ws, msg) {
