@@ -467,6 +467,29 @@ if (!bpCols.find(col => col.name === 'account_id')) {
 }
 
 
+// Migration: add 'photo' to pin_type CHECK constraint
+const bpSchema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='bulletin_pins'").get();
+if (bpSchema && !bpSchema.sql.includes("'photo'")) {
+  db.exec(`CREATE TABLE bulletin_pins_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pin_type TEXT NOT NULL CHECK(pin_type IN ('message', 'emoji', 'photo')),
+    content TEXT NOT NULL,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    rotation REAL DEFAULT 0,
+    color TEXT DEFAULT '#fef08a',
+    profile_id INTEGER DEFAULT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    is_parent INTEGER DEFAULT 0,
+    account_id INTEGER DEFAULT NULL
+  )`);
+  db.exec('INSERT INTO bulletin_pins_new SELECT * FROM bulletin_pins');
+  db.exec('DROP TABLE bulletin_pins');
+  db.exec('ALTER TABLE bulletin_pins_new RENAME TO bulletin_pins');
+  db.exec("CREATE INDEX IF NOT EXISTS idx_bulletin_pins_created ON bulletin_pins(created_at)");
+  console.log('Migrated bulletin_pins to support photo pin type');
+}
+
 // --- Migration: make settings account-scoped ---
 const settingsCols = db.prepare("PRAGMA table_info(settings)").all();
 if (!settingsCols.find(col => col.name === 'account_id')) {

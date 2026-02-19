@@ -32,6 +32,13 @@ contextBridge.exposeInMainWorld('kiosk', {
     set: (factor) => ipcRenderer.invoke('zoom:set', factor),
   },
 
+  // Camera device selection
+  camera: {
+    listDevices: () => ipcRenderer.invoke('camera:listDevices'),
+    setDevice: (device) => ipcRenderer.invoke('camera:setDevice', device),
+    getDevice: () => ipcRenderer.invoke('camera:getDevice'),
+  },
+
   // Native app launching
   native: {
     launch: (command, appId) => ipcRenderer.invoke('native:launch', command, appId),

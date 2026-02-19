@@ -428,12 +428,12 @@ function createWindow() {
   // Base URL for server
   const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
 
-  // Content view - loads arbitrary URLs, no preload for security
+  // Content view - minimal preload for camera access only
   contentView = new BrowserView({
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // No preload - content view loads arbitrary URLs
+      preload: path.join(__dirname, 'preload-content.js'),
     }
   });
   mainWindow.addBrowserView(contentView);
@@ -452,6 +452,19 @@ function createWindow() {
   menuView.setBounds({ x: 0, y: contentHeight, width: winWidth, height: menuHeight });
   menuView.setAutoResize({ width: true, height: false });
   menuView.webContents.loadURL('data:text/html,<html><body style="margin:0;background:#0f172a"></body></html>');
+
+  // Grant media permissions (camera/microphone) for the kiosk server origin
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    if (permission === 'media') return true;
+    return false;
+  });
 
   // Inject X-Kiosk-Token header into all BrowserView requests to the kiosk server
   const serverOrigin = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : new URL(KIOSK_URL).origin;
@@ -1083,5 +1096,146 @@ ipcMain.handle('whitelist:set', async (event, domains) => {
   if (!Array.isArray(domains)) return { success: false, error: 'domains must be an array' };
   allowedDomains = domains.map((d) => stripWww(String(d).toLowerCase()));
   //console.log('Whitelist updated:', allowedDomains);
+  return { success: true };
+});
+
+// --- Camera capture via ffmpeg ---
+// Uses a single persistent ffmpeg process that outputs continuous MJPEG frames.
+let cameraDevice = '/dev/video0';
+let cameraProc = null;
+let cameraBuffer = null; // last complete JPEG frame
+
+ipcMain.handle('camera:listDevices', async () => {
+  try {
+    const { execSync } = require('child_process');
+    const output = execSync('v4l2-ctl --list-devices 2>/dev/null', { encoding: 'utf-8' });
+    const devices = [];
+    let currentName = null;
+    for (const line of output.split('\n')) {
+      if (line && !line.startsWith('\t') && !line.startsWith(' ')) {
+        currentName = line.replace(/\s*\(.*\)\s*:\s*$/, '').trim();
+      } else if (line.trim().startsWith('/dev/video')) {
+        const dev = line.trim();
+        // Only include capture-capable devices (even-numbered typically)
+        devices.push({ path: dev, name: currentName || dev });
+      }
+    }
+    // Deduplicate — keep only the first /dev/videoN per device name
+    const seen = new Set();
+    return devices.filter(d => {
+      if (seen.has(d.name)) return false;
+      seen.add(d.name);
+      return true;
+    });
+  } catch {
+    return [{ path: '/dev/video0', name: 'Default Camera' }];
+  }
+});
+
+ipcMain.handle('camera:setDevice', async (event, device) => {
+  cameraDevice = device;
+  // Notify content view so it can update the camera button
+  if (contentView && !contentView.webContents.isDestroyed()) {
+    contentView.webContents.send('camera:deviceChanged', device);
+  }
+  return { success: true };
+});
+
+ipcMain.handle('camera:getDevice', async () => {
+  return cameraDevice;
+});
+
+function stopCamera() {
+  if (cameraProc) {
+    cameraProc.kill('SIGKILL');
+    cameraProc = null;
+  }
+  cameraBuffer = null;
+}
+
+function startCamera() {
+  if (cameraProc) return;
+  // Output continuous MJPEG at 15fps, low res for streaming
+  cameraProc = spawn('ffmpeg', [
+    '-f', 'v4l2', '-framerate', '30', '-i', '/dev/video0',
+    '-f', 'image2pipe', '-vcodec', 'mjpeg',
+    '-q:v', '10', '-s', '320x240',
+    '-r', '15',
+    'pipe:1'
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  // MJPEG frames are delimited by FFD8 (start) and FFD9 (end) markers
+  let pending = Buffer.alloc(0);
+  cameraProc.stdout.on('data', (chunk) => {
+    pending = Buffer.concat([pending, chunk]);
+    // Extract complete JPEG frames
+    while (true) {
+      const start = pending.indexOf(Buffer.from([0xFF, 0xD8]));
+      if (start === -1) break;
+      const end = pending.indexOf(Buffer.from([0xFF, 0xD9]), start + 2);
+      if (end === -1) break;
+      cameraBuffer = pending.subarray(start, end + 2);
+      pending = pending.subarray(end + 2);
+    }
+  });
+
+  cameraProc.on('close', () => {
+    cameraProc = null;
+  });
+  cameraProc.on('error', (err) => {
+    console.error('[Camera] ffmpeg error:', err.message);
+    cameraProc = null;
+  });
+}
+
+ipcMain.handle('camera:capture', async () => {
+  // Take a full-res single frame capture (stream must be stopped first)
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', [
+      '-f', 'v4l2', '-i', cameraDevice,
+      '-frames:v', '1',
+      '-f', 'image2pipe', '-vcodec', 'mjpeg',
+      '-q:v', '3',
+      'pipe:1'
+    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    const chunks = [];
+    proc.stdout.on('data', (chunk) => chunks.push(chunk));
+    proc.on('close', (code) => {
+      if (chunks.length === 0) {
+        reject(new Error('Camera capture failed (no data)'));
+        return;
+      }
+      const buf = Buffer.concat(chunks);
+      resolve('data:image/jpeg;base64,' + buf.toString('base64'));
+    });
+    proc.on('error', (err) => reject(err));
+  });
+});
+
+let streamInterval = null;
+
+ipcMain.handle('camera:startStream', async () => {
+  stopCamera();
+  if (streamInterval) { clearInterval(streamInterval); streamInterval = null; }
+
+  startCamera();
+
+  // Send the latest frame to the content view at ~15fps
+  streamInterval = setInterval(() => {
+    if (cameraBuffer && contentView && !contentView.webContents.isDestroyed()) {
+      const dataUrl = 'data:image/jpeg;base64,' + cameraBuffer.toString('base64');
+      contentView.webContents.send('camera:frame', dataUrl);
+    }
+  }, 66);
+
+  return { success: true };
+});
+
+ipcMain.handle('camera:stopStream', async () => {
+  stopCamera();
+  if (streamInterval) { clearInterval(streamInterval); streamInterval = null; }
+  // Small delay to ensure /dev/video0 is fully released
+  await new Promise(r => setTimeout(r, 300));
   return { success: true };
 });

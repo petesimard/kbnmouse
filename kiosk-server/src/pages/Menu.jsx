@@ -37,6 +37,10 @@ function Menu() {
     const saved = localStorage.getItem('kioskZoom');
     return saved ? Number(saved) : 100;
   });
+  const [cameraDevices, setCameraDevices] = useState([]);
+  const [selectedCamera, setSelectedCamera] = useState(() => {
+    return localStorage.getItem('kioskCamera') || '/dev/video0';
+  });
 
   // Paging state for app shortcuts overflow
   const scrollContainerRef = useRef(null);
@@ -180,6 +184,12 @@ function Menu() {
       window.kiosk.zoom.set(zoomLevel / 100);
     }
 
+    // Apply saved camera device on startup
+    if (window.kiosk?.camera) {
+      const saved = localStorage.getItem('kioskCamera');
+      if (saved) window.kiosk.camera.setDevice(saved);
+    }
+
     fetchApps();
   }, [fetchApps]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -188,6 +198,20 @@ function Menu() {
     localStorage.setItem('kioskZoom', String(level));
     if (window.kiosk?.zoom?.set) {
       window.kiosk.zoom.set(level / 100);
+    }
+  }, []);
+
+  const loadCameraDevices = useCallback(async () => {
+    if (!window.kiosk?.camera) return;
+    const devices = await window.kiosk.camera.listDevices();
+    setCameraDevices(devices);
+  }, []);
+
+  const applyCamera = useCallback((device) => {
+    setSelectedCamera(device);
+    localStorage.setItem('kioskCamera', device);
+    if (window.kiosk?.camera?.setDevice) {
+      window.kiosk.camera.setDevice(device);
     }
   }, []);
 
@@ -566,6 +590,11 @@ function Menu() {
     );
   };
 
+  // Load camera devices when settings panel opens
+  useEffect(() => {
+    if (showSettings) loadCameraDevices();
+  }, [showSettings, loadCameraDevices]);
+
   if (showSettings) {
     return (
       <div className="h-screen bg-slate-800 flex items-center px-4 gap-4">
@@ -594,6 +623,21 @@ function Menu() {
         >
           Reset
         </button>
+        <div className="w-px h-6 bg-slate-600 flex-shrink-0" />
+        <span className="text-slate-400 text-sm flex-shrink-0">Camera</span>
+        <select
+          value={selectedCamera}
+          onChange={(e) => applyCamera(e.target.value)}
+          className="bg-slate-700 text-white text-sm rounded-lg px-2 py-1.5 border border-slate-600 focus:outline-none focus:border-sky-500 max-w-[200px] flex-shrink-0"
+        >
+          <option value="none">None</option>
+          {cameraDevices.length === 0 && selectedCamera !== 'none' && (
+            <option value={selectedCamera}>{selectedCamera}</option>
+          )}
+          {cameraDevices.map(d => (
+            <option key={d.path} value={d.path}>{d.name}</option>
+          ))}
+        </select>
       </div>
     );
   }

@@ -1,7 +1,14 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
+import { mkdir, writeFile, unlink } from 'fs/promises';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import db from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { broadcastBulletinPin } from '../websocket.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const photosDir = join(__dirname, '..', '..', 'data', 'bulletin-photos');
 
 const router = Router();
 
@@ -44,11 +51,17 @@ router.get('/api/bulletin', (req, res) => {
 });
 
 // POST /api/bulletin — Create a pin (kid-facing)
-router.post('/api/bulletin', (req, res) => {
-  const { pin_type, content, x, y, rotation, color, profile_id } = req.body;
+router.post('/api/bulletin', async (req, res) => {
+  const { pin_type, content, x, y, rotation, color, profile_id, photo_data } = req.body;
 
-  if (!pin_type || !content || x == null || y == null) {
-    return res.status(400).json({ error: 'pin_type, content, x, y are required' });
+  if (!pin_type || x == null || y == null) {
+    return res.status(400).json({ error: 'pin_type, x, y are required' });
+  }
+  if (pin_type !== 'photo' && !content) {
+    return res.status(400).json({ error: 'content is required' });
+  }
+  if (pin_type === 'photo' && !photo_data) {
+    return res.status(400).json({ error: 'photo_data is required for photo pins' });
   }
   if (!profile_id) {
     return res.status(400).json({ error: 'profile_id is required' });
@@ -60,9 +73,26 @@ router.post('/api/bulletin', (req, res) => {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
+  let pinContent = content;
+
+  // Save photo to disk
+  if (pin_type === 'photo') {
+    try {
+      const base64 = photo_data.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64, 'base64');
+      const filename = `${randomUUID()}.jpg`;
+      await mkdir(photosDir, { recursive: true });
+      await writeFile(join(photosDir, filename), buffer);
+      pinContent = `/bulletin-photos/${filename}`;
+    } catch (err) {
+      console.error('Failed to save photo:', err);
+      return res.status(500).json({ error: 'Failed to save photo' });
+    }
+  }
+
   const result = db.prepare(
     'INSERT INTO bulletin_pins (pin_type, content, x, y, rotation, color, profile_id, is_parent) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
-  ).run(pin_type, content, x, y, rotation || 0, color || '#fef08a', profile_id);
+  ).run(pin_type, pinContent, x, y, rotation || 0, color || '#fef08a', profile_id);
 
   const pin = getEnrichedPin(result.lastInsertRowid);
   broadcastBulletinPin('add', pin);
@@ -137,6 +167,12 @@ router.delete('/api/admin/bulletin/:id', requireAuth, (req, res) => {
   } else {
     // Orphaned pin (no profile_id, no account_id) — reject
     return res.status(404).json({ error: 'Pin not found' });
+  }
+
+  // Clean up photo file from disk
+  if (pin.pin_type === 'photo' && pin.content) {
+    const filename = pin.content.replace('/bulletin-photos/', '');
+    unlink(join(photosDir, filename)).catch(() => {});
   }
 
   db.prepare('DELETE FROM bulletin_pins WHERE id = ?').run(req.params.id);

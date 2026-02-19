@@ -35,7 +35,7 @@ npm run dev:external   # Electron pointing to external kiosk-server
 
 ### Three Components
 
-**kiosk-app/** — Electron app running in kiosk mode on Linux. Uses a dual BrowserView layout: content view (90% top, displays web pages/apps) and menu view (10% bottom bar, trusted navigation). Content view has no Node.js access. Menu view communicates with main process via preload script IPC (`window.kiosk.*`). Enforces a domain whitelist — unauthorized URLs show a blocked page. Can launch native Linux apps with time tracking and limit enforcement.
+**kiosk-app/** — Electron app running in kiosk mode on Linux. Uses a dual BrowserView layout: content view (90% top, displays web pages/apps) and menu view (10% bottom bar, trusted navigation). Both views have `nodeIntegration: false` and `contextIsolation: true`. Menu view communicates with main process via preload script IPC (`window.kiosk.*`). Content view has a minimal preload exposing only `window.kioskCamera` for camera access. Enforces a domain whitelist — unauthorized URLs show a blocked page. Can launch native Linux apps with time tracking and limit enforcement.
 
 **kiosk-server/** — Web app serving both the kiosk UI and parent dashboard. React 19 + Vite frontend with Tailwind CSS 4. Express 5 + SQLite backend. Vite proxies `/api` requests to Express (port 3001). Binds to `0.0.0.0:3000` for LAN access.
 
@@ -68,6 +68,24 @@ Each child has their own profile with isolated apps, challenges, usage tracking,
 2. App clicks → Electron IPC → content view navigates (URL apps) or native process spawns (native apps)
 3. Native apps: usage recorded to `/api/apps/:id/usage`, time limits enforced (daily/weekly + bonus minutes from challenges)
 4. Dashboard: email+password login → session token stored in localStorage → passed in `X-Admin-Token` header. Profile selector in sidebar scopes all dashboard pages.
+
+### Electron IPC Architecture
+
+The menu and content views are separate BrowserViews with separate preload scripts and no shared state. They communicate through three mechanisms:
+
+**1. API + WebSocket (cross-view data sync):** Both views fetch from the Express API. The WebSocket broadcasts `{ type: 'refresh' }` when data changes — menu and builtins listen and reload. Use this for data that lives in the database.
+
+**2. Main process IPC (Electron-native features):** Features that require Node.js or OS access (camera, filesystem, native apps, zoom) go through `ipcMain.handle` / `ipcRenderer.invoke` round-trips. Each view has its own preload exposing different APIs:
+- **Menu preload** (`preload.js`) → `window.kiosk.*` — full access: `exec`, file I/O, content navigation, zoom, native app launching, camera device selection
+- **Content preload** (`preload-content.js`) → `window.kioskCamera.*` — minimal: camera capture/stream only
+
+**3. Main-to-content push (cross-view notifications):** When the menu changes a setting that affects the content view, the main process IPC handler sends a message directly to the content view via `contentView.webContents.send(channel, data)`. The content preload exposes an `onXxx(callback)` listener. Example: `camera:setDevice` handler sends `camera:deviceChanged` to the content view so the Home builtin can show/hide the camera button without restart.
+
+**Important constraints:**
+- `navigator.mediaDevices` is NOT available in Electron BrowserViews. Camera access uses ffmpeg via IPC (`spawn('ffmpeg', ['-f', 'v4l2', ...])`) instead.
+- The content view preload must stay minimal — it loads arbitrary URLs. Never expose `exec`, file I/O, or other privileged APIs on `window.kioskCamera`.
+- Settings that affect both views: store the value in the main process (not localStorage, which is per-view), persist to localStorage in the menu for reload, and push changes to the content view via IPC.
+- When adding new IPC channels: add the handler in `main.js`, expose it in the appropriate preload, and use `ipcRenderer.invoke` (request/response) or `ipcRenderer.on` (push notifications).
 
 ### Authentication & Accounts
 

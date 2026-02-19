@@ -65,6 +65,10 @@ app.use(messagesRouter);
 app.use(bulletinRouter);
 app.use('/api/drawings', drawingsRouter);
 
+// Serve bulletin photos
+const photosDir = join(__dirname, '..', 'data', 'bulletin-photos');
+app.use('/bulletin-photos', requireAnyAuth, express.static(photosDir));
+
 // Serve static game files at /customgames/:id/
 // Requires auth — games are account-scoped, not public
 // When ?kiosk=1 is present, inject an overlay Back button into HTML files

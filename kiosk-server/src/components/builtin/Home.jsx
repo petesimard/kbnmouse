@@ -28,11 +28,44 @@ function Home() {
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [liveFrame, setLiveFrame] = useState(null);
   const [messageText, setMessageText] = useState('');
+  const [cameraError, setCameraError] = useState('');
+  const [cameraEnabled, setCameraEnabled] = useState(false);
   const [time, setTime] = useState(new Date());
   const boardRef = useRef(null);
+  const frameCleanupRef = useRef(null);
 
   const profile = profiles?.find(p => p.id === profileId);
+
+  // Check if camera is enabled (not set to "none")
+  const checkCamera = useCallback(async () => {
+    if (!window.kioskCamera?.getDevice) {
+      setCameraEnabled(false);
+      return;
+    }
+    const device = await window.kioskCamera.getDevice();
+    setCameraEnabled(device && device !== 'none');
+  }, []);
+
+  useEffect(() => {
+    checkCamera();
+    // Listen for device changes from menu settings
+    const cleanup = window.kioskCamera?.onDeviceChanged?.((device) => {
+      setCameraEnabled(device && device !== 'none');
+    });
+    return () => { if (cleanup) cleanup(); };
+  }, [checkCamera]);
+
+  // Clean up camera stream on unmount
+  useEffect(() => {
+    return () => {
+      window.kioskCamera?.stopStream();
+      if (frameCleanupRef.current) frameCleanupRef.current();
+    };
+  }, []);
 
   // Clock
   useEffect(() => {
@@ -110,13 +143,16 @@ function Home() {
     if (!placing) return;
     const pin = {
       pin_type: placing.type,
-      content: placing.content,
+      content: placing.type === 'photo' ? '' : placing.content,
       x: mousePos.x,
       y: mousePos.y,
       rotation: placing.rotation,
       color: placing.color,
       profile_id: profileId
     };
+    if (placing.type === 'photo') {
+      pin.photo_data = placing.content;
+    }
     setPlacing(null);
     try {
       await fetch('/api/bulletin', {
@@ -152,6 +188,69 @@ function Home() {
     const rotation = (Math.random() - 0.5) * 20;
     setPlacing({ type: 'emoji', content: emoji, color: null, rotation });
     setShowEmojiPicker(false);
+  };
+
+  const handleOpenCamera = async () => {
+    setShowMessageModal(false);
+    setShowEmojiPicker(false);
+    if (!window.kioskCamera) {
+      setCameraError('Camera not available in this browser');
+      setTimeout(() => setCameraError(''), 4000);
+      return;
+    }
+    try {
+      setCapturedPhoto(null);
+      setLiveFrame(null);
+      setShowCamera(true);
+      await window.kioskCamera.startStream();
+      if (frameCleanupRef.current) frameCleanupRef.current();
+      frameCleanupRef.current = window.kioskCamera.onFrame((dataUrl) => {
+        setLiveFrame(dataUrl);
+      });
+    } catch (err) {
+      console.error('Camera access failed:', err);
+      setCameraError(`Camera not available: ${err.message}`);
+      setTimeout(() => setCameraError(''), 4000);
+      setShowCamera(false);
+    }
+  };
+
+  const handleCapture = async () => {
+    try {
+      // Stop the low-res stream and take a full-res capture
+      await window.kioskCamera.stopStream();
+      if (frameCleanupRef.current) { frameCleanupRef.current(); frameCleanupRef.current = null; }
+      const dataUrl = await window.kioskCamera.capture();
+      setCapturedPhoto(dataUrl);
+    } catch (err) {
+      console.error('Capture failed:', err);
+    }
+  };
+
+  const handleRetake = async () => {
+    setCapturedPhoto(null);
+    setLiveFrame(null);
+    await window.kioskCamera.startStream();
+    if (frameCleanupRef.current) frameCleanupRef.current();
+    frameCleanupRef.current = window.kioskCamera.onFrame((dataUrl) => {
+      setLiveFrame(dataUrl);
+    });
+  };
+
+  const handleUsePhoto = () => {
+    const rotation = (Math.random() - 0.5) * 8;
+    setPlacing({ type: 'photo', content: capturedPhoto, color: null, rotation });
+    setShowCamera(false);
+    setCapturedPhoto(null);
+    setLiveFrame(null);
+  };
+
+  const handleCloseCamera = () => {
+    window.kioskCamera?.stopStream();
+    if (frameCleanupRef.current) { frameCleanupRef.current(); frameCleanupRef.current = null; }
+    setShowCamera(false);
+    setCapturedPhoto(null);
+    setLiveFrame(null);
   };
 
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -253,7 +352,9 @@ function Home() {
               zIndex: pin.id
             }}
           >
-            {pin.pin_type === 'message' ? (
+            {pin.pin_type === 'photo' ? (
+              <PhotoPin content={pin.content} profileName={pin.profile_name} profileIcon={pin.profile_icon} />
+            ) : pin.pin_type === 'message' ? (
               <PostItNote content={pin.content} color={pin.color} profileName={pin.profile_name} profileIcon={pin.profile_icon} isParent={!!pin.is_parent} parentName={parentName} />
             ) : (
               <EmojiPin content={pin.content} />
@@ -274,7 +375,9 @@ function Home() {
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))'
             }}
           >
-            {placing.type === 'message' ? (
+            {placing.type === 'photo' ? (
+              <PhotoPin content={placing.content} />
+            ) : placing.type === 'message' ? (
               <PostItNote content={placing.content} color={placing.color} />
             ) : (
               <EmojiPin content={placing.content} />
@@ -312,6 +415,20 @@ function Home() {
           <span className="text-base group-hover:scale-110 transition-transform">📝</span>
           Add Note
         </button>
+        {cameraEnabled && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpenCamera(); }}
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95"
+            style={{
+              background: 'linear-gradient(180deg, #a5f3fc 0%, #67e8f9 100%)',
+              color: '#164e63',
+              boxShadow: '0 2px 8px rgba(103,232,249,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+            }}
+          >
+            <span className="text-base group-hover:scale-110 transition-transform">📸</span>
+            Take Picture
+          </button>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); handleAddEmoji(); }}
           className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95"
@@ -407,6 +524,70 @@ function Home() {
           </div>
         </div>
       )}
+
+      {/* Camera error toast */}
+      {cameraError && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100001] bg-red-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-medium">
+          {cameraError}
+        </div>
+      )}
+
+      {/* Camera modal */}
+      {showCamera && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100000]" onClick={handleCloseCamera}>
+          <div className="max-w-lg w-full mx-4" onClick={e => e.stopPropagation()}>
+            <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-2xl" style={{ boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+              <div className="p-4 flex items-center justify-between border-b border-slate-700">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>📸</span> Take a Picture
+                </h3>
+                <button onClick={handleCloseCamera} className="text-slate-400 hover:text-white text-xl font-bold transition-colors">✕</button>
+              </div>
+
+              <div className="relative aspect-[4/3] bg-black flex items-center justify-center">
+                {capturedPhoto ? (
+                  <img src={capturedPhoto} alt="Captured" className="w-full h-full object-cover" />
+                ) : liveFrame ? (
+                  <img src={liveFrame} alt="Camera" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="text-slate-500 text-lg">Starting camera...</div>
+                )}
+              </div>
+
+              <div className="p-4 flex justify-center gap-3">
+                {!capturedPhoto ? (
+                  <button
+                    onClick={handleCapture}
+                    className="w-16 h-16 rounded-full border-4 border-white flex items-center justify-center transition-all active:scale-90 hover:scale-105"
+                    style={{ background: 'linear-gradient(180deg, #ef4444 0%, #dc2626 100%)' }}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-red-500 border-2 border-red-300" />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleRetake}
+                      className="px-5 py-2.5 rounded-xl font-bold text-sm text-slate-300 bg-slate-700 hover:bg-slate-600 transition-colors active:scale-95"
+                    >
+                      Retake
+                    </button>
+                    <button
+                      onClick={handleUsePhoto}
+                      className="px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all active:scale-95"
+                      style={{
+                        background: 'linear-gradient(180deg, #22d3ee 0%, #06b6d4 100%)',
+                        boxShadow: '0 2px 8px rgba(6,182,212,0.4)',
+                      }}
+                    >
+                      Pin It!
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -469,6 +650,41 @@ function PostItNote({ content, color = '#fef9c3', profileName, profileIcon, isPa
           {profileIcon} {profileName}
         </div>
       )}
+    </div>
+  );
+}
+
+function PhotoPin({ content, profileName, profileIcon }) {
+  return (
+    <div className="relative">
+      {/* Thumbtack */}
+      <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
+        <div className="relative">
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-0.5 h-2 bg-gray-400/30 rounded-full" />
+          <div className="w-5 h-5 rounded-full relative"
+            style={{
+              background: 'radial-gradient(circle at 35% 30%, #fbbf24, #d97706 60%, #b45309)',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)',
+            }}
+          >
+            <div className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full bg-white/40" />
+          </div>
+        </div>
+      </div>
+      {/* Polaroid frame */}
+      <div style={{
+        background: 'white',
+        padding: '8px 8px 24px',
+        boxShadow: '2px 3px 12px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.08)',
+        width: '160px',
+      }}>
+        <img src={content} alt="" className="w-full aspect-[4/3] object-cover block" />
+        {profileName && (
+          <div className="mt-1 text-center text-gray-400 font-medium" style={{ fontSize: '10px', fontFamily: '"Comic Sans MS", "Chalkboard SE", cursive' }}>
+            {profileIcon} {profileName}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
