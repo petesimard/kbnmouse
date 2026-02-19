@@ -348,7 +348,7 @@ function Home() {
             style={{
               left: `${pin.x}%`,
               top: `${pin.y}%`,
-              transform: `translate(-50%, -50%) rotate(${pin.rotation || 0}deg)`,
+              transform: `translate(-50%, -50%) rotate(${pin.rotation || 0}deg) scale(0.5)`,
               zIndex: pin.id
             }}
           >
@@ -369,7 +369,7 @@ function Home() {
             style={{
               left: `${mousePos.x}%`,
               top: `${mousePos.y}%`,
-              transform: `translate(-50%, -50%) rotate(${placing.rotation}deg)`,
+              transform: `translate(-50%, -50%) rotate(${placing.rotation}deg) scale(0.5)`,
               opacity: 0.7,
               zIndex: 99999,
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))'
@@ -405,11 +405,12 @@ function Home() {
       }}>
         <button
           onClick={(e) => { e.stopPropagation(); handleAddMessage(); }}
-          className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95"
+          disabled={!profileId}
+          className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
           style={{
             background: 'linear-gradient(180deg, #fef08a 0%, #fde047 100%)',
             color: '#78350f',
-            boxShadow: '0 2px 8px rgba(253,224,71,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+            boxShadow: profileId ? '0 2px 8px rgba(253,224,71,0.3), inset 0 1px 0 rgba(255,255,255,0.5)' : 'none',
           }}
         >
           <span className="text-base group-hover:scale-110 transition-transform">📝</span>
@@ -418,11 +419,12 @@ function Home() {
         {cameraEnabled && (
           <button
             onClick={(e) => { e.stopPropagation(); handleOpenCamera(); }}
-            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95"
+            disabled={!profileId}
+            className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             style={{
               background: 'linear-gradient(180deg, #a5f3fc 0%, #67e8f9 100%)',
               color: '#164e63',
-              boxShadow: '0 2px 8px rgba(103,232,249,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+              boxShadow: profileId ? '0 2px 8px rgba(103,232,249,0.3), inset 0 1px 0 rgba(255,255,255,0.5)' : 'none',
             }}
           >
             <span className="text-base group-hover:scale-110 transition-transform">📸</span>
@@ -431,11 +433,12 @@ function Home() {
         )}
         <button
           onClick={(e) => { e.stopPropagation(); handleAddEmoji(); }}
-          className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95"
+          disabled={!profileId}
+          className="group flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
           style={{
             background: 'linear-gradient(180deg, #fbcfe8 0%, #f9a8d4 100%)',
             color: '#831843',
-            boxShadow: '0 2px 8px rgba(249,168,212,0.3), inset 0 1px 0 rgba(255,255,255,0.5)',
+            boxShadow: profileId ? '0 2px 8px rgba(249,168,212,0.3), inset 0 1px 0 rgba(255,255,255,0.5)' : 'none',
           }}
         >
           <span className="text-base group-hover:scale-110 transition-transform">😀</span>
