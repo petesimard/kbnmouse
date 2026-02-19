@@ -70,11 +70,11 @@ const photosDir = join(__dirname, '..', 'data', 'bulletin-photos');
 app.use('/bulletin-photos', requireAnyAuth, express.static(photosDir));
 
 // Serve static game files at /customgames/:id/
-// Requires auth — games are account-scoped, not public
-// When ?kiosk=1 is present, inject an overlay Back button into HTML files
+// Public so QR code sharing works without auth
+// When ?kiosk=1 is present, inject an overlay Manage button into HTML files
 const gamesDir = join(__dirname, '..', 'data', 'games');
 const gamesStatic = express.static(gamesDir);
-app.use('/customgames', requireAnyAuth, (req, res, next) => {
+app.use('/customgames', (req, res, next) => {
   if (!req.query.kiosk || !/\.html?$/i.test(req.path)) {
     return gamesStatic(req, res, next);
   }
