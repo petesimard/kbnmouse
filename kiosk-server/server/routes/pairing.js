@@ -2,10 +2,10 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import express from 'express';
-import db from '../db.js';
+import db, { seedKnownGamesForProfile } from '../db.js';
 import crypto from 'crypto';
 import { requireAuth, requireKiosk } from '../middleware/auth.js';
-import { getKioskConnectionInfo, sendToKiosk, getServerGitHash, refreshServerGitHash } from '../websocket.js';
+import { getKioskConnectionInfo, sendToKiosk, getServerGitHash, refreshServerGitHash, broadcastRefresh } from '../websocket.js';
 
 const router = Router();
 
@@ -154,6 +154,20 @@ router.post('/api/kiosk/installed-apps', requireKiosk, (req, res) => {
   }
 
   db.prepare('UPDATE kiosks SET installed_apps = ? WHERE id = ?').run(JSON.stringify(apps), req.kioskId);
+
+  // Auto-provision known games for all profiles in this account
+  const kiosk = db.prepare('SELECT account_id FROM kiosks WHERE id = ?').get(req.kioskId);
+  if (kiosk) {
+    const profiles = db.prepare('SELECT id, screen_time_preset FROM profiles WHERE account_id = ?').all(kiosk.account_id);
+    let totalAdded = 0;
+    for (const profile of profiles) {
+      totalAdded += seedKnownGamesForProfile(profile.id, profile.screen_time_preset, apps, req.kioskId);
+    }
+    if (totalAdded > 0) {
+      broadcastRefresh();
+    }
+  }
+
   res.json({ ok: true });
 });
 

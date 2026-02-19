@@ -157,6 +157,18 @@ else
   info "Autologin disabled — user will need to login manually"
 fi
 
+# --- Games install prompt ---
+read -rp "Install free kids games (GCompris, Tux Paint, Tux Math, SuperTuxKart, Frozen Bubble)? (n/Y): " games_choice < /dev/tty
+games_choice="${games_choice:-Y}"
+
+if [[ "$games_choice" =~ ^[Yy]$ ]]; then
+  INSTALL_GAMES=true
+  info "Will install kids games"
+else
+  INSTALL_GAMES=false
+  info "Skipping kids games"
+fi
+
 echo ""
 
 # --- Install system dependencies ---
@@ -179,6 +191,26 @@ case "$DISTRO" in
 esac
 
 info "System dependencies installed"
+
+# --- Install kids games (optional) ---
+if $INSTALL_GAMES; then
+  echo "Installing kids games..."
+  case "$DISTRO" in
+    debian)
+      $PKG_INSTALL gcompris-qt tuxpaint tuxmath supertuxkart frozen-bubble
+      ;;
+    fedora|rhel)
+      $PKG_INSTALL gcompris-qt tuxpaint tuxmath supertuxkart frozen-bubble
+      ;;
+    arch)
+      $PKG_INSTALL gcompris tuxpaint tuxmath supertuxkart frozen-bubble
+      ;;
+    suse)
+      $PKG_INSTALL gcompris-qt tuxpaint tuxmath supertuxkart frozen-bubble
+      ;;
+  esac
+  info "Kids games installed"
+fi
 
 # --- Enable LightDM ---
 echo "Enabling LightDM display manager..."

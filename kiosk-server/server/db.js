@@ -277,6 +277,17 @@ const BUILTIN_DEFAULT_TIME_LIMITS = {
   _games: 30,  // used for gamecreator's default_daily_limit config (not the creator itself)
 };
 
+// Known free kids games — matched against kiosk installed apps exec commands
+const KNOWN_GAMES = [
+  { name: 'GCompris', execMatch: 'gcompris', icon: '🎓' },
+  { name: 'Tux Paint', execMatch: 'tuxpaint', icon: '🐧' },
+  { name: 'Tux Math', execMatch: 'tuxmath', icon: '🔢' },
+  { name: 'SuperTuxKart', execMatch: 'supertuxkart', icon: '🏎️' },
+  { name: 'Frozen Bubble', execMatch: 'frozen-bubble', icon: '🫧' },
+];
+
+const GAME_DEFAULT_DAILY_LIMIT = 10;
+
 export function computeTimeLimit(appUrl, screenTimePreset) {
   if (!screenTimePreset || screenTimePreset === 'off') return null;
   const base = BUILTIN_DEFAULT_TIME_LIMITS[appUrl];
@@ -374,6 +385,66 @@ export function seedProfileDefaults(profileId, age, screenTimePreset) {
   insertChallenge.run('Typing', '⌨️', 'Type 10 words correctly', 'typing', 10, JSON.stringify(typingConfig), order++, profileId, maxCompletions);
 
   console.log(`Seeded default apps and challenges for profile ${profileId}${age ? ` (age ${age})` : ''}`);
+
+  // Auto-provision known games from any kiosk already connected to this account
+  const profile = db.prepare('SELECT account_id FROM profiles WHERE id = ?').get(profileId);
+  if (profile?.account_id) {
+    const kiosks = db.prepare('SELECT id, installed_apps FROM kiosks WHERE account_id = ? AND installed_apps IS NOT NULL').all(profile.account_id);
+    for (const kiosk of kiosks) {
+      try {
+        const apps = JSON.parse(kiosk.installed_apps);
+        seedKnownGamesForProfile(profileId, screenTimePreset, apps, kiosk.id);
+      } catch {}
+    }
+  }
+}
+
+// Auto-provision known games for a profile based on kiosk's installed apps.
+// Returns the number of games added.
+export function seedKnownGamesForProfile(profileId, screenTimePreset, installedApps, kioskId) {
+  let added = 0;
+  const dailyLimit = (!screenTimePreset || screenTimePreset === 'off') ? null : GAME_DEFAULT_DAILY_LIMIT;
+
+  for (const game of KNOWN_GAMES) {
+    // Check if any installed app's exec matches this known game
+    const match = installedApps.find(app => {
+      const basename = app.exec.split('/').pop().split(' ')[0];
+      return basename === game.execMatch || app.exec.includes(game.execMatch);
+    });
+    if (!match) continue;
+
+    // Idempotency: skip if this profile already has a native app with matching exec
+    const existing = db.prepare(
+      "SELECT id FROM apps WHERE profile_id = ? AND app_type = 'native' AND url LIKE ?"
+    ).get(profileId, `%${game.execMatch}%`);
+    if (existing) continue;
+
+    // Create or reuse "Games" folder for this profile
+    let folder = db.prepare(
+      "SELECT id FROM folders WHERE profile_id = ? AND name = 'Games'"
+    ).get(profileId);
+    if (!folder) {
+      const result = db.prepare(
+        'INSERT INTO folders (name, icon, color, sort_order, profile_id) VALUES (?, ?, ?, ?, ?)'
+      ).run('Games', '🎮', '#22c55e', 100, profileId);
+      folder = { id: result.lastInsertRowid };
+    }
+
+    // Use kiosk icon URL if available, otherwise fall back to emoji
+    const icon = kioskId && match.iconKey
+      ? `/api/admin/app-icon/${kioskId}/${match.iconKey}`
+      : game.icon;
+
+    db.prepare(
+      'INSERT INTO apps (name, url, icon, sort_order, app_type, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(game.name, match.exec, icon, added, 'native', profileId, folder.id, dailyLimit);
+    added++;
+  }
+
+  if (added > 0) {
+    console.log(`Auto-provisioned ${added} known game(s) for profile ${profileId}`);
+  }
+  return added;
 }
 
 
