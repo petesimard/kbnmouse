@@ -36,3 +36,8 @@
 .hide-scrollbar {
   scrollbar-width: none;
 }
+
+@keyframes menu-glow {
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(56, 189, 248, 0.3); }
+  50% { box-shadow: 0 0 12px 3px rgba(56, 189, 248, 0.5); }
+}

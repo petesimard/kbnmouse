@@ -30,6 +30,7 @@ function Menu() {
   const [usageMap, setUsageMap] = useState({});
 
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [activeAppId, setActiveAppId] = useState(null);
 
   // Kiosk settings
   const [showSettings, setShowSettings] = useState(false);
@@ -413,27 +414,39 @@ function Menu() {
   }, []);
 
   // Pause/resume tracking when content view navigates between /game/ and /customgames/
+  // Also sync active app highlight + folder when content navigates (e.g. from game creator)
   useEffect(() => {
     if (!window.kiosk?.content?.onNavigated) return;
     return window.kiosk.content.onNavigated((url) => {
-      const session = sessionRef.current;
-      if (!session) return;
       try {
         const path = new URL(url).pathname;
+
+        // Sync active app highlight when navigated externally (e.g. game creator)
+        const gameMatch = path.match(/^\/game\/(\d+)/);
+        if (gameMatch) {
+          const gameId = gameMatch[1];
+          const gameApp = apps.find(a => a.app_type === 'url' && a.url.includes(`/customgames/${gameId}/`));
+          if (gameApp) {
+            setActiveAppId(gameApp.id);
+            setCurrentFolderId(gameApp.folder_id || null);
+          }
+        }
+
+        // Pause/resume game tracking
+        const session = sessionRef.current;
+        if (!session) return;
         const isGameManage = path.startsWith('/game/');
         const isGamePlay = path.startsWith('/customgames/');
         if (isGameManage && !session.paused) {
-          // Navigated to management page — flush accumulated time and pause
           postUsage(session.appId, session.startedAt, new Date());
           session.paused = true;
         } else if (isGamePlay && session.paused) {
-          // Navigated back to actual game — resume tracking
           session.startedAt = new Date();
           session.paused = false;
         }
       } catch {}
     });
-  }, [postUsage]);
+  }, [postUsage, apps]);
 
   // Client-side countdown: update displayed remaining time every second for active session
   useEffect(() => {
@@ -528,6 +541,8 @@ function Menu() {
       window.location.href = url;
     }
 
+    setActiveAppId(app.id);
+
     // Start tracking session (skip for home screen)
     if (!skipTracking) {
       startSession(app, usageMap[app.id] ?? null);
@@ -537,6 +552,7 @@ function Menu() {
   const handleHome = () => {
     flushSession();
     setTimeWarning(false);
+    setActiveAppId(null);
     if (hasKiosk) {
       window.kiosk.content.loadURL('/kiosk/builtin/home');
     } else {
@@ -547,6 +563,7 @@ function Menu() {
   const handleSwitchUser = () => {
     flushSession();
     setTimeWarning(false);
+    setActiveAppId(null);
     clearProfile();
     if (window.kiosk?.content?.loadURL) {
       window.kiosk.content.loadURL('/kiosk/profiles');
@@ -563,10 +580,12 @@ function Menu() {
 
   const renderAppButton = (app) => {
     const isMessages = app.app_type === 'builtin' && app.url === 'messages';
+    const isActive = activeAppId === app.id;
     return (
       <button
         key={app.id}
         onClick={() => handleLoadURL(app)}
+        style={isActive ? { animation: 'menu-glow 2s ease-in-out infinite' } : undefined}
         className={`relative px-4 py-2 rounded-xl text-white flex items-center gap-2 transition-all duration-200 hover:scale-105 flex-shrink-0 ${
           app.app_type === 'native' && !hasKiosk
             ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
