@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = join(__dirname, '..', 'data', 'kiosk.db');
@@ -293,8 +294,8 @@ export function computeTimeLimit(appUrl, screenTimePreset) {
   const base = BUILTIN_DEFAULT_TIME_LIMITS[appUrl];
   if (!base) return null;
   if (screenTimePreset === 'medium') return base;
-  if (screenTimePreset === 'high') return Math.round(base / 2);
-  if (screenTimePreset === 'low') return base * 2;
+  if (screenTimePreset === 'high') return Math.round(base * 2);
+  if (screenTimePreset === 'low') return Math.round(base / 2);
   return null;
 }
 
@@ -430,8 +431,11 @@ export function seedKnownGamesForProfile(profileId, screenTimePreset, installedA
       folder = { id: result.lastInsertRowid };
     }
 
-    // Use kiosk icon URL if available, otherwise fall back to emoji
-    const icon = kioskId && match.iconKey
+    // Use kiosk icon URL only if the icon file was actually pushed
+    const iconFile = kioskId && match.iconKey
+      ? join(__dirname, '..', 'data', 'app-icons', String(kioskId), `${match.iconKey}.png`)
+      : null;
+    const icon = iconFile && existsSync(iconFile)
       ? `/api/admin/app-icon/${kioskId}/${match.iconKey}`
       : game.icon;
 

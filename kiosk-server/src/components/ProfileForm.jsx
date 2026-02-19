@@ -12,10 +12,10 @@ const EMOJI_OPTIONS = [
 ];
 
 const SCREEN_TIME_PRESETS = [
-  { value: 'off', label: 'Off', description: 'No time limits' },
-  { value: 'low', label: 'Low', description: '60 min/day per app' },
-  { value: 'medium', label: 'Medium', description: '30 min/day per app' },
-  { value: 'high', label: 'High', description: '15 min/day per app' },
+  { value: 'off', label: 'Off', description: 'No time limits on apps' },
+  { value: 'low', label: 'Low', description: 'Shorter time before needing to complete challenges' },
+  { value: 'medium', label: 'Medium', description: 'Moderate time before needing to complete challenges' },
+  { value: 'high', label: 'High', description: 'Longer time before needing to complete challenges' },
 ];
 
 export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel = 'Create Profile', savingLabel = 'Saving...' }) {
@@ -127,7 +127,6 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
         </div>
         <p className="mt-1 text-slate-500 text-xs">
           {SCREEN_TIME_PRESETS.find(p => p.value === formData.screen_time_preset)?.description}
-          {' \u2014 applies daily limits to apps like Drawing, ChatBot, etc.'}
         </p>
       </div>
 
