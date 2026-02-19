@@ -4,7 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db.js';
 import { broadcastRefresh } from '../websocket.js';
-import { verifyProfileOwnership } from '../utils/profile.js';
+import { verifyProfileOwnership, accountProfileIds } from '../utils/profile.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(__dirname, '..', '..', 'data', 'games');
@@ -87,12 +87,9 @@ router.post('/:id/update', async (req, res) => {
   res.json(updated);
 });
 
-// PATCH /api/games/:id — rename game
+// PATCH /api/games/:id — rename or toggle sharing
 router.patch('/:id', (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ error: 'name is required' });
-  }
+  const { name, shared } = req.body;
   const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(req.params.id);
   if (!game) {
     return res.status(404).json({ error: 'Game not found' });
@@ -101,11 +98,26 @@ router.patch('/:id', (req, res) => {
     return res.status(404).json({ error: 'Game not found' });
   }
 
-  const trimmedName = name.trim();
-  db.prepare('UPDATE custom_games SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(trimmedName, game.id);
+  if (name !== undefined) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    db.prepare('UPDATE custom_games SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(trimmedName, game.id);
+    // Update app entries in all profiles (owner + shared)
+    const gameUrl = `/customgames/${game.id}/index.html?kiosk=1`;
+    db.prepare("UPDATE apps SET name = ? WHERE url = ?").run(trimmedName, gameUrl);
+  }
 
-  // Also update the corresponding app entry
-  db.prepare("UPDATE apps SET name = ? WHERE url = ? AND profile_id = ?").run(trimmedName, `/customgames/${game.id}/index.html?kiosk=1`, game.profile_id);
+  if (shared !== undefined) {
+    const sharedVal = shared ? 1 : 0;
+    db.prepare('UPDATE custom_games SET shared = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(sharedVal, game.id);
+    if (shared && game.status === 'ready') {
+      createSharedAppEntries(game.id, game.name, game.profile_id, req.accountId);
+    } else if (!shared) {
+      removeSharedAppEntries(game.id, game.profile_id);
+    }
+  }
 
   broadcastRefresh();
   const updated = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(game.id);
@@ -122,8 +134,11 @@ router.delete('/:id', async (req, res) => {
     return res.status(404).json({ error: 'Game not found' });
   }
 
-  // Remove app entry that references this game
-  db.prepare("DELETE FROM apps WHERE url = ? AND profile_id = ?").run(`/game/${game.id}`, game.profile_id);
+  // Remove app entries from all profiles (owner + shared)
+  const gameUrl = `/customgames/${game.id}/index.html?kiosk=1`;
+  db.prepare("DELETE FROM apps WHERE url = ?").run(gameUrl);
+  // Legacy URL pattern
+  db.prepare("DELETE FROM apps WHERE url = ?").run(`/game/${game.id}`);
 
   // Remove game record
   db.prepare('DELETE FROM custom_games WHERE id = ?').run(game.id);
@@ -194,6 +209,38 @@ function getOrCreateMyGamesFolder(profileId) {
   return result.lastInsertRowid;
 }
 
+// Create app entries for a shared game in all other profiles on the account
+function createSharedAppEntries(gameId, gameName, ownerProfileId, accountId) {
+  const otherProfiles = accountProfileIds(accountId).filter(id => id !== Number(ownerProfileId));
+  const gameUrl = `/customgames/${gameId}/index.html?kiosk=1`;
+  for (const profileId of otherProfiles) {
+    // Skip if entry already exists
+    const existing = db.prepare('SELECT id FROM apps WHERE url = ? AND profile_id = ?').get(gameUrl, profileId);
+    if (existing) continue;
+
+    const folderId = getOrCreateMyGamesFolder(profileId);
+    const maxOrder = db.prepare('SELECT MAX(sort_order) as max FROM apps WHERE profile_id = ?').get(profileId);
+    const sortOrder = (maxOrder?.max || 0) + 1;
+
+    // Inherit daily limit from this profile's gamecreator config
+    const creatorApp = db.prepare(
+      "SELECT config FROM apps WHERE app_type = 'builtin' AND url = 'gamecreator' AND profile_id = ?"
+    ).get(profileId);
+    const creatorConfig = JSON.parse(creatorApp?.config || '{}');
+    const dailyLimit = creatorConfig.default_daily_limit || null;
+
+    db.prepare(
+      'INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(gameName, gameUrl, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId, dailyLimit);
+  }
+}
+
+// Remove shared app entries from all profiles except the owner
+function removeSharedAppEntries(gameId, ownerProfileId) {
+  const gameUrl = `/customgames/${gameId}/index.html?kiosk=1`;
+  db.prepare('DELETE FROM apps WHERE url = ? AND profile_id != ?').run(gameUrl, ownerProfileId);
+}
+
 // When generation completes successfully
 function onGameReady(gameId, name, profileId) {
   db.prepare(
@@ -217,6 +264,15 @@ function onGameReady(gameId, name, profileId) {
   db.prepare(
     'INSERT INTO apps (name, url, icon, sort_order, app_type, enabled, profile_id, folder_id, daily_limit_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(name, `/customgames/${gameId}/index.html?kiosk=1`, '\uD83C\uDFAE', sortOrder, 'url', 1, profileId, folderId, dailyLimit);
+
+  // If shared, also create entries for other profiles
+  const game = db.prepare('SELECT shared FROM custom_games WHERE id = ?').get(gameId);
+  if (game?.shared) {
+    const profile = db.prepare('SELECT account_id FROM profiles WHERE id = ?').get(profileId);
+    if (profile) {
+      createSharedAppEntries(gameId, name, profileId, profile.account_id);
+    }
+  }
 
   broadcastRefresh();
   console.log(`[GameCreator] Game ${gameId} ready and added to apps${dailyLimit ? ` (daily limit: ${dailyLimit}min)` : ''}`);

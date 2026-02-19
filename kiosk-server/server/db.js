@@ -399,6 +399,9 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_custom_games_profile ON custom_games(pro
   if (!cols.find(c => c.name === 'game_type')) {
     db.exec("ALTER TABLE custom_games ADD COLUMN game_type TEXT DEFAULT '3d'");
   }
+  if (!cols.find(c => c.name === 'shared')) {
+    db.exec("ALTER TABLE custom_games ADD COLUMN shared INTEGER DEFAULT 0");
+  }
 }
 
 // Create messages table

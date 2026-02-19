@@ -18,7 +18,15 @@ function GameManage() {
   const [showRename, setShowRename] = useState(false);
   const [renameValue, setRenameValue] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [togglingShare, setTogglingShare] = useState(false);
+  const [activeProfileId, setActiveProfileId] = useState(null);
   const pollRef = useRef(null);
+
+  useEffect(() => {
+    fetch('/api/active-profile').then(r => r.json()).then(data => {
+      if (data.profile_id) setActiveProfileId(data.profile_id);
+    }).catch(() => {});
+  }, []);
 
   const fetchGame = useCallback(async () => {
     try {
@@ -136,6 +144,24 @@ function GameManage() {
     }
   };
 
+  const handleToggleShare = async () => {
+    setTogglingShare(true);
+    try {
+      const res = await fetch(`/api/games/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shared: !game.shared }),
+      });
+      if (!res.ok) throw new Error('Failed to update sharing');
+      const data = await res.json();
+      setGame(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTogglingShare(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
@@ -161,6 +187,7 @@ function GameManage() {
   const isGenerating = game.status === 'generating';
   const isReady = game.status === 'ready';
   const isError = game.status === 'error';
+  const isOwner = activeProfileId && game.profile_id === activeProfileId;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-8 relative">
@@ -315,6 +342,29 @@ function GameManage() {
             &#9654; PLAY
           </button>
         </div>
+
+        {/* Share with other profiles — only shown to game owner */}
+        {isOwner && (
+          <div className="bg-slate-800 rounded-xl p-5 mb-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-white font-bold text-lg">Share with other profiles</h2>
+              <p className="text-slate-400 text-sm mt-1">
+                {game.shared ? 'This game appears in all profiles' : 'Only visible to this profile'}
+              </p>
+            </div>
+            <button
+              onClick={handleToggleShare}
+              disabled={togglingShare || isGenerating}
+              className={`relative w-14 h-8 rounded-full transition-colors ${
+                game.shared ? 'bg-emerald-600' : 'bg-slate-600'
+              } ${togglingShare || isGenerating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                game.shared ? 'translate-x-6' : ''
+              }`} />
+            </button>
+          </div>
+        )}
 
         {/* Update Game section */}
         <div className="bg-slate-800 rounded-xl p-6">
