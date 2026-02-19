@@ -15,6 +15,9 @@ function GameManage() {
   const [deleting, setDeleting] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [showRename, setShowRename] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const pollRef = useRef(null);
 
   const fetchGame = useCallback(async () => {
@@ -74,6 +77,26 @@ function GameManage() {
     const dataUrl = await QRCode.toDataURL(playUrl, { width: 512, margin: 2, color: { dark: '#ffffff', light: '#00000000' } });
     setQrDataUrl(dataUrl);
     setShowShare(true);
+  };
+
+  const handleRename = async () => {
+    if (!renameValue.trim()) return;
+    setRenaming(true);
+    try {
+      const res = await fetch(`/api/games/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (!res.ok) throw new Error('Failed to rename game');
+      const data = await res.json();
+      setGame(data);
+      setShowRename(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRenaming(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -179,6 +202,36 @@ function GameManage() {
         </Modal>
       )}
 
+      {/* Rename modal */}
+      {showRename && (
+        <Modal onClose={() => setShowRename(false)} className="p-6 max-w-sm mx-4 text-center space-y-4">
+            <p className="text-white text-lg font-medium">Rename Game</p>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-700 text-white placeholder:text-slate-500 rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 text-lg"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+            />
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowRename(false)}
+                className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRename}
+                disabled={renaming || !renameValue.trim()}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+              >
+                {renaming ? 'Renaming...' : 'Rename'}
+              </button>
+            </div>
+        </Modal>
+      )}
+
       <div className="max-w-2xl mx-auto">
         {/* Top bar: back + delete */}
         <div className="flex items-center justify-between mb-6">
@@ -189,6 +242,15 @@ function GameManage() {
             &larr; Back to My Games
           </button>
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setRenameValue(game.name); setShowRename(true); }}
+              className="text-slate-500 hover:text-blue-400 transition-colors p-2"
+              title="Rename game"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
             <button
               onClick={handleShare}
               className="text-slate-500 hover:text-blue-400 transition-colors p-2"

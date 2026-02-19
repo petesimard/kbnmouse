@@ -87,6 +87,31 @@ router.post('/:id/update', async (req, res) => {
   res.json(updated);
 });
 
+// PATCH /api/games/:id — rename game
+router.patch('/:id', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'name is required' });
+  }
+  const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(req.params.id);
+  if (!game) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  if (!verifyProfileOwnership(game.profile_id, req.accountId)) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  const trimmedName = name.trim();
+  db.prepare('UPDATE custom_games SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(trimmedName, game.id);
+
+  // Also update the corresponding app entry
+  db.prepare("UPDATE apps SET name = ? WHERE url = ? AND profile_id = ?").run(trimmedName, `/customgames/${game.id}/index.html?kiosk=1`, game.profile_id);
+
+  broadcastRefresh();
+  const updated = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(game.id);
+  res.json(updated);
+});
+
 // DELETE /api/games/:id — delete game + files + app entry
 router.delete('/:id', async (req, res) => {
   const game = db.prepare('SELECT * FROM custom_games WHERE id = ?').get(req.params.id);
