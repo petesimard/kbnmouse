@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchProfiles, setActiveProfile } from '../api/profiles';
+import { fetchProfiles } from '../api/profiles';
+import { useProfile } from '../contexts/ProfileContext';
 
 export default function ProfileSelect() {
   const navigate = useNavigate();
+  const { selectProfile } = useProfile();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,8 +16,8 @@ export default function ProfileSelect() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleSelect = async (id) => {
-    await setActiveProfile(id);
+  const handleSelect = (id) => {
+    selectProfile(id);
     navigate('/kiosk/test-content');
   };
 

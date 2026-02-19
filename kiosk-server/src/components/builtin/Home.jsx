@@ -21,7 +21,7 @@ function getWsUrl() {
 }
 
 function Home() {
-  const { profileId, profiles } = useProfile();
+  const { profileId, profiles, refreshProfiles } = useProfile();
   const parentName = useParentName();
   const [pins, setPins] = useState([]);
   const [placing, setPlacing] = useState(null);
@@ -96,7 +96,9 @@ function Home() {
         ws.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
-            if (data.type === 'bulletin_pin') {
+            if (data.type === 'refresh') {
+              refreshProfiles();
+            } else if (data.type === 'bulletin_pin') {
               if (data.action === 'add') {
                 setPins(prev => {
                   if (prev.some(p => p.id === data.pin.id)) return prev;
@@ -348,7 +350,7 @@ function Home() {
             style={{
               left: `${pin.x}%`,
               top: `${pin.y}%`,
-              transform: `translate(-50%, -50%) rotate(${pin.rotation || 0}deg) scale(0.5)`,
+              transform: `translate(-50%, -50%) rotate(${pin.rotation || 0}deg)`,
               zIndex: pin.id
             }}
           >
@@ -369,7 +371,7 @@ function Home() {
             style={{
               left: `${mousePos.x}%`,
               top: `${mousePos.y}%`,
-              transform: `translate(-50%, -50%) rotate(${placing.rotation}deg) scale(0.5)`,
+              transform: `translate(-50%, -50%) rotate(${placing.rotation}deg)`,
               opacity: 0.7,
               zIndex: 99999,
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))'
@@ -611,21 +613,21 @@ function PostItNote({ content, color = '#fef9c3', profileName, profileIcon, isPa
       }}
     >
       {/* Thumbtack */}
-      <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-10">
         <div className="relative">
           {/* Pin shaft shadow */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-0.5 h-2 bg-gray-400/30 rounded-full" />
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-px h-1 bg-gray-400/30 rounded-full" />
           {/* Pin head */}
-          <div className="w-5 h-5 rounded-full relative"
+          <div className="w-2.5 h-2.5 rounded-full relative"
             style={{
               background: isParent
                 ? 'radial-gradient(circle at 35% 30%, #60a5fa, #2563eb 60%, #1d4ed8)'
                 : 'radial-gradient(circle at 35% 30%, #fb7185, #e11d48 60%, #be123c)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.3), inset 0 -1px 1px rgba(0,0,0,0.2)',
             }}
           >
             {/* Pin highlight */}
-            <div className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full bg-white/40" />
+            <div className="absolute top-0.5 left-0.5 w-1 h-1 rounded-full bg-white/40" />
           </div>
         </div>
       </div>
@@ -661,16 +663,16 @@ function PhotoPin({ content, profileName, profileIcon }) {
   return (
     <div className="relative">
       {/* Thumbtack */}
-      <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute -top-1 left-1/2 -translate-x-1/2 z-10">
         <div className="relative">
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-0.5 h-2 bg-gray-400/30 rounded-full" />
-          <div className="w-5 h-5 rounded-full relative"
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 w-px h-1 bg-gray-400/30 rounded-full" />
+          <div className="w-2.5 h-2.5 rounded-full relative"
             style={{
               background: 'radial-gradient(circle at 35% 30%, #fbbf24, #d97706 60%, #b45309)',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.3), inset 0 -1px 1px rgba(0,0,0,0.2)',
             }}
           >
-            <div className="absolute top-1 left-1.5 w-1.5 h-1.5 rounded-full bg-white/40" />
+            <div className="absolute top-0.5 left-0.5 w-1 h-1 rounded-full bg-white/40" />
           </div>
         </div>
       </div>
@@ -696,14 +698,14 @@ function EmojiPin({ content }) {
   return (
     <div className="relative flex flex-col items-center">
       {/* Thumbtack */}
-      <div className="relative z-10 -mb-1">
-        <div className="w-4 h-4 rounded-full"
+      <div className="relative z-10 -mb-0.5">
+        <div className="w-2 h-2 rounded-full"
           style={{
             background: 'radial-gradient(circle at 35% 30%, #34d399, #059669 60%, #047857)',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 2px rgba(0,0,0,0.2)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.3), inset 0 -1px 1px rgba(0,0,0,0.2)',
           }}
         >
-          <div className="absolute top-0.5 left-1 w-1.5 h-1.5 rounded-full bg-white/40" />
+          <div className="absolute top-px left-px w-1 h-1 rounded-full bg-white/40" />
         </div>
       </div>
       <span className="text-5xl select-none" style={{
