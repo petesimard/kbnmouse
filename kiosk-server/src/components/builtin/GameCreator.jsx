@@ -77,13 +77,15 @@ function GameCard({ game, onClick }) {
 function CreateGameForm({ onSubmit, submitting }) {
   const [name, setName] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [gameType, setGameType] = useState('3d');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim() || !prompt.trim()) return;
-    onSubmit({ name: name.trim(), prompt: prompt.trim() });
+    onSubmit({ name: name.trim(), prompt: prompt.trim(), game_type: gameType });
     setName('');
     setPrompt('');
+    setGameType('3d');
   };
 
   return (
@@ -101,11 +103,41 @@ function CreateGameForm({ onSubmit, submitting }) {
         />
       </div>
       <div>
+        <label className="block text-slate-400 text-sm mb-2">Game Type</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setGameType('3d')}
+            className={`flex-1 px-4 py-3 rounded-lg font-bold text-lg transition-colors border ${
+              gameType === '3d'
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            3D
+          </button>
+          <button
+            type="button"
+            onClick={() => setGameType('2d')}
+            className={`flex-1 px-4 py-3 rounded-lg font-bold text-lg transition-colors border ${
+              gameType === '2d'
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'bg-slate-700 border-slate-600 text-slate-400 hover:bg-slate-600'
+            }`}
+          >
+            2D
+          </button>
+        </div>
+      </div>
+      <div>
         <label className="block text-slate-400 text-sm mb-1">Describe your game idea...</label>
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="A platformer game where a cat jumps over obstacles to collect fish..."
+          placeholder={gameType === '2d'
+            ? "A platformer game where a cat jumps over obstacles to collect fish..."
+            : "A 3D maze where you navigate through colorful tunnels..."
+          }
           rows={4}
           className="w-full px-4 py-3 bg-slate-700 text-white placeholder:text-slate-500 rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500 text-lg resize-none"
           required
@@ -165,14 +197,14 @@ function GameCreator() {
     };
   }, [games, fetchGames]);
 
-  const handleCreate = async ({ name, prompt }) => {
+  const handleCreate = async ({ name, prompt, game_type }) => {
     setSubmitting(true);
     setError('');
     try {
       const res = await fetch('/api/games', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, prompt, profile_id: profileId }),
+        body: JSON.stringify({ name, prompt, profile_id: profileId, game_type }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

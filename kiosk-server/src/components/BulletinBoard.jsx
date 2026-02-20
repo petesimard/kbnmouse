@@ -205,7 +205,7 @@ export default function BulletinBoard({ pins, parentName, placing, onPlaced, onC
       {pins.map(pin => (
         <div
           key={pin.id}
-          className="absolute transition-transform duration-200 group/pin"
+          className={`absolute transition-transform duration-200 group/pin ${onDeletePin ? 'hover:!z-[99998]' : ''}`}
           style={{
             left: `${pin.x}%`,
             top: `${pin.y}%`,

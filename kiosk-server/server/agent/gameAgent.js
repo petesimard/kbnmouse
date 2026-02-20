@@ -30,7 +30,7 @@ function createToolGuard(allowedDir) {
   };
 }
 
-function buildSystemPrompt() {
+function buildThreeJsSystemPrompt() {
   return `You are a game developer creating a fun Three.js browser game for kids.
 
 ## Requirements
@@ -58,6 +58,47 @@ function buildSystemPrompt() {
 - Make sure the game loop runs smoothly`;
 }
 
+function buildPixiJsSystemPrompt() {
+  return `You are a game developer creating a fun PixiJS 2D browser game for kids.
+
+## Requirements
+- Create a complete, playable 2D game as a single index.html file (you may also create separate .js and .css files if needed)
+- Include PixiJS via CDN: <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.2/pixi.min.js"></script>
+- The game must work immediately when index.html is opened in a browser
+- Make the game fun, colorful, and kid-friendly (ages 6-12)
+- Use bright colors, simple controls (keyboard arrows/WASD and mouse/touch), and clear visual feedback
+- Include a simple score or objective system
+- Add a title/instructions screen or overlay
+- Handle window resizing properly
+- Keep the game simple enough for kids but engaging
+
+## PixiJS Guidelines
+- Use PIXI.Application for the main game loop
+- Use PIXI.Graphics for drawing shapes, or PIXI.Sprite for sprite-based elements
+- Draw game assets programmatically with PIXI.Graphics (circles, rectangles, polygons) — do NOT rely on external image files
+- Use PIXI.Text for score displays, titles, and UI text
+- Use PIXI.Container to group related game objects
+- Handle input via keyboard events and PIXI's built-in pointer/touch events
+- Use ticker (app.ticker) for the game loop, not requestAnimationFrame directly
+
+## Style Guidelines
+- Use cheerful, bright colors (no dark/scary themes)
+- Add simple particle effects or animations for visual flair
+- Use clear, large text for any UI elements
+- Include sound effects using the Web Audio API (simple beeps/tones) if appropriate
+
+## Important
+- Write all files to the current working directory using relative paths (e.g. ./index.html, ./game.js)
+- Do NOT use absolute paths — only write files relative to the current directory
+- The game should be self-contained and require no build step
+- Test your HTML by reading it back to verify correctness
+- Make sure the game loop runs smoothly`;
+}
+
+function buildSystemPrompt(gameType) {
+  return gameType === '2d' ? buildPixiJsSystemPrompt() : buildThreeJsSystemPrompt();
+}
+
 async function runClaude(prompt, gameDir, systemPrompt) {
   console.log(`[GameAgent] Running in ${gameDir}`);
   console.log(`[GameAgent] Prompt: ${prompt.substring(0, 200)}...`);
@@ -72,6 +113,7 @@ async function runClaude(prompt, gameDir, systemPrompt) {
       systemPrompt,
       allowedTools: ALLOWED_TOOLS,
       disallowedTools: ['Bash', 'Task', 'TodoWrite'],
+      model: 'claude-sonnet-4-6',
       permissionMode: 'dontAsk',
       canUseTool: createToolGuard(gameDir),
       maxTurns: 30,
@@ -99,13 +141,14 @@ async function runClaude(prompt, gameDir, systemPrompt) {
   return { resultText, wroteFiles };
 }
 
-export async function generateGame(gameId, prompt) {
+export async function generateGame(gameId, prompt, gameType = '3d') {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(gameType);
+  const engine = gameType === '2d' ? 'PixiJS' : 'Three.js';
 
-  const userPrompt = `Create a Three.js game based on this description: ${prompt}
+  const userPrompt = `Create a ${engine} game based on this description: ${prompt}
 
 Write all game files to the current directory. The main file must be named index.html.`;
 
@@ -123,13 +166,14 @@ Write all game files to the current directory. The main file must be named index
   }
 }
 
-export async function updateGame(gameId, prompt) {
+export async function updateGame(gameId, prompt, gameType = '3d') {
   const gameDir = join(dataDir, String(gameId));
   await mkdir(gameDir, { recursive: true });
 
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt(gameType);
+  const engine = gameType === '2d' ? 'PixiJS' : 'Three.js';
 
-  const userPrompt = `Update the existing Three.js game based on this request: ${prompt}
+  const userPrompt = `Update the existing ${engine} game based on this request: ${prompt}
 
 Read the existing files in the current directory first to understand the current game, then make the requested changes. Keep the game working and fun.`;
 

@@ -3,6 +3,54 @@ import { getChallengeComponent } from '../challenges';
 import { useProfile } from '../../contexts/ProfileContext';
 import AppIcon from '../AppIcon';
 
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playCompletionJingle() {
+  try {
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    // Ascending arpeggio: C5 → E5 → G5 → C6
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    const noteLen = 0.15;
+    const gap = 0.1;
+
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + i * (noteLen + gap));
+      gain.gain.linearRampToValueAtTime(0.3, now + i * (noteLen + gap) + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * (noteLen + gap) + noteLen);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * (noteLen + gap));
+      osc.stop(now + i * (noteLen + gap) + noteLen);
+    });
+
+    // Final shimmery chord
+    const chordStart = now + notes.length * (noteLen + gap);
+    [523.25, 659.25, 783.99, 1046.50].forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, chordStart);
+      gain.gain.exponentialRampToValueAtTime(0.001, chordStart + 0.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(chordStart);
+      osc.stop(chordStart + 0.8);
+    });
+  } catch (e) {
+    // Audio not available — no-op
+  }
+}
+
 export const meta = { key: 'challenges', name: 'Challenges', icon: '🏆', description: 'Earn bonus playtime', skipTracking: true };
 
 function ChallengeListScreen({ challenges, bonusMinutes, onSelectChallenge }) {
@@ -86,6 +134,7 @@ function Challenges() {
   }, [fetchData]);
 
   const handleComplete = useCallback(async () => {
+    playCompletionJingle();
     try {
       const res = await fetch('/api/challenges/complete', {
         method: 'POST',
