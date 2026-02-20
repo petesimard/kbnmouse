@@ -78,7 +78,7 @@ export function PhotoPin({ content, profileName, profileIcon }) {
         background: 'white',
         padding: '8px 8px 24px',
         boxShadow: '2px 3px 12px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.08)',
-        width: '160px',
+        width: '200px',
       }}>
         <img src={content} alt="" className="w-full aspect-[4/3] object-cover block" />
         {profileName && (
