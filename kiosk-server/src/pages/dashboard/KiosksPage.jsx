@@ -203,17 +203,7 @@ export default function KiosksPage() {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-medium text-white">Kiosks</h2>
-        <a
-          href="https://github.com/petesimard/kbnmouse?tab=readme-ov-file#quick-install"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
-        >
-          + Add New Kiosk
-        </a>
-      </div>
+      <h2 className="text-lg font-medium text-white mb-6">Kiosks</h2>
 
       <div className="space-y-8">
         {/* Pair a kiosk */}
@@ -253,6 +243,21 @@ export default function KiosksPage() {
           </form>
           {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
           {success && <p className="text-emerald-400 text-sm mt-3">{success}</p>}
+        </div>
+
+        <div className="bg-blue-900/30 border border-blue-700/40 rounded-xl p-4">
+          <p className="text-slate-300 text-sm">
+            You can install the kbnmouse client software on any compatible Linux system to turn it into a kiosk for your kids.{' '}
+            <a
+              href="https://github.com/petesimard/kbnmouse?tab=readme-ov-file#quick-install"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              Follow the installation guide
+            </a>{' '}
+            to get started.
+          </p>
         </div>
 
         {/* Registered kiosks */}
