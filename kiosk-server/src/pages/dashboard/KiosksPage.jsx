@@ -203,7 +203,17 @@ export default function KiosksPage() {
 
   return (
     <>
-      <h2 className="text-lg font-medium text-white mb-6">Kiosks</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-medium text-white">Kiosks</h2>
+        <a
+          href="https://github.com/petesimard/kbnmouse?tab=readme-ov-file#quick-install"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+        >
+          + Add New Kiosk
+        </a>
+      </div>
 
       <div className="space-y-8">
         {/* Pair a kiosk */}
