@@ -46,3 +46,4 @@ kiosk-live/*.iso
 .cache/
 tmp/
 temp/
+.dmux/
