@@ -1,5 +1,5 @@
 {
-  "url": "http://dashboard.kbnmouse.com",
+  "url": "https://dashboard.kbnmouse.com",
   "useBuiltInServer": false,
   "builtInServerPort": 3000,
   "hotReloadWatch": "./public"
