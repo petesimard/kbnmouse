@@ -24,6 +24,7 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
     icon: '👧',
     age: '',
     screen_time_preset: 'medium',
+    pin: '',
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -35,6 +36,7 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
         icon: profile.icon || '👧',
         age: profile.age != null ? String(profile.age) : '',
         screen_time_preset: profile.screen_time_preset || 'medium',
+        pin: profile.pin || '',
       });
     }
   }, [profile]);
@@ -59,7 +61,7 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
 
     setSaving(true);
     try {
-      const data = { ...formData, age: formData.age ? Number(formData.age) : null, screen_time_preset: formData.screen_time_preset };
+      const data = { ...formData, age: formData.age ? Number(formData.age) : null, screen_time_preset: formData.screen_time_preset, pin: formData.pin || '' };
       await onSubmit(data);
     } catch (err) {
       setErrors({ submit: err.message });
@@ -128,6 +130,26 @@ export default function ProfileForm({ profile, onSubmit, onCancel, submitLabel =
         <p className="mt-1 text-slate-500 text-xs">
           {SCREEN_TIME_PRESETS.find(p => p.value === formData.screen_time_preset)?.description}
         </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2">
+          PIN (optional)
+        </label>
+        <input
+          type="text"
+          name="pin"
+          value={formData.pin}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, '').slice(0, 4);
+            setFormData((prev) => ({ ...prev, pin: v }));
+          }}
+          placeholder="4-digit PIN"
+          inputMode="numeric"
+          maxLength={4}
+          className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <p className="mt-1 text-slate-500 text-xs">If set, this PIN is required to select the profile on the kiosk</p>
       </div>
 
       <div>

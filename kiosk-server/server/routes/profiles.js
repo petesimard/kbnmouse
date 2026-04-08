@@ -9,8 +9,18 @@ const router = Router();
 
 // GET /api/profiles - Get profiles for current account
 router.get('/api/profiles', (req, res) => {
-  const profiles = db.prepare('SELECT id, name, icon, sort_order FROM profiles WHERE account_id = ? ORDER BY sort_order').all(req.accountId);
-  res.json(profiles);
+  const profiles = db.prepare('SELECT id, name, icon, sort_order, pin FROM profiles WHERE account_id = ? ORDER BY sort_order').all(req.accountId);
+  res.json(profiles.map(p => ({ ...p, has_pin: !!p.pin, pin: undefined })));
+});
+
+// POST /api/profiles/:id/verify-pin - Verify profile PIN
+router.post('/api/profiles/:id/verify-pin', (req, res) => {
+  const { pin } = req.body;
+  const profile = db.prepare('SELECT id, pin FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  if (!profile.pin) return res.json({ success: true });
+  if (profile.pin === pin) return res.json({ success: true });
+  res.json({ success: false, error: 'Incorrect PIN' });
 });
 
 // GET /api/active-profile - Get active profile (per-kiosk if kiosk request, else per-account)
@@ -71,7 +81,7 @@ router.get('/api/admin/profiles', requireAuth, (req, res) => {
 
 // POST /api/admin/profiles - Create profile
 router.post('/api/admin/profiles', requireAuth, (req, res) => {
-  const { name, icon = '👤', age, screen_time_preset = 'off' } = req.body;
+  const { name, icon = '👤', age, screen_time_preset = 'off', pin } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'name is required' });
   }
@@ -83,7 +93,8 @@ router.post('/api/admin/profiles', requireAuth, (req, res) => {
   const sortOrder = (maxOrder.max || 0) + 1;
 
   const parsedAge = age != null ? Number(age) || null : null;
-  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order, account_id, age, screen_time_preset) VALUES (?, ?, ?, ?, ?, ?)').run(name, icon, sortOrder, req.accountId, parsedAge, preset);
+  const parsedPin = pin ? String(pin) : null;
+  const result = db.prepare('INSERT INTO profiles (name, icon, sort_order, account_id, age, screen_time_preset, pin) VALUES (?, ?, ?, ?, ?, ?, ?)').run(name, icon, sortOrder, req.accountId, parsedAge, preset, parsedPin);
   const profileId = result.lastInsertRowid;
 
   seedProfileDefaults(profileId, parsedAge, preset);
@@ -115,7 +126,7 @@ router.put('/api/admin/profiles/reorder', requireAuth, (req, res) => {
 
 // PUT /api/admin/profiles/:id - Update profile
 router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
-  const { name, icon, age, screen_time_preset } = req.body;
+  const { name, icon, age, screen_time_preset, pin } = req.body;
   const existing = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   if (!existing) {
     return res.status(404).json({ error: 'Profile not found' });
@@ -126,15 +137,18 @@ router.put('/api/admin/profiles/:id', requireAuth, (req, res) => {
   const parsedPreset = screen_time_preset !== undefined
     ? (validPresets.includes(screen_time_preset) ? screen_time_preset : existing.screen_time_preset)
     : undefined;
+  // pin: empty string clears it, undefined leaves unchanged
+  const parsedPin = pin !== undefined ? (pin ? String(pin) : null) : existing.pin;
 
   db.prepare(`
     UPDATE profiles
     SET name = COALESCE(?, name),
         icon = COALESCE(?, icon),
         age = COALESCE(?, age),
-        screen_time_preset = COALESCE(?, screen_time_preset)
+        screen_time_preset = COALESCE(?, screen_time_preset),
+        pin = ?
     WHERE id = ? AND account_id = ?
-  `).run(name, icon, parsedAge !== undefined ? parsedAge : existing.age, parsedPreset !== undefined ? parsedPreset : existing.screen_time_preset, req.params.id, req.accountId);
+  `).run(name, icon, parsedAge !== undefined ? parsedAge : existing.age, parsedPreset !== undefined ? parsedPreset : existing.screen_time_preset, parsedPin, req.params.id, req.accountId);
 
   const updated = db.prepare('SELECT * FROM profiles WHERE id = ? AND account_id = ?').get(req.params.id, req.accountId);
   broadcastRefresh();

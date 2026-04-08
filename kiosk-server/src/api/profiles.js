@@ -28,3 +28,12 @@ export async function setActiveProfile(profileId) {
   });
   return handleResponse(res);
 }
+
+export async function verifyProfilePin(profileId, pin) {
+  const res = await fetch(`/api/profiles/${profileId}/verify-pin`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ pin }),
+  });
+  return handleResponse(res);
+}

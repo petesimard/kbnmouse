@@ -220,6 +220,9 @@ if (!profileCols2.some(c => c.name === 'age')) {
 if (!profileCols2.some(c => c.name === 'screen_time_preset')) {
   db.exec("ALTER TABLE profiles ADD COLUMN screen_time_preset TEXT DEFAULT 'off'");
 }
+if (!profileCols2.some(c => c.name === 'pin')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN pin TEXT DEFAULT NULL');
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
