@@ -23,6 +23,7 @@ import pairingRouter from './routes/pairing.js';
 import messagesRouter from './routes/messages.js';
 import bulletinRouter from './routes/bulletin.js';
 import drawingsRouter from './routes/drawings.js';
+import speechtotextRouter from './routes/speechtotext.js';
 import { requireAnyAuth } from './middleware/auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,7 @@ app.use('/api/games', gamecreatorRouter);
 app.use(messagesRouter);
 app.use(bulletinRouter);
 app.use('/api/drawings', drawingsRouter);
+app.use('/api/speechtotext', speechtotextRouter);
 
 // Serve bulletin photos
 const photosDir = join(__dirname, '..', 'data', 'bulletin-photos');

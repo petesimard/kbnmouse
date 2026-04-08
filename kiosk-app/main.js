@@ -465,6 +465,7 @@ function createWindow() {
     if (permission === 'media') return true;
     return false;
   });
+  session.defaultSession.setDevicePermissionHandler(() => true);
 
   // Inject X-Kiosk-Token header into all BrowserView requests to the kiosk server
   const serverOrigin = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : new URL(KIOSK_URL).origin;
@@ -1137,6 +1138,42 @@ ipcMain.handle('whitelist:set', async (event, domains) => {
   allowedDomains = domains.map((d) => stripWww(String(d).toLowerCase()));
   //console.log('Whitelist updated:', allowedDomains);
   return { success: true };
+});
+
+// --- Audio recording via ffmpeg ---
+let audioProc = null;
+let audioChunks = [];
+
+ipcMain.handle('audio:startRecording', async () => {
+  if (audioProc) return { success: false, error: 'Already recording' };
+  audioChunks = [];
+  audioProc = spawn('ffmpeg', [
+    '-f', 'pulse', '-i', 'default',
+    '-ac', '1', '-ar', '16000',
+    '-f', 'wav', 'pipe:1'
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  audioProc.stdout.on('data', (chunk) => {
+    audioChunks.push(chunk);
+  });
+  audioProc.on('error', (err) => {
+    console.error('[Audio] ffmpeg error:', err.message);
+    audioProc = null;
+  });
+  return { success: true };
+});
+
+ipcMain.handle('audio:stopRecording', async () => {
+  if (!audioProc) return { error: 'Not recording' };
+  return new Promise((resolve) => {
+    audioProc.on('close', () => {
+      const buffer = Buffer.concat(audioChunks);
+      audioProc = null;
+      audioChunks = [];
+      resolve({ audio: buffer.toString('base64') });
+    });
+    audioProc.kill('SIGINT');
+  });
 });
 
 // --- Camera capture via ffmpeg ---

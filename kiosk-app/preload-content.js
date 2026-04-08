@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Audio recording via main process (ffmpeg)
+contextBridge.exposeInMainWorld('kioskAudio', {
+  startRecording: () => ipcRenderer.invoke('audio:startRecording'),
+  stopRecording: () => ipcRenderer.invoke('audio:stopRecording'),
+});
+
 // Minimal preload for content view — only exposes camera capture
 contextBridge.exposeInMainWorld('kioskCamera', {
   capture: () => ipcRenderer.invoke('camera:capture'),
