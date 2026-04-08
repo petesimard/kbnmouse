@@ -4,6 +4,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kioskAudio', {
   startRecording: () => ipcRenderer.invoke('audio:startRecording'),
   stopRecording: () => ipcRenderer.invoke('audio:stopRecording'),
+  onLevel: (callback) => {
+    const handler = (event, level) => callback(level);
+    ipcRenderer.on('audio:level', handler);
+    return () => ipcRenderer.removeListener('audio:level', handler);
+  },
 });
 
 // Minimal preload for content view — only exposes camera capture

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 export const meta = {
   key: 'speechtotext',
@@ -14,8 +14,12 @@ function SpeechToText() {
   const [text, setText] = useState('');
   const [error, setError] = useState(null);
   const [appId, setAppId] = useState(null);
+  const [level, setLevel] = useState(0);
   const mediaRecorder = useRef(null);
   const chunks = useRef([]);
+  const analyserRef = useRef(null);
+  const rafRef = useRef(null);
+  const cleanupLevel = useRef(null);
 
   useEffect(() => {
     async function findApp() {
@@ -27,12 +31,47 @@ function SpeechToText() {
     findApp();
   }, []);
 
+  const stopLevelMonitoring = useCallback(() => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (cleanupLevel.current) {
+      cleanupLevel.current();
+      cleanupLevel.current = null;
+    }
+    analyserRef.current = null;
+    setLevel(0);
+  }, []);
+
+  function startBrowserLevelMonitoring(stream) {
+    const ctx = new AudioContext();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyserRef.current = analyser;
+    const data = new Uint8Array(analyser.frequencyBinCount);
+
+    function poll() {
+      analyser.getByteFrequencyData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) sum += data[i];
+      setLevel(sum / data.length / 255);
+      rafRef.current = requestAnimationFrame(poll);
+    }
+    poll();
+
+    cleanupLevel.current = () => ctx.close();
+  }
+
   async function startRecording() {
     setError(null);
     try {
       if (useIPC) {
         const result = await window.kioskAudio.startRecording();
         if (!result.success) throw new Error(result.error);
+        cleanupLevel.current = window.kioskAudio.onLevel((l) => setLevel(l));
         setStatus('recording');
       } else {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -43,10 +82,12 @@ function SpeechToText() {
         };
         recorder.onstop = () => {
           stream.getTracks().forEach(t => t.stop());
+          stopLevelMonitoring();
           transcribeBlob();
         };
         mediaRecorder.current = recorder;
         recorder.start();
+        startBrowserLevelMonitoring(stream);
         setStatus('recording');
       }
     } catch {
@@ -56,6 +97,7 @@ function SpeechToText() {
 
   async function stopRecording() {
     setStatus('processing');
+    stopLevelMonitoring();
     if (useIPC) {
       const result = await window.kioskAudio.stopRecording();
       if (result.error) {
@@ -115,13 +157,15 @@ function SpeechToText() {
 
   const bgColor = status === 'recording' ? 'bg-red-500' : status === 'processing' ? 'bg-orange-500' : 'bg-indigo-500';
   const ringColor = status === 'recording' ? 'ring-red-400' : status === 'processing' ? 'ring-orange-400' : 'ring-indigo-400';
+  const scale = status === 'recording' ? 1 + level * 1.5 : 1;
 
   return (
-    <div className="flex flex-col items-center justify-start h-full p-6 gap-6 overflow-auto">
+    <div className="flex flex-col items-center justify-start h-full pt-24 px-6 pb-6 gap-6 overflow-auto">
       <button
         onClick={handleMicClick}
         disabled={status === 'processing'}
-        className={`relative w-32 h-32 rounded-full ${bgColor} ring-4 ${ringColor} ring-offset-2 ring-offset-slate-900 flex items-center justify-center transition-all duration-200 ${status === 'processing' ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:scale-105 active:scale-95'} ${status === 'recording' ? 'animate-pulse' : ''}`}
+        style={{ transform: `scale(${scale})`, transition: 'transform 0.1s ease-out' }}
+        className={`relative w-32 h-32 rounded-full ${bgColor} ring-4 ${ringColor} ring-offset-2 ring-offset-slate-900 flex items-center justify-center ${status === 'processing' ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" className="w-16 h-16">
           <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z" />

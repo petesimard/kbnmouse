@@ -1143,10 +1143,24 @@ ipcMain.handle('whitelist:set', async (event, domains) => {
 // --- Audio recording via ffmpeg ---
 let audioProc = null;
 let audioChunks = [];
+let audioHeaderSkipped = false;
+
+function computeRMS(buf) {
+  // 16-bit signed PCM, little-endian
+  const samples = buf.length >> 1;
+  if (samples === 0) return 0;
+  let sum = 0;
+  for (let i = 0; i < buf.length - 1; i += 2) {
+    const s = buf.readInt16LE(i);
+    sum += s * s;
+  }
+  return Math.sqrt(sum / samples) / 32768;
+}
 
 ipcMain.handle('audio:startRecording', async () => {
   if (audioProc) return { success: false, error: 'Already recording' };
   audioChunks = [];
+  audioHeaderSkipped = false;
   audioProc = spawn('ffmpeg', [
     '-f', 'pulse', '-i', 'default',
     '-ac', '1', '-ar', '16000',
@@ -1155,6 +1169,15 @@ ipcMain.handle('audio:startRecording', async () => {
 
   audioProc.stdout.on('data', (chunk) => {
     audioChunks.push(chunk);
+    // Compute level from PCM data (skip 44-byte WAV header on first chunk)
+    let pcm = chunk;
+    if (!audioHeaderSkipped) {
+      pcm = chunk.subarray(44);
+      audioHeaderSkipped = true;
+    }
+    if (pcm.length >= 2 && contentView && !contentView.webContents.isDestroyed()) {
+      contentView.webContents.send('audio:level', computeRMS(pcm));
+    }
   });
   audioProc.on('error', (err) => {
     console.error('[Audio] ffmpeg error:', err.message);
