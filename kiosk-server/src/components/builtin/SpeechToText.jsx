@@ -183,11 +183,11 @@ function SpeechToText() {
         <p className="text-red-400 text-sm text-center max-w-md">{error}</p>
       )}
 
-      <div className="w-full max-w-2xl min-h-[200px] bg-slate-800 rounded-xl p-6 border border-slate-700">
+      <div className="w-full max-w-4xl min-h-[300px] bg-slate-800 rounded-xl p-8 border border-slate-700">
         {text ? (
-          <p className="text-white text-3xl leading-relaxed whitespace-pre-wrap">{text}</p>
+          <p className="text-white leading-relaxed whitespace-pre-wrap" style={{ fontSize: '2.625rem' }}>{text}</p>
         ) : (
-          <p className="text-slate-500 text-lg italic">Your transcribed text will appear here...</p>
+          <p className="text-slate-500 text-xl italic">Your transcribed text will appear here...</p>
         )}
       </div>
     </div>
