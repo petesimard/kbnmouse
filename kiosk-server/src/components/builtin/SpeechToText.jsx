@@ -11,24 +11,42 @@ const useIPC = !!window.kioskAudio;
 
 function SpeechToText() {
   const [status, setStatus] = useState('idle'); // idle | recording | processing
-  const [text, setText] = useState('');
+  const [text, _setText] = useState('');
   const [error, setError] = useState(null);
   const [appId, setAppId] = useState(null);
   const [level, setLevel] = useState(0);
+  const profileIdRef = useRef(null);
   const mediaRecorder = useRef(null);
   const chunks = useRef([]);
   const analyserRef = useRef(null);
   const rafRef = useRef(null);
   const cleanupLevel = useRef(null);
 
+  function setText(value) {
+    _setText(value);
+    if (profileIdRef.current != null) {
+      localStorage.setItem(`speechtotext-${profileIdRef.current}`, value);
+    }
+  }
+
   useEffect(() => {
-    async function findApp() {
-      const res = await fetch('/api/apps');
-      const apps = await res.json();
+    async function init() {
+      const [appsRes, profileRes] = await Promise.all([
+        fetch('/api/apps'),
+        fetch('/api/active-profile'),
+      ]);
+      const apps = await appsRes.json();
       const app = apps.find(a => a.app_type === 'builtin' && a.url === 'speechtotext');
       if (app) setAppId(app.id);
+
+      const { profile_id } = await profileRes.json();
+      profileIdRef.current = profile_id;
+      if (profile_id != null) {
+        const saved = localStorage.getItem(`speechtotext-${profile_id}`);
+        if (saved) _setText(saved);
+      }
     }
-    findApp();
+    init();
   }, []);
 
   const stopLevelMonitoring = useCallback(() => {
