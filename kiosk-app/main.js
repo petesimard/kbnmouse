@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { app, BrowserWindow, BrowserView, ipcMain, screen, session } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, screen, session, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -648,6 +648,7 @@ async function startupConnect() {
   menuView.webContents.loadURL(`${baseURL}/kiosk/menu`);
   pushInstalledApps();
   connectWebSocket();
+  startIdleMonitor();
 }
 
 // Show pairing code on the content view and poll for claim
@@ -717,6 +718,57 @@ let wsReconnectTimer = null;
 let wsPingInterval = null;
 let wsAlive = false;
 const repoRoot = path.resolve(__dirname, '..');
+
+// --- Idle auto-logout ---
+let idleCheckInterval = null;
+
+function startIdleMonitor() {
+  if (idleCheckInterval) return;
+  idleCheckInterval = setInterval(async () => {
+    const apiBase = getApiBaseUrl();
+    try {
+      const [timeoutRes, profilesRes, activeRes] = await Promise.all([
+        fetch(`${apiBase}/api/idle-timeout`, { headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} }),
+        fetch(`${apiBase}/api/profiles`, { headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} }),
+        fetch(`${apiBase}/api/active-profile`, { headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} }),
+      ]);
+      const { minutes } = await timeoutRes.json();
+      if (!minutes || minutes <= 0) return;
+      const profiles = await profilesRes.json();
+      if (!Array.isArray(profiles) || profiles.length <= 1) return;
+      const { profile_id } = await activeRes.json();
+      if (!profile_id) return;
+
+      const idleSeconds = powerMonitor.getSystemIdleTime();
+      if (idleSeconds < minutes * 60) return;
+
+      console.log(`[Idle] ${idleSeconds}s idle, threshold ${minutes}m — logging out`);
+
+      // Kill native app if running
+      if (nativeProcess && nativeProcess.pid) {
+        if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
+        if (killTimer) { clearTimeout(killTimer); killTimer = null; }
+        try { process.kill(-nativeProcess.pid, 'SIGTERM'); } catch {}
+        nativeProcess = null;
+      }
+
+      // Clear active profile
+      await fetch(`${apiBase}/api/active-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(kioskToken ? { 'X-Kiosk-Token': kioskToken } : {}) },
+        body: JSON.stringify({ profile_id: null }),
+      });
+
+      // Navigate to profile select
+      if (contentView && !contentView.webContents.isDestroyed()) {
+        const baseURL = USE_BUILT_IN_SERVER ? `http://localhost:${PORT}` : KIOSK_URL;
+        contentView.webContents.loadURL(`${baseURL}/profiles`);
+      }
+    } catch (err) {
+      // Silently ignore — server may be temporarily unreachable
+    }
+  }, 30000); // Check every 30 seconds
+}
 
 function connectWebSocket() {
   if (!kioskToken) return;
@@ -864,6 +916,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (idleCheckInterval) { clearInterval(idleCheckInterval); idleCheckInterval = null; }
   if (warningTimer) { clearTimeout(warningTimer); warningTimer = null; }
   if (killTimer) { clearTimeout(killTimer); killTimer = null; }
   if (nativeProcess && nativeProcess.pid) {

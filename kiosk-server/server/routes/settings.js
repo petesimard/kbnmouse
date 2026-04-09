@@ -8,6 +8,7 @@ const router = Router();
 const ALLOWED_SETTINGS_KEYS = new Set([
   'google_api_key',
   'parent_name',
+  'idle_timeout_minutes',
 ]);
 
 const DEFAULT_PARENT_NAME = 'Mom & Dad';
@@ -16,6 +17,12 @@ const DEFAULT_PARENT_NAME = 'Mom & Dad';
 router.get('/api/parent-name', (req, res) => {
   const value = getSetting('parent_name', req.accountId);
   res.json({ name: value || DEFAULT_PARENT_NAME });
+});
+
+// GET /api/idle-timeout - Get idle timeout minutes (works with any auth)
+router.get('/api/idle-timeout', (req, res) => {
+  const value = getSetting('idle_timeout_minutes', req.accountId);
+  res.json({ minutes: value != null ? Number(value) : 10 });
 });
 
 // POST /api/admin/bonus-time - Manually add bonus time

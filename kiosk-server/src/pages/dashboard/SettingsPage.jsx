@@ -13,10 +13,16 @@ export default function SettingsPage() {
   const [parentNameError, setParentNameError] = useState('');
   const [parentNameSuccess, setParentNameSuccess] = useState('');
 
+  // Idle timeout state
+  const [idleTimeout, setIdleTimeout] = useState(null);
+  const [idleTimeoutSaving, setIdleTimeoutSaving] = useState(false);
+  const [idleTimeoutSuccess, setIdleTimeoutSuccess] = useState('');
+
   // Sync settings into local state once loaded
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   if (!settingsLoading && !settingsLoaded) {
     setParentName(settings.parent_name || 'Mom & Dad');
+    setIdleTimeout(settings.idle_timeout_minutes ?? '10');
     setSettingsLoaded(true);
   }
 
@@ -105,6 +111,45 @@ export default function SettingsPage() {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
             >
               {parentNameSaving ? 'Saving...' : 'Save'}
+            </button>
+          </form>
+        </div>
+
+        {/* Idle Auto-Logout */}
+        <div className="bg-slate-800 rounded-xl p-5">
+          <h3 className="text-white font-medium mb-4">Idle Auto-Logout</h3>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setIdleTimeoutSaving(true);
+            setIdleTimeoutSuccess('');
+            try {
+              await updateSettings({ idle_timeout_minutes: String(idleTimeout) });
+              setIdleTimeoutSuccess('Saved');
+            } catch {} finally {
+              setIdleTimeoutSaving(false);
+            }
+          }} className="space-y-4 max-w-sm">
+            <div>
+              <label className="block text-slate-400 text-sm mb-1">Minutes of inactivity</label>
+              <input
+                type="number"
+                value={idleTimeout ?? ''}
+                onChange={(e) => setIdleTimeout(e.target.value)}
+                min="0"
+                placeholder="10"
+                className="w-full px-3 py-2 bg-slate-700 text-white rounded-lg border border-slate-600 focus:outline-none focus:border-blue-500"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                If the computer is idle for this long, the active profile is logged out and the profile selection screen is shown. Set to 0 to disable. Only applies when there are multiple profiles.
+              </p>
+            </div>
+            {idleTimeoutSuccess && <p className="text-emerald-400 text-sm">{idleTimeoutSuccess}</p>}
+            <button
+              type="submit"
+              disabled={idleTimeoutSaving || !settingsLoaded}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg transition-colors"
+            >
+              {idleTimeoutSaving ? 'Saving...' : 'Save'}
             </button>
           </form>
         </div>
