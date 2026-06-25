@@ -90,6 +90,73 @@ app.use('/customgames', (req, res, next) => {
     .catch(() => gamesStatic(req, res, next));
 }, gamesStatic);
 
+// Public rotating 3D preview of a generated game's procedural mesh module.
+// Reads texture associations from the game's manifest.json on disk (no DB/auth),
+// then renders the mesh via the same Three.js importmap the game uses.
+app.get('/gamepreview/:id', async (req, res) => {
+  const { id } = req.params;
+  const file = String(req.query.file || '');
+  if (!file.startsWith('meshes/') || file.includes('..')) return res.status(400).end();
+  let textureFiles = [];
+  try {
+    const manifest = JSON.parse(await readFile(join(gamesDir, id, 'manifest.json'), 'utf8'));
+    const mesh = (manifest.meshes || []).find((m) => m.file === file);
+    textureFiles = mesh?.textures ?? [];
+  } catch { /* mesh may have no manifest entry yet */ }
+
+  const autoRotate = req.query.spin === '0' ? 'false' : 'true';
+  const bg = typeof req.query.bg === 'string' ? req.query.bg : '#eef2f7';
+
+  res.type('html').send(`<!doctype html>
+<html><head><meta charset="utf-8"/>
+<style>html,body{margin:0;height:100%;background:${bg};overflow:hidden;}canvas{display:block;}#err{position:absolute;inset:8px;font:12px monospace;color:#b91c1c;white-space:pre-wrap;}</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+</head><body>
+<div id="err"></div>
+<script type="module">
+try {
+  const GAME = ${JSON.stringify(id)};
+  const FILE = ${JSON.stringify(file)};
+  const TEX_FILES = ${JSON.stringify(textureFiles)};
+  const AUTO_ROTATE = ${autoRotate};
+  const THREE = await import('three');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+  const mod = await import('/customgames/' + GAME + '/' + FILE + '?t=' + Date.now());
+  const loader = new THREE.TextureLoader();
+  const textures = {};
+  await Promise.all(TEX_FILES.map((f) => new Promise((resolve) => {
+    loader.load('/customgames/' + GAME + '/' + f, (t) => { textures[f] = t; resolve(); }, undefined, () => resolve());
+  })));
+  const obj = mod.build(textures);
+  const scene = new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(5, 10, 7); scene.add(dl);
+  scene.add(obj);
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3()).length() || 2;
+  const center = box.getCenter(new THREE.Vector3());
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 1000);
+  camera.position.set(center.x + size * 1.4, center.y + size * 0.8, center.z + size * 1.4);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(devicePixelRatio);
+  document.body.appendChild(renderer.domElement);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(center); controls.update();
+  controls.autoRotate = AUTO_ROTATE; controls.autoRotateSpeed = 1.6;
+  function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); }
+  loop();
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+} catch (e) {
+  document.getElementById('err').textContent = String(e && (e.stack || e.message) || e);
+}
+</script>
+</body></html>`);
+});
+
 // In production, serve the built React frontend
 if (isProduction && existsSync(distDir)) {
   app.use(express.static(distDir));

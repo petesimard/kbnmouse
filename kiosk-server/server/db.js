@@ -482,6 +482,40 @@ db.exec("CREATE INDEX IF NOT EXISTS idx_custom_games_profile ON custom_games(pro
   }
 }
 
+// Game generation jobs (per-game serial queue) and assets (textures/meshes).
+// game_id references custom_games.id. Source of truth for assets is each game's
+// manifest.json on disk; these rows are derived state synced after every job.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS game_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    description TEXT,
+    log TEXT,
+    error TEXT,
+    commit_hash TEXT,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS game_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    file TEXT NOT NULL,
+    prompt TEXT,
+    status TEXT NOT NULL,
+    error TEXT,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(game_id, file)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_game_jobs_game ON game_jobs(game_id, id);
+  CREATE INDEX IF NOT EXISTS idx_game_assets_game ON game_assets(game_id);
+`);
+
 // Create messages table
 db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
